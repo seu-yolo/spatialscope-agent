@@ -36,16 +36,17 @@ def _summary_from_adata(adata: Any) -> dict[str, Any]:
 
 
 def load_h5ad(path: str) -> tuple[Any, ToolResult]:
-    try:
-        import anndata as ad
-    except Exception as exc:
-        raise missing_dependency("anndata", "reading .h5ad files") from exc
-
     data_path = Path(path)
     if not data_path.exists():
         return None, ToolResult(status="failed", summary=f"Data file not found: {path}", errors=[path])
     if data_path.suffix != ".h5ad":
         return None, ToolResult(status="failed", summary="SpatialScope v1 expects an .h5ad file.", errors=[path])
+
+    try:
+        import anndata as ad
+    except Exception as exc:
+        err = missing_dependency("anndata", "reading .h5ad files")
+        return None, ToolResult(status="failed", summary=str(err), errors=[f"{type(exc).__name__}: {exc}"])
 
     adata = ad.read_h5ad(data_path)
     summary = _summary_from_adata(adata)
@@ -55,4 +56,3 @@ def load_h5ad(path: str) -> tuple[Any, ToolResult]:
         summary=f"Loaded {data_path.name}: {adata.n_obs} observations x {adata.n_vars} genes.",
         observations={"dataset_summary": summary},
     )
-

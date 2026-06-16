@@ -7,7 +7,7 @@ import streamlit as st
 from spatialscope.agent.graph import run_agent
 
 
-st.set_page_config(page_title="SpatialScope Agent", page_icon="◌", layout="wide")
+st.set_page_config(page_title="SpatialScope Agent", page_icon="S", layout="wide")
 
 st.title("SpatialScope Agent")
 st.caption("From spatial transcriptomics data to traceable scientific insight.")
@@ -100,4 +100,3 @@ with report_tab:
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         if metadata_path.exists():
             st.download_button("Download run_metadata.json", metadata_path.read_bytes(), file_name="run_metadata.json")
-
