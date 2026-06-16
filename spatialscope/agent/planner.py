@@ -9,7 +9,13 @@ from spatialscope.agent.state import RunMode
 GENE_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]{1,20}\b")
 STOPWORDS = {
     "Run",
+    "Plot",
+    "Do",
+    "Find",
     "run",
+    "plot",
+    "do",
+    "find",
     "quick",
     "standard",
     "advanced",
@@ -75,4 +81,3 @@ def make_plan(parsed_request: dict[str, Any], mode: RunMode) -> list[dict[str, A
         )
 
     return plan
-
