@@ -1,0 +1,29 @@
+name: spatialscope-agent
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - anndata
+  - scanpy
+  - squidpy
+  - leidenalg
+  - python-igraph
+  - pip:
+      - streamlit
+      - langgraph
+      - openai
+      - python-dotenv
+      - pydantic
+      - plotly
+      - rapidfuzz
+      - jinja2
+      - pytest
+      - pyyaml
+

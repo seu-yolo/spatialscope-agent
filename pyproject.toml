@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spatialscope-agent"
+version = "0.1.0"
+description = "A DeepSeek-powered LangGraph agent for reproducible spatial transcriptomics exploration."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "streamlit",
+  "langgraph",
+  "openai",
+  "python-dotenv",
+  "pydantic",
+  "scanpy",
+  "squidpy",
+  "anndata",
+  "pandas",
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "seaborn",
+  "plotly",
+  "rapidfuzz",
+  "jinja2",
+  "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["spatialscope*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+

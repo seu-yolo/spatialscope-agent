@@ -1,0 +1,5 @@
+mode: quick
+query: Run quick spatial analysis and plot GeneA, GeneB, GeneC.
+data: data/demo_tiny.h5ad
+outdir: outputs/runs
+
