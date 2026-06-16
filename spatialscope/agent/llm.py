@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from typing import Any
+
+from spatialscope.utils.json_utils import extract_json_object
+
+
+SYSTEM_PROMPT = """You are SpatialScope Agent, a spatial transcriptomics analysis assistant.
+You plan and explain reproducible AnnData/Scanpy/Squidpy workflows.
+Rules:
+1. Never fabricate biological conclusions, gene markers, figures, tables, or statistics.
+2. Use only tool summaries, table excerpts, and figure captions when writing interpretations.
+3. Do not request full expression matrices or raw coordinate matrices.
+4. Treat cluster interpretation as marker-based candidate suggestion, not confirmed annotation.
+5. Return valid JSON when JSON is requested.
+"""
+
+
+@dataclass
+class DeepSeekClient:
+    api_key: str | None = None
+    base_url: str = "https://api.deepseek.com"
+    model: str = "deepseek-v4-flash"
+
+    @classmethod
+    def from_env(cls) -> "DeepSeekClient":
+        return cls(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            model=os.getenv("SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash"),
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+    def _client(self) -> Any:
+        if not self.api_key:
+            raise RuntimeError("DEEPSEEK_API_KEY is not configured.")
+        try:
+            from openai import OpenAI
+        except Exception as exc:
+            raise RuntimeError("The `openai` package is required for DeepSeek API access.") from exc
+        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+    def complete(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> str:
+        client = self._client()
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
+            temperature=temperature,
+        )
+        content = response.choices[0].message.content
+        if not content:
+            raise RuntimeError("DeepSeek returned an empty response.")
+        return content
+
+    def complete_json(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> dict[str, Any]:
+        last_error: Exception | None = None
+        for _ in range(2):
+            try:
+                content = self.complete(messages, temperature=temperature)
+                return extract_json_object(content)
+            except Exception as exc:  # noqa: BLE001 - retry parser failures
+                last_error = exc
+                messages = [
+                    *messages,
+                    {
+                        "role": "user",
+                        "content": "Return only one valid JSON object. Do not include Markdown fences.",
+                    },
+                ]
+        raise RuntimeError(f"Could not parse JSON response from DeepSeek: {last_error}")
+
+
+def parse_query_with_llm(client: DeepSeekClient, query: str) -> dict[str, Any]:
+    if not client.enabled:
+        raise RuntimeError("DeepSeek client is disabled.")
+    return client.complete_json(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "Parse this spatial transcriptomics request. Return JSON with keys: "
+                    "intent, requested_steps, genes, preferred_mode, notes.\n\n"
+                    f"Request: {query}"
+                ),
+            }
+        ]
+    )
+
+
+def interpret_with_llm(
+    client: DeepSeekClient,
+    *,
+    query: str,
+    dataset_summary: dict[str, Any],
+    tool_summaries: list[dict[str, Any]],
+) -> str:
+    if not client.enabled:
+        raise RuntimeError("DeepSeek client is disabled.")
+    content = client.complete(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "Write a concise scientific interpretation for this spatial transcriptomics run. "
+                    "Use cautious language. Do not infer mechanisms. Ground every statement in the "
+                    "provided summaries.\n\n"
+                    f"User query: {query}\n"
+                    f"Dataset summary: {dataset_summary}\n"
+                    f"Tool summaries: {tool_summaries[-12:]}"
+                ),
+            }
+        ],
+        temperature=0.2,
+    )
+    return content.strip()
+
