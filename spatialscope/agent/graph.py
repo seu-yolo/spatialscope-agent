@@ -17,7 +17,7 @@ from spatialscope.tools.qc_tools import run_qc
 from spatialscope.tools.report_tools import generate_report
 from spatialscope.tools.spatial_tools import plot_gene_panel, plot_spatial, plot_umap
 from spatialscope.tools.svg_tools import run_svg
-from spatialscope.utils.paths import ensure_run_dirs, environment_summary, make_run_id
+from spatialscope.utils.paths import ensure_run_dirs, environment_summary, make_run_id, write_json
 
 
 ToolFunc = Callable[..., ToolResult]
@@ -198,29 +198,11 @@ def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
 
 
 def report_node(state: SpatialAgentState) -> SpatialAgentState:
-    state.setdefault("execution_trace", []).append(
-        {
-            "run_id": state.get("run_id"),
-            "node": "generate_report",
-            "tool": "generate_report",
-            "params": {},
-            "status": "running",
-            "summary": "Generating report and reproducibility bundle.",
-            "warnings": [],
-            "errors": [],
-            "duration_sec": 0,
-        }
-    )
+    start = time.time()
     result = generate_report(state)
     state["report_path"] = result.observations.get("report_path")
-    state["execution_trace"][-1].update(
-        {
-            "status": result.status,
-            "summary": result.summary,
-            "warnings": result.warnings,
-            "errors": result.errors,
-        }
-    )
+    _record_trace(state, node="generate_report", tool="generate_report", params={}, result=result, duration=time.time() - start)
+    write_json(Path(state["run_dir"]) / "agent_trace.json", state.get("execution_trace", []))
     return state
 
 
