@@ -122,6 +122,7 @@ def execute_tool_node(state: SpatialAgentState) -> SpatialAgentState:
     if index >= len(plan):
         state["current_step"] = "complete"
         state["needs_repair"] = False
+        state["last_result"] = ToolResult(status="success", summary="No remaining workflow steps.").to_dict()
         return state
 
     step = plan[index]
