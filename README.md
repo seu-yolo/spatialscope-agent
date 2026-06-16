@@ -1,10 +1,10 @@
 # SpatialScope Agent
 
-SpatialScope Agent is a DeepSeek-powered, LangGraph-orchestrated workspace for spatial transcriptomics exploration. It turns a natural-language request into a traceable Scanpy/Squidpy workflow with figures, tables, interpretation, and a reproducibility bundle.
+SpatialScope Agent is an OpenAI-compatible LLM-powered, LangGraph-orchestrated workspace for spatial transcriptomics exploration. It turns a natural-language request into a traceable Scanpy/Squidpy workflow with figures, tables, interpretation, and a reproducibility bundle.
 
 ## Features
 
-- DeepSeek-only LLM interface using `deepseek-v4-flash`
+- OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
 - LangGraph workflow with a deterministic fallback runner
 - Structured LLM parsing/planning with Pydantic validation and rule-based fallback
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
@@ -38,12 +38,14 @@ structured warnings instead of crashing.
 Edit `.env`:
 
 ```bash
-DEEPSEEK_API_KEY=...
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-SPATIALSCOPE_LLM_MODEL=deepseek-v4-flash
+SPATIALSCOPE_LLM_API_KEY=...
+SPATIALSCOPE_LLM_BASE_URL=...
+SPATIALSCOPE_LLM_MODEL=glm-5.1
 ```
 
-If no API key is configured, SpatialScope still runs a rule-based demo planner for smoke tests.
+Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`
+file is ignored by Git. If no API key is configured, SpatialScope still runs a
+rule-based demo planner for smoke tests.
 
 ## Agent Architecture
 
@@ -56,9 +58,9 @@ parse_request -> inspect_dataset -> plan_analysis -> preview_plan
 ```
 
 The tool layer is registry-driven. Each analysis tool exposes a contract with
-preconditions, postconditions, common failures, and repair strategies. DeepSeek can
-use these contracts to generate structured analysis plans, while the deterministic
-planner keeps demos reproducible when no API key is available.
+preconditions, postconditions, common failures, and repair strategies. The configured
+LLM can use these contracts to generate structured analysis plans, while the
+deterministic planner keeps demos reproducible when no API key is available.
 
 The LLM never receives raw expression matrices or raw coordinate matrices. It only
 sees dataset summaries, tool contracts, execution summaries, figure/table metadata,

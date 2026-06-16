@@ -5,7 +5,7 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Callable
 
-from spatialscope.agent.llm import DeepSeekClient, interpret_with_llm, parse_query_with_llm, plan_with_llm
+from spatialscope.agent.llm import LLMClient, interpret_with_llm, parse_query_with_llm, plan_with_llm
 from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, validate_plan_steps
 from spatialscope.agent.state import RunMode, SpatialAgentState, initial_state
 from spatialscope.tools.base import ToolResult, safe_tool_call
@@ -56,7 +56,7 @@ def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
         load_dotenv()
     except Exception:
         pass
-    client = DeepSeekClient.from_env()
+    client = LLMClient.from_env()
     parsed: dict[str, Any]
     if client.enabled:
         try:
@@ -64,7 +64,7 @@ def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
             state["llm_enabled"] = True
         except Exception as exc:  # noqa: BLE001
             parsed = fallback_parse_query(state["user_query"], state["mode"])
-            state.setdefault("warnings", []).append(f"DeepSeek parsing failed; fallback parser used: {exc}")
+            state.setdefault("warnings", []).append(f"LLM parsing failed; fallback parser used: {exc}")
             state["llm_enabled"] = False
     else:
         parsed = fallback_parse_query(state["user_query"], state["mode"])
@@ -89,7 +89,7 @@ def inspect_dataset_node(state: SpatialAgentState) -> SpatialAgentState:
 def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
     tool_contracts = list_tool_contracts()
     state["tool_contracts"] = tool_contracts
-    client = DeepSeekClient.from_env()
+    client = LLMClient.from_env()
     if client.enabled:
         try:
             plan = plan_with_llm(
@@ -106,7 +106,7 @@ def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
             state["llm_enabled"] = True
             return state
         except Exception as exc:  # noqa: BLE001
-            state.setdefault("warnings", []).append(f"DeepSeek planning failed; rule-based plan used: {exc}")
+            state.setdefault("warnings", []).append(f"LLM planning failed; rule-based plan used: {exc}")
 
     plan_model = make_analysis_plan(state.get("parsed_request", {}), state["mode"])
     state["task_plan"] = [step.model_dump() for step in plan_model.steps]
@@ -198,7 +198,7 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
 
 
 def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
-    client = DeepSeekClient.from_env()
+    client = LLMClient.from_env()
     tool_summaries = state.get("execution_trace", [])
     if client.enabled:
         try:
@@ -211,7 +211,7 @@ def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
             state["llm_enabled"] = True
             return state
         except Exception as exc:  # noqa: BLE001
-            state.setdefault("warnings", []).append(f"DeepSeek interpretation failed; fallback summary used: {exc}")
+            state.setdefault("warnings", []).append(f"LLM interpretation failed; fallback summary used: {exc}")
     success_count = sum(1 for item in tool_summaries if item.get("status") == "success")
     state["final_answer"] = (
         f"SpatialScope completed {success_count} successful tool steps in {state.get('mode')} mode. "

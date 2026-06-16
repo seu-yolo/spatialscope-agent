@@ -1,6 +1,6 @@
 # SpatialScope Agent v1 Plan
 
-SpatialScope Agent is a research-grade spatial transcriptomics exploration workspace. It uses DeepSeek `deepseek-v4-flash` for natural-language planning and interpretation, LangGraph for inspectable workflow orchestration, and Scanpy/Squidpy for deterministic scientific analysis.
+SpatialScope Agent is a research-grade spatial transcriptomics exploration workspace. It uses an OpenAI-compatible LLM such as GLM 5.1 for natural-language planning and interpretation, LangGraph for inspectable workflow orchestration, and Scanpy/Squidpy for deterministic scientific analysis.
 
 Core product:
 

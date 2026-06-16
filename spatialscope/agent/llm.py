@@ -28,13 +28,20 @@ Rules:
 
 
 @dataclass
-class DeepSeekClient:
+class LLMClient:
     api_key: str | None = None
-    base_url: str = "https://api.deepseek.com"
-    model: str = "deepseek-v4-flash"
+    base_url: str = ""
+    model: str = "glm-5.1"
 
     @classmethod
-    def from_env(cls) -> "DeepSeekClient":
+    def from_env(cls) -> "LLMClient":
+        generic_api_key = os.getenv("SPATIALSCOPE_LLM_API_KEY")
+        if generic_api_key:
+            return cls(
+                api_key=generic_api_key,
+                base_url=os.getenv("SPATIALSCOPE_LLM_BASE_URL", ""),
+                model=os.getenv("SPATIALSCOPE_LLM_MODEL", "glm-5.1"),
+            )
         return cls(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
@@ -47,11 +54,13 @@ class DeepSeekClient:
 
     def _client(self) -> Any:
         if not self.api_key:
-            raise RuntimeError("DEEPSEEK_API_KEY is not configured.")
+            raise RuntimeError("SPATIALSCOPE_LLM_API_KEY is not configured.")
+        if not self.base_url:
+            raise RuntimeError("SPATIALSCOPE_LLM_BASE_URL is not configured.")
         try:
             from openai import OpenAI
         except Exception as exc:
-            raise RuntimeError("The `openai` package is required for DeepSeek API access.") from exc
+            raise RuntimeError("The `openai` package is required for OpenAI-compatible LLM access.") from exc
         return OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     def complete(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> str:
@@ -63,7 +72,7 @@ class DeepSeekClient:
         )
         content = response.choices[0].message.content
         if not content:
-            raise RuntimeError("DeepSeek returned an empty response.")
+            raise RuntimeError("The configured LLM returned an empty response.")
         return content
 
     def complete_json(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> dict[str, Any]:
@@ -81,12 +90,15 @@ class DeepSeekClient:
                         "content": "Return only one valid JSON object. Do not include Markdown fences.",
                     },
                 ]
-        raise RuntimeError(f"Could not parse JSON response from DeepSeek: {last_error}")
+        raise RuntimeError(f"Could not parse JSON response from the configured LLM: {last_error}")
 
 
-def parse_query_with_llm(client: DeepSeekClient, query: str) -> dict[str, Any]:
+DeepSeekClient = LLMClient
+
+
+def parse_query_with_llm(client: LLMClient, query: str) -> dict[str, Any]:
     if not client.enabled:
-        raise RuntimeError("DeepSeek client is disabled.")
+        raise RuntimeError("LLM client is disabled.")
     payload = client.complete_json(
         [
             {
@@ -105,7 +117,7 @@ def parse_query_with_llm(client: DeepSeekClient, query: str) -> dict[str, Any]:
 
 
 def plan_with_llm(
-    client: DeepSeekClient,
+    client: LLMClient,
     *,
     query: str,
     parsed_request: dict[str, Any],
@@ -114,7 +126,7 @@ def plan_with_llm(
     tool_contracts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     if not client.enabled:
-        raise RuntimeError("DeepSeek client is disabled.")
+        raise RuntimeError("LLM client is disabled.")
     payload = client.complete_json(
         [
             {
@@ -144,19 +156,19 @@ def plan_with_llm(
     allowed = available_tool_names()
     for step in plan.steps:
         if step.tool not in allowed:
-            raise ValueError(f"DeepSeek proposed an unknown tool: {step.tool}")
+            raise ValueError(f"The configured LLM proposed an unknown tool: {step.tool}")
     return plan.model_dump()
 
 
 def interpret_with_llm(
-    client: DeepSeekClient,
+    client: LLMClient,
     *,
     query: str,
     dataset_summary: dict[str, Any],
     tool_summaries: list[dict[str, Any]],
 ) -> str:
     if not client.enabled:
-        raise RuntimeError("DeepSeek client is disabled.")
+        raise RuntimeError("LLM client is disabled.")
     content = client.complete(
         [
             {
