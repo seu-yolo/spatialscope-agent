@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 import os
+import json
 from dataclasses import dataclass
 from typing import Any
 
+from spatialscope.agent.schemas import (
+    AnalysisPlan,
+    ParsedRequest,
+    analysis_plan_json_schema,
+    parsed_request_json_schema,
+)
+from spatialscope.agent.state import RunMode
+from spatialscope.tools.registry import available_tool_names
 from spatialscope.utils.json_utils import extract_json_object
 
 
@@ -78,18 +87,65 @@ class DeepSeekClient:
 def parse_query_with_llm(client: DeepSeekClient, query: str) -> dict[str, Any]:
     if not client.enabled:
         raise RuntimeError("DeepSeek client is disabled.")
-    return client.complete_json(
+    payload = client.complete_json(
         [
             {
                 "role": "user",
                 "content": (
-                    "Parse this spatial transcriptomics request. Return JSON with keys: "
-                    "intent, requested_steps, genes, preferred_mode, notes.\n\n"
+                    "Parse this spatial transcriptomics request into the required JSON schema. "
+                    "Only include genes explicitly requested by the user. Do not treat words like "
+                    "marker, cluster, spatial, variable, panel, or analysis as gene names.\n\n"
+                    f"JSON schema:\n{json.dumps(parsed_request_json_schema(), ensure_ascii=False)}\n\n"
                     f"Request: {query}"
                 ),
             }
         ]
     )
+    return ParsedRequest.model_validate(payload).model_dump()
+
+
+def plan_with_llm(
+    client: DeepSeekClient,
+    *,
+    query: str,
+    parsed_request: dict[str, Any],
+    dataset_summary: dict[str, Any],
+    mode: RunMode,
+    tool_contracts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not client.enabled:
+        raise RuntimeError("DeepSeek client is disabled.")
+    payload = client.complete_json(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "Generate a reproducible SpatialScope analysis plan. Return one JSON object "
+                    "matching the AnalysisPlan schema. Use only tools from the provided registry. "
+                    "Do not invent tools. Keep parameters conservative. Mark Squidpy-dependent "
+                    "steps as optional when mode is advanced.\n\n"
+                    f"AnalysisPlan JSON schema:\n{json.dumps(analysis_plan_json_schema(), ensure_ascii=False)}\n\n"
+                    f"Allowed tools: {sorted(available_tool_names())}\n\n"
+                    f"Tool contracts: {json.dumps(tool_contracts, ensure_ascii=False)}\n\n"
+                    f"User query: {query}\n"
+                    f"Parsed request: {json.dumps(parsed_request, ensure_ascii=False)}\n"
+                    f"Dataset summary: {json.dumps(dataset_summary, ensure_ascii=False, default=str)}\n"
+                    f"Requested mode: {mode}"
+                ),
+            }
+        ],
+        temperature=0.05,
+    )
+    if "steps" not in payload and "plan" in payload:
+        payload["steps"] = payload.pop("plan")
+    payload.setdefault("mode", mode)
+    payload["source"] = "llm"
+    plan = AnalysisPlan.model_validate(payload)
+    allowed = available_tool_names()
+    for step in plan.steps:
+        if step.tool not in allowed:
+            raise ValueError(f"DeepSeek proposed an unknown tool: {step.tool}")
+    return plan.model_dump()
 
 
 def interpret_with_llm(
@@ -118,4 +174,3 @@ def interpret_with_llm(
         temperature=0.2,
     )
     return content.strip()
-

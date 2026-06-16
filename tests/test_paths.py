@@ -1,4 +1,4 @@
-from spatialscope.utils.paths import ensure_run_dirs, write_json, write_yaml_simple
+from spatialscope.utils.paths import ensure_run_dirs, make_run_id, write_json, write_yaml_simple
 
 
 def test_run_dirs_and_writers(tmp_path):
@@ -10,3 +10,7 @@ def test_run_dirs_and_writers(tmp_path):
     assert (dirs["run_dir"] / "x.json").exists()
     assert (dirs["run_dir"] / "x.yaml").exists()
 
+
+def test_run_ids_are_collision_resistant():
+    run_ids = {make_run_id() for _ in range(20)}
+    assert len(run_ids) == 20

@@ -16,6 +16,9 @@ class SpatialAgentState(TypedDict, total=False):
     dataset_summary: dict[str, Any]
     task_plan: list[dict[str, Any]]
     approved_plan: list[dict[str, Any]]
+    plan_source: str
+    plan_rationale: str
+    tool_contracts: list[dict[str, Any]]
     current_step: str
     current_step_index: int
     parameters: dict[str, Any]
@@ -63,6 +66,9 @@ def initial_state(
         "dataset_summary": {},
         "task_plan": [],
         "approved_plan": [],
+        "plan_source": "rule_based",
+        "plan_rationale": "",
+        "tool_contracts": [],
         "current_step": "",
         "current_step_index": 0,
         "parameters": {"mode": mode},
@@ -86,4 +92,3 @@ def initial_state(
         "last_result": {},
         "needs_repair": False,
     }
-

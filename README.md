@@ -6,6 +6,8 @@ SpatialScope Agent is a DeepSeek-powered, LangGraph-orchestrated workspace for s
 
 - DeepSeek-only LLM interface using `deepseek-v4-flash`
 - LangGraph workflow with a deterministic fallback runner
+- Structured LLM parsing/planning with Pydantic validation and rule-based fallback
+- Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
@@ -43,6 +45,25 @@ SPATIALSCOPE_LLM_MODEL=deepseek-v4-flash
 
 If no API key is configured, SpatialScope still runs a rule-based demo planner for smoke tests.
 
+## Agent Architecture
+
+SpatialScope uses a LangGraph state machine:
+
+```text
+parse_request -> inspect_dataset -> plan_analysis -> preview_plan
+-> execute_tool -> validate_result -> repair_or_continue
+-> interpret -> report
+```
+
+The tool layer is registry-driven. Each analysis tool exposes a contract with
+preconditions, postconditions, common failures, and repair strategies. DeepSeek can
+use these contracts to generate structured analysis plans, while the deterministic
+planner keeps demos reproducible when no API key is available.
+
+The LLM never receives raw expression matrices or raw coordinate matrices. It only
+sees dataset summaries, tool contracts, execution summaries, figure/table metadata,
+and warnings/errors.
+
 ## Demo Data
 
 Generate a tiny synthetic spatial AnnData file:
@@ -70,8 +91,8 @@ streamlit run app.py
 
 Navigation:
 
-1. Start: upload data and enter a task.
-2. Analyze: preview the plan and execute it.
+1. Start: upload data, enter a task, and generate a draft plan.
+2. Analyze: review/edit plan JSON, validate it, and execute the approved plan.
 3. Explore: inspect figures and tables.
 4. Report: download the reproducibility bundle.
 

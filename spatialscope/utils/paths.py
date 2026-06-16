@@ -5,6 +5,7 @@ import json
 import os
 import platform
 import sys
+import uuid
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -12,7 +13,8 @@ from typing import Any
 
 
 def make_run_id() -> str:
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return f"{timestamp}_{uuid.uuid4().hex[:6]}"
 
 
 def ensure_run_dirs(outdir: str | Path, run_id: str) -> dict[str, Path]:

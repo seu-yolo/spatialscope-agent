@@ -5,19 +5,13 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Callable
 
-from spatialscope.agent.llm import DeepSeekClient, interpret_with_llm, parse_query_with_llm
-from spatialscope.agent.planner import fallback_parse_query, make_plan
+from spatialscope.agent.llm import DeepSeekClient, interpret_with_llm, parse_query_with_llm, plan_with_llm
+from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, validate_plan_steps
 from spatialscope.agent.state import RunMode, SpatialAgentState, initial_state
 from spatialscope.tools.base import ToolResult, safe_tool_call
-from spatialscope.tools.clustering_tools import run_clustering
 from spatialscope.tools.io_tools import load_h5ad
-from spatialscope.tools.marker_tools import rank_markers
-from spatialscope.tools.neighborhood_tools import run_neighborhood_enrichment
-from spatialscope.tools.preprocess_tools import run_preprocess
-from spatialscope.tools.qc_tools import run_qc
 from spatialscope.tools.report_tools import generate_report
-from spatialscope.tools.spatial_tools import plot_gene_panel, plot_spatial, plot_umap
-from spatialscope.tools.svg_tools import run_svg
+from spatialscope.tools.registry import get_tool, list_tool_contracts
 from spatialscope.utils.paths import ensure_run_dirs, environment_summary, make_run_id, write_json
 
 
@@ -93,28 +87,40 @@ def inspect_dataset_node(state: SpatialAgentState) -> SpatialAgentState:
 
 
 def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
-    state["task_plan"] = make_plan(state.get("parsed_request", {}), state["mode"])
+    tool_contracts = list_tool_contracts()
+    state["tool_contracts"] = tool_contracts
+    client = DeepSeekClient.from_env()
+    if client.enabled:
+        try:
+            plan = plan_with_llm(
+                client,
+                query=state.get("user_query", ""),
+                parsed_request=state.get("parsed_request", {}),
+                dataset_summary=state.get("dataset_summary", {}),
+                mode=state["mode"],
+                tool_contracts=tool_contracts,
+            )
+            state["task_plan"] = validate_plan_steps(plan.get("steps", []))
+            state["plan_source"] = "llm"
+            state["plan_rationale"] = str(plan.get("rationale", ""))
+            state["llm_enabled"] = True
+            return state
+        except Exception as exc:  # noqa: BLE001
+            state.setdefault("warnings", []).append(f"DeepSeek planning failed; rule-based plan used: {exc}")
+
+    plan_model = make_analysis_plan(state.get("parsed_request", {}), state["mode"])
+    state["task_plan"] = [step.model_dump() for step in plan_model.steps]
+    state["plan_source"] = plan_model.source
+    state["plan_rationale"] = plan_model.rationale
     return state
 
 
 def preview_plan_node(state: SpatialAgentState) -> SpatialAgentState:
-    state["approved_plan"] = list(state.get("task_plan", []))
+    state["approved_plan"] = validate_plan_steps(list(state.get("task_plan", [])))
     state.setdefault("observations", {})["plan_preview"] = state["approved_plan"]
+    state.setdefault("observations", {})["plan_source"] = state.get("plan_source")
+    state.setdefault("observations", {})["plan_rationale"] = state.get("plan_rationale")
     return state
-
-
-def _tool_registry() -> dict[str, ToolFunc]:
-    return {
-        "run_qc": run_qc,
-        "run_preprocess": run_preprocess,
-        "run_clustering": run_clustering,
-        "plot_umap": plot_umap,
-        "plot_spatial": plot_spatial,
-        "plot_gene_panel": plot_gene_panel,
-        "rank_markers": rank_markers,
-        "run_svg": run_svg,
-        "run_neighborhood_enrichment": run_neighborhood_enrichment,
-    }
 
 
 def _prepare_tool_params(func: ToolFunc, params: dict[str, Any], state: SpatialAgentState) -> dict[str, Any]:
@@ -143,8 +149,12 @@ def execute_tool_node(state: SpatialAgentState) -> SpatialAgentState:
     step = plan[index]
     tool_name = str(step["tool"])
     state["current_step"] = tool_name
-    registry = _tool_registry()
-    func = registry[tool_name]
+    try:
+        func = get_tool(tool_name).function
+    except KeyError as exc:
+        result = ToolResult(status="failed", summary=f"Unknown tool `{tool_name}`.", errors=[str(exc)])
+        _record_trace(state, node="execute_tool", tool=tool_name, params={}, result=result, duration=0)
+        return state
     params = _prepare_tool_params(func, dict(step.get("params", {})), state)
 
     start = time.time()
@@ -273,7 +283,7 @@ def run_fallback_graph(state: SpatialAgentState) -> SpatialAgentState:
     return state
 
 
-def run_agent(
+def create_agent_state(
     *,
     data_path: str,
     query: str,
@@ -294,6 +304,68 @@ def run_agent(
         intermediate_dir=str(dirs["intermediate_dir"]),
     )
     state["environment"] = environment_summary()
+    return state
+
+
+def preview_agent_plan(
+    *,
+    data_path: str,
+    query: str,
+    mode: RunMode = "quick",
+    outdir: str = "outputs/runs",
+) -> SpatialAgentState:
+    state = create_agent_state(data_path=data_path, query=query, mode=mode, outdir=outdir)
+    state = parse_request_node(state)
+    state = inspect_dataset_node(state)
+    state = plan_analysis_node(state)
+    state = preview_plan_node(state)
+    return state
+
+
+def _reset_execution_state(state: SpatialAgentState) -> SpatialAgentState:
+    kept_trace = [item for item in state.get("execution_trace", []) if item.get("node") == "inspect_dataset"]
+    state["execution_trace"] = kept_trace
+    state["generated_figures"] = []
+    state["generated_tables"] = []
+    state["repair_attempts"] = 0
+    state["current_step_index"] = 0
+    state["current_step"] = ""
+    state["last_result"] = {}
+    state["needs_repair"] = False
+    state["warnings"] = [warning for item in kept_trace for warning in item.get("warnings", [])]
+    state["errors"] = [error for item in kept_trace for error in item.get("errors", [])]
+    return state
+
+
+def execute_agent_state(
+    state: SpatialAgentState,
+    *,
+    approved_plan: list[dict[str, Any]] | None = None,
+    plan_source: str | None = None,
+) -> SpatialAgentState:
+    if approved_plan is not None:
+        state["approved_plan"] = validate_plan_steps(approved_plan)
+        state["task_plan"] = state["approved_plan"]
+        state["plan_source"] = plan_source or "user_edited"
+    state = _reset_execution_state(state)
+    while int(state.get("current_step_index", 0)) < len(state.get("approved_plan", [])):
+        state = execute_tool_node(state)
+        state = validate_result_node(state)
+        if state.get("needs_repair"):
+            state = repair_or_continue_node(state)
+    state = interpret_node(state)
+    state = report_node(state)
+    return state
+
+
+def run_agent(
+    *,
+    data_path: str,
+    query: str,
+    mode: RunMode = "quick",
+    outdir: str = "outputs/runs",
+) -> SpatialAgentState:
+    state = create_agent_state(data_path=data_path, query=query, mode=mode, outdir=outdir)
 
     try:
         graph = build_langgraph()

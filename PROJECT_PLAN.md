@@ -17,6 +17,8 @@ Showcase features:
 - Spatially variable gene analysis.
 - Neighborhood enrichment.
 - Reproducibility Bundle.
+- Open tool registry with inspectable tool contracts.
+- Editable plan approval before execution in the Streamlit workspace.
 
 Scientific guardrails:
 
@@ -25,3 +27,9 @@ Scientific guardrails:
 - Every interpretation is grounded in generated figures/tables.
 - Cluster interpretation is marker-based candidate interpretation, not confirmed annotation.
 
+Current v1 implementation status:
+
+- Core conda environment is installable with Python 3.11.
+- Quick and Standard modes run with zero warnings/errors on the tiny demo data.
+- Advanced mode runs without hard errors; Squidpy-only steps are optional when Squidpy is absent.
+- LangGraph orchestration, structured plan validation, HTML report generation, and Streamlit plan approval are implemented.
