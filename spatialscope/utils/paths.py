@@ -6,6 +6,7 @@ import os
 import platform
 import sys
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -69,9 +70,8 @@ def environment_summary() -> dict[str, Any]:
     versions: dict[str, str] = {}
     for package in ["anndata", "scanpy", "squidpy", "langgraph", "openai", "streamlit"]:
         try:
-            module = __import__(package)
-            versions[package] = getattr(module, "__version__", "unknown")
-        except Exception:
+            versions[package] = version(package)
+        except PackageNotFoundError:
             versions[package] = "not installed"
     return {
         "python": sys.version.split()[0],
@@ -83,4 +83,3 @@ def environment_summary() -> dict[str, Any]:
 
 def public_state_copy(state: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in state.items() if not key.startswith("_")}
-

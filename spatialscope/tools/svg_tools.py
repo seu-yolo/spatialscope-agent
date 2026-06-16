@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from spatialscope.tools.base import ToolResult, missing_dependency
+from spatialscope.tools.base import ToolResult
 
 
 def run_svg(adata: Any, *, figures_dir: str, tables_dir: str, mode: str = "moran") -> ToolResult:
@@ -11,8 +11,12 @@ def run_svg(adata: Any, *, figures_dir: str, tables_dir: str, mode: str = "moran
         return ToolResult(status="failed", summary="Spatial coordinates not found; SVG skipped.", warnings=["missing obsm['spatial']"])
     try:
         import squidpy as sq
-    except Exception as exc:
-        raise missing_dependency("squidpy", "spatially variable gene analysis") from exc
+    except Exception:
+        return ToolResult(
+            status="skipped",
+            summary="Squidpy is not installed; spatially variable gene analysis was skipped.",
+            warnings=["Install the optional Squidpy extension with `conda env update -n spatialscope-agent -f environment-squidpy.yml`."],
+        )
 
     if "spatial_connectivities" not in adata.obsp:
         sq.gr.spatial_neighbors(adata)
@@ -50,4 +54,3 @@ def run_svg(adata: Any, *, figures_dir: str, tables_dir: str, mode: str = "moran
         tables=[{"path": str(table_path), "title": f"SVG results ({mode})"}],
         observations={"svg_rows": int(len(result)), "mode": mode},
     )
-

@@ -18,9 +18,20 @@ SpatialScope Agent is a DeepSeek-powered, LangGraph-orchestrated workspace for s
 ```bash
 conda env create -f environment.yml
 conda activate spatialscope-agent
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 cp .env.example .env
 ```
+
+`environment.yml` installs the stable core environment: Streamlit, LangGraph, Scanpy,
+AnnData, plotting, reporting, and tests. The advanced Squidpy extension can be added
+after the core demo is working:
+
+```bash
+conda env update -n spatialscope-agent -f environment-squidpy.yml
+```
+
+If Squidpy is not installed, Advanced Mode records SVG/neighborhood steps as
+structured warnings instead of crashing.
 
 Edit `.env`:
 
@@ -71,4 +82,3 @@ pytest
 ```
 
 The lightweight tests avoid requiring Scanpy/Squidpy so they can validate project logic before the full scientific environment is installed.
-

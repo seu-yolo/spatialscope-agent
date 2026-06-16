@@ -8,10 +8,6 @@ from spatialscope.agent.state import RunMode
 
 GENE_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]{1,20}\b")
 STOPWORDS = {
-    "Run",
-    "Plot",
-    "Do",
-    "Find",
     "run",
     "plot",
     "do",
@@ -20,25 +16,36 @@ STOPWORDS = {
     "standard",
     "advanced",
     "spatial",
+    "spatially",
     "analysis",
-    "plot",
+    "variable",
+    "variables",
+    "view",
+    "views",
+    "marker",
+    "markers",
+    "panel",
+    "panels",
     "and",
     "the",
     "with",
+    "for",
+    "in",
+    "of",
     "data",
-    "QC",
-    "UMAP",
-    "Leiden",
-    "SVG",
-    "Gene",
-    "Genes",
+    "qc",
+    "umap",
+    "leiden",
+    "svg",
+    "gene",
+    "genes",
 }
 
 
 def fallback_parse_query(query: str, mode: RunMode) -> dict[str, Any]:
     genes = []
     for token in GENE_PATTERN.findall(query):
-        if token not in STOPWORDS and not token.lower().startswith("gene "):
+        if token.lower() not in STOPWORDS:
             genes.append(token)
     seen: set[str] = set()
     genes = [gene for gene in genes if not (gene in seen or seen.add(gene))]

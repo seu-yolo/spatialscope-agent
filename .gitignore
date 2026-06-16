@@ -5,6 +5,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .ipynb_checkpoints/
+*.egg-info/
 
 .env
 .venv/
@@ -24,4 +25,3 @@ data/*.tar.gz
 
 ~$*.docx
 *.tmp
-

@@ -21,7 +21,7 @@ def rank_markers(adata: Any, *, tables_dir: str, groupby: str = "leiden") -> Too
     table_path = Path(tables_dir) / "marker_genes.csv"
     marker_df.to_csv(table_path, index=False)
 
-    top = marker_df.groupby("group").head(5)
+    top = marker_df.groupby("group", observed=False).head(5)
     top_path = Path(tables_dir) / "marker_genes_top5.csv"
     top.to_csv(top_path, index=False)
     return ToolResult(
@@ -33,4 +33,3 @@ def rank_markers(adata: Any, *, tables_dir: str, groupby: str = "leiden") -> Too
         ],
         observations={"marker_rows": int(len(marker_df)), "groupby": groupby},
     )
-

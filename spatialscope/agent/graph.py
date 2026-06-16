@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Callable
 
@@ -116,6 +117,20 @@ def _tool_registry() -> dict[str, ToolFunc]:
     }
 
 
+def _prepare_tool_params(func: ToolFunc, params: dict[str, Any], state: SpatialAgentState) -> dict[str, Any]:
+    sig = signature(func)
+    accepted = set(sig.parameters)
+    accepts_kwargs = any(param.kind == Parameter.VAR_KEYWORD for param in sig.parameters.values())
+    prepared = dict(params)
+    if "figures_dir" in accepted:
+        prepared.setdefault("figures_dir", state["figures_dir"])
+    if "tables_dir" in accepted:
+        prepared.setdefault("tables_dir", state["tables_dir"])
+    if accepts_kwargs:
+        return prepared
+    return {key: value for key, value in prepared.items() if key in accepted}
+
+
 def execute_tool_node(state: SpatialAgentState) -> SpatialAgentState:
     plan = state.get("approved_plan", [])
     index = int(state.get("current_step_index", 0))
@@ -130,9 +145,7 @@ def execute_tool_node(state: SpatialAgentState) -> SpatialAgentState:
     state["current_step"] = tool_name
     registry = _tool_registry()
     func = registry[tool_name]
-    params = dict(step.get("params", {}))
-    params.setdefault("figures_dir", state["figures_dir"])
-    params.setdefault("tables_dir", state["tables_dir"])
+    params = _prepare_tool_params(func, dict(step.get("params", {})), state)
 
     start = time.time()
     result = safe_tool_call(func, state.get("_adata"), **params)
@@ -218,7 +231,7 @@ def _route_after_validate(state: SpatialAgentState) -> str:
 def build_langgraph():
     from langgraph.graph import END, START, StateGraph
 
-    graph = StateGraph(dict)
+    graph = StateGraph(SpatialAgentState)
     graph.add_node("parse_request", parse_request_node)
     graph.add_node("inspect_dataset", inspect_dataset_node)
     graph.add_node("plan_analysis", plan_analysis_node)

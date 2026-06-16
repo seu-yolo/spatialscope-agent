@@ -15,7 +15,6 @@ dependencies = [
   "python-dotenv",
   "pydantic",
   "scanpy",
-  "squidpy",
   "anndata",
   "pandas",
   "numpy",
@@ -30,6 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+spatial = ["squidpy"]
 
 [tool.setuptools.packages.find]
 include = ["spatialscope*"]
@@ -37,4 +37,3 @@ include = ["spatialscope*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-

@@ -7,10 +7,14 @@ def test_fallback_parser_extracts_genes():
     assert "Mesp1" in parsed["genes"]
 
 
+def test_fallback_parser_ignores_analysis_terms():
+    parsed = fallback_parse_query("run standard spatial analysis with marker genes and GeneA GeneB panel", "standard")
+    assert parsed["genes"] == ["GeneA", "GeneB"]
+
+
 def test_make_advanced_plan_contains_showcase_tools():
     parsed = {"genes": ["Sox17"]}
     tools = [step["tool"] for step in make_plan(parsed, "advanced")]
     assert "run_svg" in tools
     assert "run_neighborhood_enrichment" in tools
     assert "plot_gene_panel" in tools
-

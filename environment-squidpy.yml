@@ -1,0 +1,5 @@
+name: spatialscope-agent
+channels:
+  - conda-forge
+dependencies:
+  - squidpy

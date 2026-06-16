@@ -20,7 +20,7 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
         sc.pp.highly_variable_genes(adata, n_top_genes=min(n_top_genes, adata.n_vars), flavor="seurat")
     except Exception:
         sc.pp.highly_variable_genes(adata, n_top_genes=min(n_top_genes, adata.n_vars))
-    sc.pp.scale(adata, max_value=10)
+    sc.pp.scale(adata, max_value=10, zero_center=False)
 
     import matplotlib.pyplot as plt
 
@@ -37,7 +37,7 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
 
     return ToolResult(
         status="success",
-        summary=f"Normalized, log-transformed, selected up to {n_top_genes} HVGs, and scaled the matrix.",
+        summary=f"Normalized, log-transformed, selected up to {n_top_genes} HVGs, and scaled the matrix with sparse-safe scaling.",
         figures=[
             {
                 "path": str(fig_path),
@@ -47,4 +47,3 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
         ],
         observations={"n_highly_variable": int(adata.var.get("highly_variable", []).sum()) if "highly_variable" in adata.var else None},
     )
-

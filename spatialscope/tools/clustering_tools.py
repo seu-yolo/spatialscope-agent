@@ -22,10 +22,29 @@ def run_clustering(
         raise missing_dependency("scanpy", "PCA/UMAP/Leiden clustering") from exc
 
     use_highly_variable = "highly_variable" in adata.var and int(adata.var["highly_variable"].sum()) >= 10
-    sc.tl.pca(adata, svd_solver="arpack", use_highly_variable=use_highly_variable, random_state=random_state)
+    try:
+        sc.tl.pca(
+            adata,
+            svd_solver="arpack",
+            mask_var="highly_variable" if use_highly_variable else None,
+            random_state=random_state,
+        )
+    except TypeError:
+        sc.tl.pca(adata, svd_solver="arpack", use_highly_variable=use_highly_variable, random_state=random_state)
     sc.pp.neighbors(adata, n_neighbors=min(15, max(2, adata.n_obs - 1)), n_pcs=min(30, adata.n_vars, adata.n_obs - 1))
     sc.tl.umap(adata, random_state=random_state)
-    sc.tl.leiden(adata, resolution=resolution, key_added="leiden", random_state=random_state)
+    try:
+        sc.tl.leiden(
+            adata,
+            resolution=resolution,
+            key_added="leiden",
+            random_state=random_state,
+            flavor="igraph",
+            n_iterations=2,
+            directed=False,
+        )
+    except TypeError:
+        sc.tl.leiden(adata, resolution=resolution, key_added="leiden", random_state=random_state)
 
     counts = adata.obs["leiden"].value_counts().sort_index()
     table_path = Path(tables_dir) / "cluster_summary.csv"
@@ -38,4 +57,3 @@ def run_clustering(
         observations={"n_clusters": int(len(counts)), "resolution": resolution},
         warnings=[] if 2 <= len(counts) <= 30 else [f"Leiden produced {len(counts)} clusters; resolution may need adjustment."],
     )
-

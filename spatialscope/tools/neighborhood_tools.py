@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from spatialscope.tools.base import ToolResult, missing_dependency
+from spatialscope.tools.base import ToolResult
 
 
 def run_neighborhood_enrichment(
@@ -21,8 +21,12 @@ def run_neighborhood_enrichment(
         return ToolResult(status="failed", summary=f"Cluster key not found: {cluster_key}", errors=[cluster_key])
     try:
         import squidpy as sq
-    except Exception as exc:
-        raise missing_dependency("squidpy", "neighborhood enrichment") from exc
+    except Exception:
+        return ToolResult(
+            status="skipped",
+            summary="Squidpy is not installed; neighborhood enrichment was skipped.",
+            warnings=["Install the optional Squidpy extension with `conda env update -n spatialscope-agent -f environment-squidpy.yml`."],
+        )
 
     if "spatial_connectivities" not in adata.obsp:
         sq.gr.spatial_neighbors(adata)
@@ -58,4 +62,3 @@ def run_neighborhood_enrichment(
         ],
         tables=[{"path": str(table_path), "title": "Neighborhood enrichment z-score"}],
     )
-
