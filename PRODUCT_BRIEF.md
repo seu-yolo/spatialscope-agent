@@ -34,6 +34,8 @@ control over parameters or biological interpretation.
 A good run should satisfy:
 
 - No raw expression matrix is sent to the LLM.
+- LLM credentials are never displayed directly; provider status and smoke tests
+  are exposed through a safe control center.
 - Every figure/table has a traceable generating tool.
 - Warnings are visible instead of hidden.
 - Failed steps produce structured repair diagnostics instead of silent skipping.
@@ -55,6 +57,8 @@ A good run should satisfy:
 ## Current Capabilities
 
 - OpenAI-compatible LLM client, currently configured for GLM-style providers.
+- LLM Control Center with masked key status, provider/model visibility,
+  deterministic fallback explanation, and optional live smoke test.
 - LangGraph orchestration with deterministic fallback.
 - Tool registry with contracts, preconditions, failures, and repair strategies.
 - Structured repair diagnostics with likely cause, action taken, and recommended
