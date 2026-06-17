@@ -70,6 +70,9 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         file_record(root / "parameters.yaml", run_dir=root, kind="parameters", title="Parameters"),
         file_record(root / "state_public.json", run_dir=root, kind="state", title="Public state"),
     ]
+    review_path = root / "review_notes.json"
+    if review_path.exists() or state.get("review_notes"):
+        artifacts.append(file_record(review_path, run_dir=root, kind="review", title="Human review notes"))
     for fig in state.get("generated_figures", []):
         raw_path = str(fig.get("path") or "")
         if raw_path:
@@ -107,6 +110,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "figures_count": len(state.get("generated_figures", [])),
         "tables_count": len(state.get("generated_tables", [])),
         "quality": state.get("quality") or build_quality_report(state),
+        "review": state.get("review_notes"),
         "artifacts": artifacts,
     }
     manifest["complete"] = all(item["exists"] for item in artifacts[:5])
@@ -195,6 +199,9 @@ def load_run_state(run_dir: str | Path) -> dict[str, Any]:
     state["quality"] = _as_dict(_first_present(state.get("quality"), metadata.get("quality"), manifest.get("quality")))
     if not state["quality"]:
         state["quality"] = build_quality_report(state)
+    review_notes = _as_dict(_first_present(state.get("review_notes"), _read_json(root / "review_notes.json")))
+    if review_notes:
+        state["review_notes"] = review_notes
     if state.get("final_answer") is None:
         state["final_answer"] = ""
     state["loaded_from_run_dir"] = str(root)
@@ -226,12 +233,16 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
     metadata = _read_json(root / "run_metadata.json")
     manifest = _read_json(root / "artifact_manifest.json")
     trace = _read_json(root / "agent_trace.json")
+    review = _read_json(root / "review_notes.json")
     if not isinstance(metadata, dict):
         metadata = {}
     if not isinstance(manifest, dict):
         manifest = {}
     if not isinstance(trace, list):
         trace = []
+    if not isinstance(review, dict):
+        review = {}
+    manifest_review = manifest.get("review") if isinstance(manifest.get("review"), dict) else {}
 
     report_path = root / "report.html"
     modified = max((path.stat().st_mtime for path in root.rglob("*") if path.is_file()), default=root.stat().st_mtime)
@@ -263,6 +274,9 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "complete": bool(manifest.get("complete")) if manifest else report_path.exists(),
         "quality_score": int((manifest.get("quality") or metadata.get("quality") or {}).get("score") or 0),
         "quality_status": str((manifest.get("quality") or metadata.get("quality") or {}).get("overall_status") or "unknown"),
+        "review_decision": str(review.get("decision") or manifest_review.get("decision") or ""),
+        "review_confidence": str(review.get("confidence") or manifest_review.get("confidence") or ""),
+        "review_updated_at": str(review.get("updated_at") or manifest_review.get("updated_at") or ""),
     }
 
 
@@ -304,6 +318,7 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         {"Metric": "LLM enabled", "A": bool(left.get("llm_enabled")), "B": bool(right.get("llm_enabled")), "Delta A-B": ""},
         {"Metric": "Bundle complete", "A": bool(left.get("complete")), "B": bool(right.get("complete")), "Delta A-B": ""},
         {"Metric": "Quality status", "A": left.get("quality_status"), "B": right.get("quality_status"), "Delta A-B": ""},
+        {"Metric": "Review decision", "A": left.get("review_decision") or "unreviewed", "B": right.get("review_decision") or "unreviewed", "Delta A-B": ""},
     ]
     for label, key in metric_keys:
         diff = _delta(left.get(key, 0), right.get(key, 0))

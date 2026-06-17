@@ -14,6 +14,7 @@ from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
+from spatialscope.utils.review import CONFIDENCE_LEVELS, DECISIONS, load_review_notes, save_review_notes
 from spatialscope.utils.run_index import compare_run_summaries, discover_runs, load_run_state
 
 
@@ -673,6 +674,89 @@ def _render_llm_status_panel() -> None:
             st.error(result["summary"])
 
 
+def _render_review_panel(state: dict[str, Any]) -> None:
+    run_dir = str(state.get("run_dir") or "")
+    if not run_dir:
+        st.info("当前 run 缺少 run_dir，暂不能保存人工审阅记录。")
+        return
+    review = dict(state.get("review_notes") or load_review_notes(run_dir, run_id=str(state.get("run_id") or "")))
+    state["review_notes"] = review
+    tags = review.get("tags", [])
+    tag_text = ", ".join(tags) if isinstance(tags, list) else str(tags or "")
+    updated_at = review.get("updated_at") or "not saved"
+    st.markdown('<div class="ss-section-title">Human Review / 人工审阅</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-evidence-grid">
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Decision</div>
+            <div class="ss-evidence-value">{html.escape(str(review.get("decision_label", "")))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Confidence</div>
+            <div class="ss-evidence-value">{html.escape(str(review.get("confidence_label", "")))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Reviewer</div>
+            <div class="ss-evidence-value">{html.escape(str(review.get("reviewer") or "匿名"))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Updated</div>
+            <div class="ss-evidence-value">{html.escape(str(updated_at))}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if tag_text:
+        st.caption("Tags: " + tag_text)
+    with st.form(key=f"review_form_{state.get('run_id')}"):
+        decision_keys = list(DECISIONS)
+        confidence_keys = list(CONFIDENCE_LEVELS)
+        decision = st.selectbox(
+            "审阅决定 / Decision",
+            decision_keys,
+            index=decision_keys.index(str(review.get("decision"))) if str(review.get("decision")) in decision_keys else 0,
+            format_func=lambda key: DECISIONS[key],
+        )
+        confidence = st.selectbox(
+            "信心等级 / Confidence",
+            confidence_keys,
+            index=confidence_keys.index(str(review.get("confidence"))) if str(review.get("confidence")) in confidence_keys else 1,
+            format_func=lambda key: CONFIDENCE_LEVELS[key],
+        )
+        reviewer = st.text_input("Reviewer", value=str(review.get("reviewer") or ""))
+        tag_input = st.text_input("Tags", value=tag_text, help="用逗号分隔，例如: demo, marker-review, needs-validation")
+        notes = st.text_area("审阅备注 / Notes", value=str(review.get("notes") or ""), height=120)
+        limitations = st.text_area("局限性或复跑建议 / Limitations", value=str(review.get("limitations") or ""), height=90)
+        submitted = st.form_submit_button("保存 Review Notes", type="primary", width="stretch")
+    if submitted:
+        try:
+            saved = save_review_notes(
+                state,
+                {
+                    "decision": decision,
+                    "confidence": confidence,
+                    "reviewer": reviewer,
+                    "tags": tag_input,
+                    "notes": notes,
+                    "limitations": limitations,
+                },
+            )
+            st.session_state.run_state = state
+            st.success(f"Review Notes 已保存：{saved.get('decision_label')} · {saved.get('updated_at')}")
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"保存 Review Notes 失败：{exc}")
+    review_path = Path(run_dir) / "review_notes.json"
+    if review_path.exists():
+        st.download_button(
+            "下载 Review JSON",
+            review_path.read_bytes(),
+            file_name=f"{state.get('run_id', 'spatialscope')}_review_notes.json",
+            width="stretch",
+        )
+
+
 def _read_table_preview(path: str | None) -> pd.DataFrame | None:
     if not path:
         return None
@@ -1033,6 +1117,7 @@ def _render_run_library(outdir: str) -> None:
             "Errors": item.get("errors"),
             "Quality": item.get("quality_score"),
             "Quality status": item.get("quality_status"),
+            "Review": item.get("review_decision") or "unreviewed",
             "Updated": _format_run_time(item.get("modified_time")),
         }
         for item in runs
@@ -1607,6 +1692,8 @@ with report_tab:
             st.warning("\n".join(map(str, state.get("warnings", []))))
         if state.get("errors"):
             st.error("\n".join(map(str, state.get("errors", []))))
+
+        _render_review_panel(state)
 
         report_path = state.get("report_path")
         trace_path = Path(str(state.get("run_dir"))) / "agent_trace.json"

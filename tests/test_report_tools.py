@@ -29,6 +29,19 @@ def test_generate_report_bundle(tmp_path):
                 "recommended_actions": ["Install squidpy."],
             }
         ],
+        "review_notes": {
+            "schema_version": "1.0",
+            "run_id": "run",
+            "decision": "accepted_with_caveats",
+            "decision_label": "Accepted with caveats",
+            "confidence": "medium",
+            "confidence_label": "Medium",
+            "reviewer": "Reviewer",
+            "tags": ["demo"],
+            "notes": "Review note.",
+            "limitations": "Demo data only.",
+            "updated_at": "2026-06-18T03:30:00",
+        },
     }
     result = generate_report(state)
     assert result.status == "success"
@@ -37,13 +50,17 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
     assert (run_dir / "run_bundle.zip").exists()
+    assert (run_dir / "review_notes.json").exists()
     assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
+    assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
     assert metadata["repair_log"][0]["tool"] == "run_svg"
+    assert metadata["review_notes"]["decision"] == "accepted_with_caveats"
     assert "quality" in metadata
     assert "quality" in manifest
+    assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
     assert manifest["repairs_count"] == 1
     assert result.observations["run_bundle_path"].endswith("run_bundle.zip")

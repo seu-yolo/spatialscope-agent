@@ -133,6 +133,21 @@ REPORT_TEMPLATE = """
     </tbody>
   </table>
 
+  {% if review %}
+  <h2>Human Review 人工审阅</h2>
+  <div class="meta">
+    <div class="metric"><span>Decision</span><strong>{{ review.decision_label }}</strong></div>
+    <div class="metric"><span>Confidence</span><strong>{{ review.confidence_label }}</strong></div>
+    <div class="metric"><span>Reviewer</span><strong>{{ review.reviewer or "匿名" }}</strong></div>
+    <div class="metric"><span>Updated</span><strong>{{ review.updated_at }}</strong></div>
+  </div>
+  {% if review.tags %}
+    <p>{% for tag in review.tags %}<span class="tag">{{ tag }}</span>{% endfor %}</p>
+  {% endif %}
+  {% if review.notes %}<p><strong>Notes:</strong> {{ review.notes }}</p>{% endif %}
+  {% if review.limitations %}<p><strong>Limitations:</strong> {{ review.limitations }}</p>{% endif %}
+  {% endif %}
+
   <h2>分析方案 / Analysis Plan</h2>
   <p class="note">{{ plan_rationale }}</p>
   <ol>
@@ -292,11 +307,14 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "tool_contracts": state.get("tool_contracts"),
             "repair_log": state.get("repair_log", []),
             "quality": quality,
+            "review_notes": state.get("review_notes"),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
         },
     )
     write_yaml_simple(run_dir / "parameters.yaml", state.get("parameters", {}))
+    if state.get("review_notes"):
+        write_json(run_dir / "review_notes.json", state.get("review_notes", {}))
 
     template = Template(REPORT_TEMPLATE)
     html = template.render(
@@ -314,6 +332,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         trace=state.get("execution_trace", []),
         repairs=state.get("repair_log", []),
         quality=quality,
+        review=state.get("review_notes"),
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
         errors=state.get("errors", []),
