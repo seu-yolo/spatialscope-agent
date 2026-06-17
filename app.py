@@ -14,7 +14,14 @@ from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
-from spatialscope.utils.review import CONFIDENCE_LEVELS, DECISIONS, load_review_notes, save_review_notes
+from spatialscope.utils.review import (
+    CONFIDENCE_LEVELS,
+    DECISIONS,
+    GATE_OVERRIDE_DECISIONS,
+    load_review_notes,
+    save_quality_gate_override,
+    save_review_notes,
+)
 from spatialscope.utils.run_index import compare_run_summaries, discover_runs, load_run_state
 
 
@@ -747,6 +754,61 @@ def _render_review_panel(state: dict[str, Any]) -> None:
             st.success(f"Review Notes 已保存：{saved.get('decision_label')} · {saved.get('updated_at')}")
         except Exception as exc:  # noqa: BLE001
             st.error(f"保存 Review Notes 失败：{exc}")
+
+    quality_gates = state.get("quality", {}).get("gates", []) if isinstance(state.get("quality"), dict) else []
+    if quality_gates:
+        overrides = review.get("quality_gate_overrides", [])
+        with st.expander("Quality Gate Overrides / 质量门人工判断", expanded=bool(overrides)):
+            if overrides:
+                override_rows = [
+                    {
+                        "Gate": item.get("gate_name"),
+                        "Original": item.get("original_status"),
+                        "Decision": item.get("decision_label"),
+                        "Reviewer": item.get("reviewer"),
+                        "Rationale": item.get("rationale"),
+                    }
+                    for item in overrides
+                ]
+                st.dataframe(pd.DataFrame(override_rows), hide_index=True, width="stretch", height=min(240, 44 + len(override_rows) * 42))
+            gate_names = [str(gate.get("name")) for gate in quality_gates if gate.get("name")]
+            gate_by_name = {str(gate.get("name")): gate for gate in quality_gates if gate.get("name")}
+            if gate_names:
+                with st.form(key=f"gate_override_form_{state.get('run_id')}"):
+                    selected_gate = st.selectbox("Quality Gate", gate_names)
+                    gate = gate_by_name[selected_gate]
+                    st.caption(
+                        f"Original: {gate.get('status')} · score={gate.get('score')} · {gate.get('summary')}"
+                    )
+                    decision_keys = list(GATE_OVERRIDE_DECISIONS)
+                    gate_decision = st.selectbox(
+                        "人工判断 / Reviewer decision",
+                        decision_keys,
+                        index=0,
+                        format_func=lambda key: GATE_OVERRIDE_DECISIONS[key],
+                    )
+                    gate_reviewer = st.text_input("Gate reviewer", value=str(review.get("reviewer") or ""))
+                    rationale = st.text_area("判断理由 / Rationale", height=90)
+                    gate_submitted = st.form_submit_button("保存 Gate Override", width="stretch")
+                if gate_submitted:
+                    try:
+                        updated = save_quality_gate_override(
+                            state,
+                            {
+                                "gate_name": selected_gate,
+                                "original_status": gate.get("status"),
+                                "original_score": gate.get("score"),
+                                "decision": gate_decision,
+                                "rationale": rationale,
+                                "reviewer": gate_reviewer,
+                            },
+                        )
+                        st.session_state.run_state = state
+                        st.success(
+                            f"Gate override 已保存：{selected_gate} · {len(updated.get('quality_gate_overrides', []))} 条记录"
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"保存 Gate Override 失败：{exc}")
     review_path = Path(run_dir) / "review_notes.json"
     if review_path.exists():
         st.download_button(

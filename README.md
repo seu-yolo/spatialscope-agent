@@ -15,7 +15,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
 - Quality Gates self-audit for dataset readiness, trace integrity, evidence outputs, interpretation, and reproducibility metadata
-- Human Review notes with decision, confidence, tags, reviewer comments, and bundle integration
+- Human Review notes with decision, confidence, tags, Quality Gate overrides, reviewer comments, and bundle integration
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
@@ -138,7 +138,7 @@ Navigation:
 1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, load a historical run back into the workspace, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
 3. Explore: inspect figures, tables, trace records, Quality Gates, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation, save Human Review notes, and download the full reproducibility bundle or individual files.
+4. Report: read the cautious interpretation, save Human Review notes, record Quality Gate overrides, and download the full reproducibility bundle or individual files.
 
 ## Tests
 

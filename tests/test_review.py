@@ -1,7 +1,7 @@
 import json
 import zipfile
 
-from spatialscope.utils.review import load_review_notes, normalize_tags, save_review_notes
+from spatialscope.utils.review import load_review_notes, normalize_tags, save_quality_gate_override, save_review_notes
 from spatialscope.utils.run_index import load_run_state, summarize_run
 
 
@@ -59,3 +59,53 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     assert summary["review_confidence"] == "high"
     loaded = load_review_notes(run_dir)
     assert loaded["tags"] == ["demo", "marker-review"]
+
+
+def test_quality_gate_override_is_preserved_and_clearable(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "state_public.json").write_text(json.dumps({"run_id": "run", "run_dir": str(run_dir)}), encoding="utf-8")
+    (run_dir / "artifact_manifest.json").write_text(json.dumps({"schema_version": "1.0", "run_id": "run", "artifacts": []}), encoding="utf-8")
+    state = {"run_id": "run", "run_dir": str(run_dir), "dataset_hash": "hash"}
+
+    saved = save_quality_gate_override(
+        state,
+        {
+            "gate_name": "Evidence outputs",
+            "original_status": "warn",
+            "original_score": 65,
+            "decision": "requires_rerun",
+            "rationale": "Missing marker table.",
+            "reviewer": "Domain reviewer",
+        },
+    )
+    assert saved["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
+    assert saved["quality_gate_overrides"][0]["decision"] == "requires_rerun"
+    manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["review"]["quality_gate_overrides_count"] == 1
+    with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
+        assert "review_notes.json" in archive.namelist()
+
+    preserved = save_review_notes(
+        state,
+        {
+            "decision": "accepted_with_caveats",
+            "confidence": "medium",
+            "reviewer": "Domain reviewer",
+            "tags": "reviewed",
+            "notes": "Keep the gate-level rationale.",
+            "limitations": "",
+        },
+    )
+    assert preserved["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
+
+    cleared = save_quality_gate_override(
+        state,
+        {
+            "gate_name": "Evidence outputs",
+            "decision": "clear_override",
+            "rationale": "",
+            "reviewer": "Domain reviewer",
+        },
+    )
+    assert cleared["quality_gate_overrides"] == []

@@ -146,6 +146,23 @@ REPORT_TEMPLATE = """
   {% endif %}
   {% if review.notes %}<p><strong>Notes:</strong> {{ review.notes }}</p>{% endif %}
   {% if review.limitations %}<p><strong>Limitations:</strong> {{ review.limitations }}</p>{% endif %}
+  {% if review.quality_gate_overrides %}
+  <h3>Quality Gate Overrides</h3>
+  <table>
+    <thead><tr><th>Gate</th><th>Original</th><th>Reviewer Decision</th><th>Reviewer</th><th>Rationale</th></tr></thead>
+    <tbody>
+    {% for item in review.quality_gate_overrides %}
+      <tr>
+        <td>{{ item.gate_name }}</td>
+        <td>{{ item.original_status }} / {{ item.original_score }}</td>
+        <td>{{ item.decision_label }}</td>
+        <td>{{ item.reviewer }}</td>
+        <td>{{ item.rationale }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
   {% endif %}
 
   <h2>分析方案 / Analysis Plan</h2>
