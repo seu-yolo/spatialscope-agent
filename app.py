@@ -12,7 +12,7 @@ import streamlit as st
 from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
-from spatialscope.utils.run_index import discover_runs
+from spatialscope.utils.run_index import compare_run_summaries, discover_runs
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -991,6 +991,49 @@ def _render_run_library(outdir: str) -> None:
             width="stretch",
             key=f"history_manifest_{latest.get('run_id')}",
         )
+
+    if len(runs) < 2:
+        return
+
+    st.markdown('<div class="ss-section-title">Run Compare</div>', unsafe_allow_html=True)
+    options = [str(item.get("run_id")) for item in runs]
+    run_by_id = {str(item.get("run_id")): item for item in runs}
+    pick_a, pick_b = st.columns(2)
+    left_id = pick_a.selectbox("Run A", options, index=0, key="compare_run_a")
+    right_default = 1 if len(options) > 1 else 0
+    right_id = pick_b.selectbox("Run B", options, index=right_default, key="compare_run_b")
+    if left_id == right_id:
+        st.caption("请选择两个不同的 run 进行比较。")
+        return
+
+    comparison = compare_run_summaries(run_by_id[left_id], run_by_id[right_id])
+    dataset_label = "同一数据集" if comparison["same_dataset"] else "数据集不同/未知"
+    st.markdown(
+        f"""
+        <div class="ss-evidence-grid">
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Dataset</div>
+            <div class="ss-evidence-value">{html.escape(dataset_label)}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">A Errors</div>
+            <div class="ss-evidence-value">{html.escape(str(run_by_id[left_id].get("errors", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">B Errors</div>
+            <div class="ss-evidence-value">{html.escape(str(run_by_id[right_id].get("errors", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">A-B Repairs</div>
+            <div class="ss-evidence-value">{html.escape(str(int(run_by_id[left_id].get("repairs", 0)) - int(run_by_id[right_id].get("repairs", 0))))}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.dataframe(pd.DataFrame(comparison["rows"]), hide_index=True, width="stretch", height=460)
+    for note in comparison["notes"]:
+        st.caption(note)
 
 
 def _render_plan_cards(plan: list[dict[str, Any]]) -> None:

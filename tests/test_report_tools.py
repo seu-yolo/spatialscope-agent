@@ -80,4 +80,5 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert runs[0]["mode"] == "quick"
     assert runs[0]["trace_steps"] == 1
     assert runs[0]["repairs"] == 1
+    assert runs[0]["status_success"] == 1
     assert runs[0]["complete"] is True

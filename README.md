@@ -20,7 +20,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - HTML report, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `artifact_manifest.json`
 - CLI and a polished Streamlit analysis workspace
-- Run Library for recent reports and reproducibility bundles
+- Run Library and Run Compare for recent reports, reproducibility bundles, and side-by-side run audit
 
 ## Setup
 
@@ -118,7 +118,7 @@ scripts/run_app.sh
 
 Navigation:
 
-1. Start: upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, and inspect recent runs in Run Library.
+1. Start: upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
 3. Explore: inspect figures, tables, trace records, repair diagnostics, resolved genes, and candidate cluster labels.
 4. Report: read the cautious interpretation and download the reproducibility bundle.

@@ -26,7 +26,7 @@ control over parameters or biological interpretation.
 4. Run Quick, Standard, or Advanced mode.
 5. Inspect figures, tables, trace, warnings, and candidate annotations.
 6. Export a reproducibility bundle and HTML report.
-7. Revisit recent runs through Run Library and artifact manifests.
+7. Revisit recent runs through Run Library, artifact manifests, and side-by-side Run Compare.
 
 ## Quality Bar
 
@@ -42,6 +42,8 @@ A good run should satisfy:
 - Output paths, parameters, software versions, and trace are preserved.
 - Every run writes an artifact manifest that indexes reports, figures, tables,
   metadata, parameters, trace, repair diagnostics, and public state.
+- Recent runs can be compared by mode, plan source, trace steps, figures,
+  warnings, errors, repairs, and dataset hash.
 
 ## Current Capabilities
 
@@ -55,7 +57,8 @@ A good run should satisfy:
 - Marker gene ranking and candidate cluster annotation suggestions.
 - Optional spatially variable gene and neighborhood enrichment analysis.
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
-- Run Library for recent reports and reproducibility assets.
+- Run Library and Run Compare for recent reports, reproducibility assets, and
+  lightweight audit across multiple runs.
 
 ## Product Roadmap
 
@@ -65,7 +68,7 @@ A good run should satisfy:
 - Add screenshots or recorded demo clips to the GitHub Pages site.
 - Add a stronger marker evidence panel with heatmap/dotplot summaries.
 - Run and document GLM-enabled planning/interpretation smoke tests.
-- Add UI affordances for comparing multiple runs and filtering repair categories.
+- Add filtering and saved review notes for repair categories.
 
 ### Medium Term
 
