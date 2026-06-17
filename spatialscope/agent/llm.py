@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 import json
+import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from spatialscope.agent.schemas import (
     AnalysisPlan,
@@ -97,6 +98,107 @@ class LLMClient:
 
 
 DeepSeekClient = LLMClient
+
+
+def _env_value(env: Mapping[str, str] | None, key: str, default: str = "") -> str:
+    if env is None:
+        return os.getenv(key, default)
+    return env.get(key, default)
+
+
+def _mask_secret(value: str | None) -> str:
+    if not value:
+        return "not configured"
+    return f"configured ({len(value)} chars)"
+
+
+def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Return safe, displayable LLM configuration status without exposing secrets."""
+
+    generic_key = _env_value(env, "SPATIALSCOPE_LLM_API_KEY")
+    deepseek_key = _env_value(env, "DEEPSEEK_API_KEY")
+    if generic_key:
+        provider = "openai_compatible"
+        api_key = generic_key
+        base_url = _env_value(env, "SPATIALSCOPE_LLM_BASE_URL")
+        model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "glm-5.1")
+    elif deepseek_key:
+        provider = "deepseek_compatible"
+        api_key = deepseek_key
+        base_url = _env_value(env, "DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+        model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash")
+    else:
+        provider = "disabled"
+        api_key = ""
+        base_url = _env_value(env, "SPATIALSCOPE_LLM_BASE_URL") or _env_value(env, "DEEPSEEK_BASE_URL", "")
+        model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "glm-5.1")
+    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")
+    try:
+        timeout_seconds = float(timeout_raw)
+    except ValueError:
+        timeout_seconds = 45.0
+    enabled = bool(api_key and base_url and model)
+    missing: list[str] = []
+    if not api_key:
+        missing.append("API key")
+    if api_key and not base_url:
+        missing.append("base URL")
+    if not model:
+        missing.append("model")
+    return {
+        "provider": provider,
+        "enabled": enabled,
+        "api_key_present": bool(api_key),
+        "api_key_preview": _mask_secret(api_key),
+        "base_url": base_url or "not configured",
+        "model": model or "not configured",
+        "timeout_seconds": timeout_seconds,
+        "missing": missing,
+        "fallback": "rule_based",
+    }
+
+
+def smoke_test_llm(client: LLMClient | None = None) -> dict[str, Any]:
+    client = client or LLMClient.from_env()
+    status = llm_config_status()
+    if not client.enabled:
+        return {
+            "status": "skipped",
+            "ok": False,
+            "summary": "LLM API key is not configured; rule-based fallback remains available.",
+            "config": status,
+        }
+    start = time.time()
+    try:
+        payload = client.complete_json(
+            [
+                {
+                    "role": "user",
+                    "content": (
+                        "Return exactly one JSON object for a connection test: "
+                        '{"ok": true, "service": "spatialscope-llm-smoke"}.'
+                    ),
+                }
+            ],
+            temperature=0.0,
+        )
+        ok = bool(payload.get("ok"))
+        return {
+            "status": "success" if ok else "warn",
+            "ok": ok,
+            "latency_sec": round(time.time() - start, 3),
+            "summary": "LLM returned valid JSON." if ok else "LLM responded, but the JSON did not include ok=true.",
+            "response": payload,
+            "config": status,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "failed",
+            "ok": False,
+            "latency_sec": round(time.time() - start, 3),
+            "summary": str(exc),
+            "config": status,
+        }
 
 
 def parse_query_with_llm(client: LLMClient, query: str) -> dict[str, Any]:

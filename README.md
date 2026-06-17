@@ -9,6 +9,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 ## Features
 
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
+- Safe LLM Control Center with masked key display, provider/model status, fallback explanation, and optional smoke test
 - LangGraph workflow with a deterministic fallback runner
 - Structured LLM parsing/planning with Pydantic validation and rule-based fallback
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
@@ -57,6 +58,17 @@ SPATIALSCOPE_LLM_TIMEOUT_SECONDS=45
 Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`
 file is ignored by Git. If no API key is configured, SpatialScope still runs a
 rule-based demo planner for smoke tests.
+
+Check LLM configuration without exposing secrets:
+
+```bash
+python cli.py llm-check
+python cli.py llm-check --json
+python cli.py llm-check --live
+```
+
+`--live` sends a tiny JSON smoke prompt to the configured provider. Without
+`--live`, the command only inspects local configuration and fallback behavior.
 
 ## Agent Architecture
 
@@ -122,7 +134,7 @@ scripts/run_app.sh
 
 Navigation:
 
-1. Start: run the one-click Demo Launchpad, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, and compare two runs side by side.
+1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
 3. Explore: inspect figures, tables, trace records, Quality Gates, repair diagnostics, resolved genes, and candidate cluster labels.
 4. Report: read the cautious interpretation and download the full reproducibility bundle or individual files.

@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
+from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
@@ -630,6 +631,45 @@ def _render_credit_bar() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_llm_status_panel() -> None:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except Exception:
+        pass
+    status = llm_config_status()
+    tone = "success" if status["enabled"] else "warn"
+    enabled_label = "已配置" if status["enabled"] else "规则兜底"
+    st.markdown(
+        f"""
+        <div class="ss-panel">
+          <div class="ss-mini-label">LLM Control Center</div>
+          <div class="ss-card-title">模型状态：{html.escape(enabled_label)}</div>
+          <div class="ss-status-row">
+            {_chip(str(status["provider"]), tone)}
+            {_chip(str(status["model"]), "info")}
+            {_chip(str(status["fallback"]), "neutral")}
+          </div>
+          <div class="ss-run-path">base_url={html.escape(str(status["base_url"]))}</div>
+          <div class="ss-run-path">api_key={html.escape(str(status["api_key_preview"]))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if status.get("missing"):
+        st.caption("缺少配置：" + ", ".join(status["missing"]) + "；当前会使用规则兜底。")
+    if st.button("检查 LLM 连接", width="stretch", key="llm_smoke"):
+        with st.spinner("正在发送最小 JSON smoke prompt..."):
+            result = smoke_test_llm()
+        if result["status"] == "success":
+            st.success(f"LLM 连接成功，用时 {result.get('latency_sec')} 秒。")
+        elif result["status"] == "skipped":
+            st.warning(result["summary"])
+        else:
+            st.error(result["summary"])
 
 
 def _read_table_preview(path: str | None) -> pd.DataFrame | None:
@@ -1337,6 +1377,7 @@ with start_tab:
         _render_workflow_map(_active_state())
         _render_spatial_note(_active_state())
         _render_acknowledgements()
+        _render_llm_status_panel()
         st.markdown('<div class="ss-section-title">Run Library</div>', unsafe_allow_html=True)
         _render_run_library(outdir)
         st.markdown('<div class="ss-section-title">工具注册表</div>', unsafe_allow_html=True)
