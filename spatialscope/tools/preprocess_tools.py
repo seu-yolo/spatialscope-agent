@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from spatialscope.tools.base import ToolResult, missing_dependency
+from spatialscope.visualization.theme import NEUTRAL_LINE, SIGNAL_PLUM, SIGNAL_TEAL, apply_matplotlib_theme, polish_axis, save_figure_bundle
 
 
 def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> ToolResult:
@@ -22,17 +23,29 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
         sc.pp.highly_variable_genes(adata, n_top_genes=min(n_top_genes, adata.n_vars))
     sc.pp.scale(adata, max_value=10, zero_center=False)
 
+    apply_matplotlib_theme()
     import matplotlib.pyplot as plt
 
     hvg = adata.var.get("highly_variable")
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(4.4, 3.0), constrained_layout=True)
     if hvg is not None:
         counts = [int(hvg.sum()), int((~hvg).sum())]
-        ax.bar(["HVG", "Other"], counts, color=["#1f77b4", "#d0d7de"])
-    ax.set_title("Highly variable genes")
-    fig.tight_layout()
+        bars = ax.bar(["HVG", "Other"], counts, color=[SIGNAL_TEAL, NEUTRAL_LINE], edgecolor="white", linewidth=0.6)
+        total = max(sum(counts), 1)
+        for bar, value in zip(bars, counts):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value,
+                f"{value:,}\n{value / total:.0%}",
+                ha="center",
+                va="bottom",
+                fontsize=7.2,
+                color=SIGNAL_PLUM if value else "#66737f",
+            )
+    polish_axis(ax, title="Highly variable genes", subtitle=f"top_n target {min(n_top_genes, adata.n_vars):,}")
+    ax.set_ylabel("Genes")
     fig_path = Path(figures_dir) / "highly_variable_genes.png"
-    fig.savefig(fig_path, bbox_inches="tight", dpi=300)
+    saved = save_figure_bundle(fig, fig_path)
     plt.close(fig)
 
     return ToolResult(
@@ -40,7 +53,7 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
         summary=f"Normalized, log-transformed, selected up to {n_top_genes} HVGs, and scaled the matrix with sparse-safe scaling.",
         figures=[
             {
-                "path": str(fig_path),
+                **saved,
                 "title": "Highly variable genes",
                 "caption": "Number of selected highly variable genes used for downstream embedding.",
             }

@@ -68,6 +68,9 @@ The LLM never receives raw expression matrices or raw coordinate matrices. It on
 sees dataset summaries, tool contracts, execution summaries, figure/table metadata,
 and warnings/errors.
 
+Design references and rationale are summarized in
+[`docs/AGENT_DESIGN_REFERENCES.md`](docs/AGENT_DESIGN_REFERENCES.md).
+
 ## Demo Data
 
 Generate a tiny synthetic spatial AnnData file:

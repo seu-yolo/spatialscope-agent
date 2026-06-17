@@ -123,6 +123,7 @@ REPORT_TEMPLATE = """
       <h3>{{ fig.title }}</h3>
       <img src="{{ fig.relpath }}" alt="{{ fig.title }}">
       <p>{{ fig.caption }}</p>
+      {% if fig.svg_relpath %}<p class="note"><a href="{{ fig.svg_relpath }}">Editable SVG</a></p>{% endif %}
     </div>
   {% endfor %}
   </div>
@@ -179,6 +180,12 @@ def _with_relpaths(items: list[dict[str, Any]], run_dir: Path) -> list[dict[str,
             updated["relpath"] = str(path.relative_to(run_dir))
         except Exception:
             updated["relpath"] = str(path)
+        if item.get("svg_path"):
+            svg_path = Path(str(item.get("svg_path")))
+            try:
+                updated["svg_relpath"] = str(svg_path.relative_to(run_dir))
+            except Exception:
+                updated["svg_relpath"] = str(svg_path)
         out.append(updated)
     return out
 

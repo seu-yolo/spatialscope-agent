@@ -7,7 +7,15 @@ import numpy as np
 import pandas as pd
 
 from spatialscope.tools.base import ToolResult, missing_dependency
-from spatialscope.visualization.theme import apply_matplotlib_theme
+from spatialscope.visualization.theme import (
+    NEUTRAL_MUTED,
+    SIGNAL_CORAL,
+    SIGNAL_PLUM,
+    SIGNAL_TEAL,
+    apply_matplotlib_theme,
+    polish_axis,
+    save_figure_bundle,
+)
 
 
 def run_qc(
@@ -47,21 +55,36 @@ def run_qc(
     apply_matplotlib_theme()
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, 3, figsize=(10, 3))
+    fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.0), constrained_layout=True)
     metrics = [
-        ("total_counts", "Total counts"),
-        ("n_genes_by_counts", "Genes by counts"),
-        ("pct_counts_mt", "MT percent"),
+        ("total_counts", "Total counts", SIGNAL_TEAL),
+        ("n_genes_by_counts", "Genes by counts", SIGNAL_PLUM),
+        ("pct_counts_mt", "MT percent", SIGNAL_CORAL),
     ]
-    for ax, (column, title) in zip(axes, metrics):
+    for ax, (column, title, color) in zip(axes, metrics):
         if column in adata.obs:
             values = np.asarray(adata.obs[column])
-            ax.hist(values[np.isfinite(values)], bins=40, color="#4c78a8", alpha=0.85)
-        ax.set_title(title)
-    fig.suptitle("QC metric distributions")
-    fig.tight_layout()
+            finite = values[np.isfinite(values)]
+            ax.hist(finite, bins=34, color=color, alpha=0.82, edgecolor="white", linewidth=0.35)
+            if len(finite):
+                median = float(np.median(finite))
+                ax.axvline(median, color="#172026", linewidth=1.0, linestyle="--")
+                ax.text(
+                    0.98,
+                    0.92,
+                    f"median {median:.2g}",
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="top",
+                    fontsize=7,
+                    color=NEUTRAL_MUTED,
+                )
+        polish_axis(ax, title=title)
+        ax.set_ylabel("Spots/cells")
+    retained = after["n_obs"] / max(before["n_obs"], 1)
+    fig.suptitle(f"QC metric distributions - retained {retained:.0%} observations", x=0.01, ha="left", fontsize=11, fontweight="bold")
     fig_path = Path(figures_dir) / "qc_metrics.png"
-    fig.savefig(fig_path, bbox_inches="tight")
+    saved = save_figure_bundle(fig, fig_path)
     plt.close(fig)
 
     return ToolResult(
@@ -69,7 +92,7 @@ def run_qc(
         summary=f"QC retained {after['n_obs']} observations and {after['n_vars']} genes.",
         figures=[
             {
-                "path": str(fig_path),
+                **saved,
                 "title": "QC metric distributions",
                 "caption": "Distributions of total counts, detected genes, and mitochondrial percentage after QC metric calculation.",
             }
@@ -78,4 +101,3 @@ def run_qc(
         observations={"qc_before": before, "qc_after": after},
         warnings=[] if after["n_obs"] > 0 else ["QC removed all observations; relax thresholds."],
     )
-

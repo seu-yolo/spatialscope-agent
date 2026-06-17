@@ -7,7 +7,14 @@ import numpy as np
 import pandas as pd
 
 from spatialscope.tools.base import ToolResult
-from spatialscope.visualization.theme import CLUSTER_PALETTE, apply_matplotlib_theme
+from spatialscope.visualization.theme import (
+    CLUSTER_PALETTE,
+    NEUTRAL_MUTED,
+    SIGNAL_TEAL,
+    apply_matplotlib_theme,
+    polish_axis,
+    save_figure_bundle,
+)
 
 
 MARKER_LEXICON: dict[str, set[str]] = {
@@ -133,17 +140,27 @@ def suggest_cluster_annotations(
     import matplotlib.pyplot as plt
 
     fig_height = max(2.6, 0.42 * len(suggestions) + 1.2)
-    fig, ax = plt.subplots(figsize=(7, fig_height))
+    fig, ax = plt.subplots(figsize=(7.2, fig_height), constrained_layout=True)
     labels = [f"{row.cluster}: {row.candidate_label}" for row in suggestions.itertuples()]
     colors = [CLUSTER_PALETTE[i % len(CLUSTER_PALETTE)] for i in range(len(suggestions))]
-    ax.barh(labels, suggestions["confidence"], color=colors, alpha=0.9)
+    bars = ax.barh(labels, suggestions["confidence"], color=colors, alpha=0.9, edgecolor="white", linewidth=0.6)
+    for bar, row in zip(bars, suggestions.itertuples()):
+        value = float(row.confidence)
+        ax.text(
+            min(value + 0.02, 0.98),
+            bar.get_y() + bar.get_height() / 2,
+            f"{value:.2f}",
+            ha="left" if value < 0.9 else "right",
+            va="center",
+            fontsize=7,
+            color=SIGNAL_TEAL if value > 0 else NEUTRAL_MUTED,
+        )
     ax.set_xlim(0, 1)
     ax.set_xlabel("Marker-overlap confidence")
-    ax.set_title("Candidate Cluster Annotation Suggestions")
+    polish_axis(ax, title="Candidate Cluster Annotation Suggestions", subtitle="exploratory, marker-overlap based")
     ax.invert_yaxis()
-    fig.tight_layout()
     fig_path = Path(figures_dir) / "cluster_annotation_suggestions.png"
-    fig.savefig(fig_path, bbox_inches="tight", dpi=300)
+    saved = save_figure_bundle(fig, fig_path)
     plt.close(fig)
 
     compact = "; ".join(f"{row.cluster}:{row.candidate_label}" for row in suggestions.itertuples())
@@ -155,7 +172,7 @@ def suggest_cluster_annotations(
         summary=f"Generated candidate cluster annotation suggestions for {len(suggestions)} clusters ({compact}).",
         figures=[
             {
-                "path": str(fig_path),
+                **saved,
                 "title": "Candidate Cluster Annotation Suggestions",
                 "caption": "Exploratory labels scored by overlap between top ranked marker genes and a compact canonical marker lexicon.",
             }

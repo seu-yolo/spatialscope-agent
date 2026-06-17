@@ -384,6 +384,28 @@ def _read_table_preview(path: str | None) -> pd.DataFrame | None:
         return None
 
 
+def _render_figure_downloads(fig: dict[str, Any], *, key_prefix: str) -> None:
+    cols = st.columns(2)
+    path = fig.get("path")
+    svg_path = fig.get("svg_path")
+    if path and Path(str(path)).exists():
+        cols[0].download_button(
+            "PNG",
+            Path(str(path)).read_bytes(),
+            file_name=Path(str(path)).name,
+            width="stretch",
+            key=f"{key_prefix}_png",
+        )
+    if svg_path and Path(str(svg_path)).exists():
+        cols[1].download_button(
+            "SVG",
+            Path(str(svg_path)).read_bytes(),
+            file_name=Path(str(svg_path)).name,
+            width="stretch",
+            key=f"{key_prefix}_svg",
+        )
+
+
 def _active_state() -> dict[str, Any] | None:
     return st.session_state.run_state or st.session_state.draft_state
 
@@ -812,6 +834,7 @@ with explore_tab:
                 st.markdown(f'<div class="ss-figure-note">{lead.get("caption", "")}</div>', unsafe_allow_html=True)
                 if lead_path and Path(lead_path).exists():
                     st.image(lead_path, width="stretch")
+                    _render_figure_downloads(lead, key_prefix="lead_figure")
 
             remaining = figures[1:]
             for i in range(0, len(remaining), 2):
@@ -828,6 +851,7 @@ with explore_tab:
                             st.markdown(f'<div class="ss-figure-note">{fig.get("caption", "")}</div>', unsafe_allow_html=True)
                             if path and Path(path).exists():
                                 st.image(path, width="stretch")
+                                _render_figure_downloads(fig, key_prefix=f"figure_{i}_{Path(str(path)).stem}")
                             else:
                                 st.caption("Figure file is not available.")
         else:

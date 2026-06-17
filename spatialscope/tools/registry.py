@@ -137,9 +137,9 @@ TOOL_REGISTRY: dict[str, ToolSpec] = {
         contract=ToolContract(
             name="rank_markers",
             required_fields=["adata.obs[groupby]"],
-            optional_fields=["groupby"],
+            optional_fields=["groupby", "top_n"],
             preconditions=["A clustering column such as leiden exists."],
-            postconditions=["Marker tables are written to the run table directory."],
+            postconditions=["Marker tables and a top-marker heatmap are written."],
             common_failures=["Cluster key is missing.", "Groups are too small for stable ranking."],
             repair_strategy=["Run clustering first.", "Use a valid grouping column."],
         ),

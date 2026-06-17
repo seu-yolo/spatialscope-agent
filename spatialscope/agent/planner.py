@@ -123,7 +123,7 @@ def make_analysis_plan(parsed_request: dict[str, Any], mode: RunMode, *, source:
                 {
                     "id": "markers",
                     "tool": "rank_markers",
-                    "params": {"groupby": "leiden"},
+                    "params": {"groupby": "leiden", "top_n": 5},
                     "rationale": "Rank candidate marker genes for each Leiden cluster.",
                 },
                 {
