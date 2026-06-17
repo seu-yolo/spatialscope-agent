@@ -81,6 +81,14 @@ REPORT_TEMPLATE = """
   <h2>Dataset Overview</h2>
   <pre>{{ dataset_summary }}</pre>
 
+  <h2>Evidence Snapshot</h2>
+  <div class="meta">
+    <div class="metric"><span>Figures</span><strong>{{ figures|length }}</strong></div>
+    <div class="metric"><span>Tables</span><strong>{{ tables|length }}</strong></div>
+    <div class="metric"><span>Trace Steps</span><strong>{{ trace|length }}</strong></div>
+    <div class="metric"><span>Candidate Labels</span><strong>{{ annotations|length }}</strong></div>
+  </div>
+
   <h2>Analysis Plan</h2>
   <p class="note">{{ plan_rationale }}</p>
   <ol>
@@ -88,6 +96,25 @@ REPORT_TEMPLATE = """
     <li><code>{{ step.tool }}</code> - {{ step.params }}<br><span class="note">{{ step.rationale }}</span></li>
   {% endfor %}
   </ol>
+
+  {% if annotations %}
+  <h2>Candidate Cluster Annotation Suggestions</h2>
+  <p class="note">These are marker-overlap suggestions, not confirmed cell type calls.</p>
+  <table>
+    <thead><tr><th>Cluster</th><th>Candidate Label</th><th>Confidence</th><th>Evidence Markers</th><th>Top Markers</th></tr></thead>
+    <tbody>
+    {% for item in annotations %}
+      <tr>
+        <td>{{ item.cluster }}</td>
+        <td>{{ item.candidate_label }}</td>
+        <td>{{ item.confidence }}</td>
+        <td>{{ item.evidence_markers }}</td>
+        <td>{{ item.top_markers }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 
   <h2>Figures</h2>
   <div class="grid">
@@ -192,6 +219,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         figures=_with_relpaths(state.get("generated_figures", []), run_dir),
         tables=_with_relpaths(state.get("generated_tables", []), run_dir),
         trace=state.get("execution_trace", []),
+        annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
         errors=state.get("errors", []),
     )

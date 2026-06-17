@@ -6,6 +6,7 @@ def test_registry_exposes_core_tools():
     assert "run_qc" in tools
     assert "plot_gene_panel" in tools
     assert "run_svg" in tools
+    assert "suggest_cluster_annotations" in tools
 
 
 def test_tool_contracts_are_prompt_safe():

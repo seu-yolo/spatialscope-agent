@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Callable
 
+from spatialscope.tools.annotation_tools import suggest_cluster_annotations
 from spatialscope.tools.base import ToolContract, ToolResult
 from spatialscope.tools.clustering_tools import run_clustering
 from spatialscope.tools.marker_tools import rank_markers
@@ -141,6 +142,24 @@ TOOL_REGISTRY: dict[str, ToolSpec] = {
             postconditions=["Marker tables are written to the run table directory."],
             common_failures=["Cluster key is missing.", "Groups are too small for stable ranking."],
             repair_strategy=["Run clustering first.", "Use a valid grouping column."],
+        ),
+    ),
+    "suggest_cluster_annotations": ToolSpec(
+        name="suggest_cluster_annotations",
+        function=suggest_cluster_annotations,
+        category="interpretation_support",
+        description="Suggest cautious cluster labels from top marker genes using a compact canonical marker lexicon.",
+        contract=ToolContract(
+            name="suggest_cluster_annotations",
+            required_fields=["adata.obs[groupby]", "adata.uns['rank_genes_groups']"],
+            optional_fields=["groupby", "top_n"],
+            preconditions=["Marker ranking has completed.", "A clustering column such as leiden exists."],
+            postconditions=["Candidate annotation table and confidence figure are written."],
+            common_failures=["Marker rankings are missing.", "Markers do not overlap the compact lexicon."],
+            repair_strategy=[
+                "Run rank_markers first.",
+                "Treat unresolved clusters as requiring manual/domain-specific review.",
+            ],
         ),
     ),
     "run_svg": ToolSpec(

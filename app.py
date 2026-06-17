@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 from typing import Any
@@ -7,7 +8,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from spatialscope.agent.graph import execute_agent_state, preview_agent_plan, run_agent
+from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 
@@ -178,6 +179,101 @@ st.markdown(
         background: var(--ss-line);
         margin: 12px 0 16px;
       }
+      .ss-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin: 10px 0 16px;
+      }
+      .ss-mode-card {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: #fff;
+        min-height: 118px;
+        padding: 12px;
+      }
+      .ss-mode-card strong {
+        color: var(--ss-ink);
+        display: block;
+        font-size: 0.98rem;
+        margin-bottom: 5px;
+      }
+      .ss-mode-card span {
+        color: var(--ss-muted);
+        display: block;
+        font-size: 0.85rem;
+        line-height: 1.4;
+      }
+      .ss-workflow {
+        display: grid;
+        grid-template-columns: repeat(9, minmax(74px, 1fr));
+        gap: 7px;
+        margin: 10px 0 18px;
+      }
+      .ss-node {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.94);
+        min-height: 74px;
+        padding: 9px 8px;
+      }
+      .ss-node .ss-mini-label { font-size: 0.66rem; }
+      .ss-node-name {
+        color: var(--ss-ink);
+        font-size: 0.78rem;
+        font-weight: 720;
+        line-height: 1.25;
+        margin-top: 4px;
+      }
+      .ss-node.pending { opacity: 0.58; }
+      .ss-node.success { border-color: #a8d5d1; background: #f3fbfa; }
+      .ss-node.warn, .ss-node.repaired { border-color: #e0c38f; background: #fff8ed; }
+      .ss-node.fail { border-color: #e9aaa2; background: #fff4f2; }
+      .ss-plan-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+        gap: 10px;
+        margin: 10px 0 16px;
+      }
+      .ss-plan-card {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+        min-height: 122px;
+      }
+      .ss-plan-tool {
+        color: var(--ss-ink);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.86rem;
+        font-weight: 720;
+        overflow-wrap: anywhere;
+      }
+      .ss-plan-rationale {
+        color: var(--ss-muted);
+        font-size: 0.84rem;
+        line-height: 1.42;
+        margin-top: 6px;
+      }
+      .ss-evidence-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .ss-evidence-card {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.94);
+        padding: 12px;
+      }
+      .ss-evidence-value {
+        color: var(--ss-ink);
+        font-size: 1.35rem;
+        font-weight: 760;
+        line-height: 1.1;
+        margin-top: 4px;
+      }
       .stTabs [data-baseweb="tab-list"] { gap: 6px; }
       .stTabs [data-baseweb="tab"] {
         border: 1px solid var(--ss-line);
@@ -196,6 +292,7 @@ st.markdown(
       @media (max-width: 760px) {
         .ss-hero { grid-template-columns: 1fr; }
         .ss-glyph { display: none; }
+        .ss-mode-grid, .ss-workflow { grid-template-columns: 1fr; }
       }
     </style>
     """,
@@ -307,6 +404,152 @@ def _run_tone(state: dict[str, Any] | None) -> str:
     return "info"
 
 
+def _parse_gene_text(text: str) -> list[str]:
+    cleaned = text.replace("，", ",").replace(";", ",").replace("\n", ",")
+    genes = [item.strip() for chunk in cleaned.split(",") for item in chunk.split() if item.strip()]
+    seen: set[str] = set()
+    return [gene for gene in genes if not (gene in seen or seen.add(gene))]
+
+
+def _apply_ui_overrides(
+    state: dict[str, Any],
+    *,
+    min_genes: int,
+    min_cells: int,
+    max_mt_pct: float,
+    resolution: float,
+    gene_text: str,
+    annotation_top_n: int,
+) -> dict[str, Any]:
+    plan = []
+    genes = _parse_gene_text(gene_text)
+    for raw_step in state.get("approved_plan", []):
+        step = dict(raw_step)
+        params = dict(step.get("params", {}))
+        if step.get("tool") == "run_qc":
+            params.update({"min_genes": min_genes, "min_cells": min_cells, "max_mt_pct": max_mt_pct})
+        elif step.get("tool") == "run_clustering":
+            params.update({"resolution": resolution})
+        elif step.get("tool") == "plot_gene_panel" and genes:
+            params.update({"genes": genes[:8]})
+        elif step.get("tool") == "suggest_cluster_annotations":
+            params.update({"top_n": annotation_top_n})
+        step["params"] = params
+        plan.append(step)
+
+    plan = validate_plan_steps(plan)
+    state["approved_plan"] = plan
+    state["task_plan"] = plan
+    state.setdefault("parameters", {}).update(
+        {
+            "qc": {"min_genes": min_genes, "min_cells": min_cells, "max_mt_pct": max_mt_pct},
+            "clustering": {"resolution": resolution},
+            "gene_panel_override": genes[:8],
+            "cluster_annotation": {"top_n": annotation_top_n},
+        }
+    )
+    return state
+
+
+def _mode_cards_html() -> str:
+    cards = [
+        (
+            "Quick",
+            "Inspection, QC, embedding, spatial cluster view, and requested gene panel for fast smoke demos.",
+        ),
+        (
+            "Standard",
+            "Full core workflow with marker genes, candidate cluster labels, report, and reproducibility bundle.",
+        ),
+        (
+            "Advanced",
+            "Standard mode plus optional Squidpy-powered spatially variable genes and neighborhood enrichment.",
+        ),
+    ]
+    body = "".join(
+        f'<div class="ss-mode-card"><strong>{title}</strong><span>{description}</span></div>'
+        for title, description in cards
+    )
+    return f'<div class="ss-mode-grid">{body}</div>'
+
+
+def _render_workflow_map(state: dict[str, Any] | None) -> None:
+    nodes = [
+        ("parse_request", "Parse"),
+        ("inspect_dataset", "Inspect"),
+        ("plan_analysis", "Plan"),
+        ("preview_plan", "Preview"),
+        ("execute_tool", "Execute"),
+        ("validate_result", "Validate"),
+        ("repair_or_continue", "Repair"),
+        ("interpret", "Interpret"),
+        ("report", "Report"),
+    ]
+    trace = state.get("execution_trace", []) if state else []
+    seen = {str(item.get("node")): str(item.get("status", "success")) for item in trace}
+    if state and state.get("approved_plan"):
+        for node in ["parse_request", "inspect_dataset", "plan_analysis", "preview_plan"]:
+            seen.setdefault(node, "success")
+    if state and state.get("final_answer"):
+        seen.setdefault("interpret", "success")
+    if state and state.get("report_path"):
+        seen.setdefault("report", "success")
+
+    html_nodes = []
+    for index, (node, label) in enumerate(nodes, start=1):
+        status = seen.get(node, "pending")
+        tone = "fail" if status == "failed" else status
+        html_nodes.append(
+            f"""
+            <div class="ss-node {tone}">
+              <div class="ss-mini-label">{index:02d} {html.escape(status)}</div>
+              <div class="ss-node-name">{html.escape(label)}</div>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="ss-workflow">{"".join(html_nodes)}</div>', unsafe_allow_html=True)
+
+
+def _render_plan_cards(plan: list[dict[str, Any]]) -> None:
+    cards = []
+    for index, step in enumerate(plan, start=1):
+        optional = _chip("optional", "warn") if step.get("optional") else ""
+        params = html.escape(json.dumps(step.get("params", {}), ensure_ascii=False))
+        rationale = html.escape(str(step.get("rationale", "")))
+        cards.append(
+            f"""
+            <div class="ss-plan-card">
+              <div class="ss-mini-label">Step {index:02d} {optional}</div>
+              <div class="ss-plan-tool">{html.escape(str(step.get("tool")))}</div>
+              <div class="ss-plan-rationale">{rationale}</div>
+              <div class="ss-run-path">{params}</div>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="ss-plan-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def _render_evidence_cards(state: dict[str, Any]) -> None:
+    observations = state.get("observations", {})
+    dataset = state.get("dataset_summary", {})
+    evidence = [
+        ("Dataset hash", str(state.get("dataset_hash") or "unavailable")[:12]),
+        ("Spatial coordinates", "yes" if dataset.get("has_spatial") else "no"),
+        ("Resolved genes", len(observations.get("resolved_genes", []))),
+        ("Candidate labels", len(observations.get("cluster_annotation_suggestions", []))),
+    ]
+    cards = "".join(
+        f"""
+        <div class="ss-evidence-card">
+          <div class="ss-mini-label">{html.escape(label)}</div>
+          <div class="ss-evidence-value">{html.escape(str(value))}</div>
+        </div>
+        """
+        for label, value in evidence
+    )
+    st.markdown(f'<div class="ss-evidence-grid">{cards}</div>', unsafe_allow_html=True)
+
+
 def _glyph_html() -> str:
     classes = [
         "a",
@@ -399,6 +642,7 @@ with start_tab:
     left, right = st.columns([1.05, 0.95], gap="large")
     with left:
         st.markdown('<div class="ss-section-title">Input</div>', unsafe_allow_html=True)
+        st.markdown(_mode_cards_html(), unsafe_allow_html=True)
         uploaded = st.file_uploader("Spatial AnnData file", type=["h5ad"])
         default_data = st.text_input("Local data path", value="data/demo_tiny.h5ad")
         query = st.text_area(
@@ -412,10 +656,29 @@ with start_tab:
         upload_path = _save_upload(uploaded)
         data_path = upload_path or default_data
 
+        with st.expander("Analysis Controls", expanded=True):
+            q1, q2, q3 = st.columns(3)
+            min_genes = q1.number_input("Min genes per spot", min_value=0, max_value=5000, value=20, step=5)
+            min_cells = q2.number_input("Min cells per gene", min_value=0, max_value=200, value=3, step=1)
+            max_mt_pct = q3.number_input("Max mitochondrial percent", min_value=0.0, max_value=100.0, value=25.0, step=1.0)
+            c_res, c_gene, c_anno = st.columns([0.8, 1.3, 0.8])
+            resolution = c_res.slider("Leiden resolution", min_value=0.1, max_value=2.0, value=0.8, step=0.1)
+            gene_text = c_gene.text_input("Gene panel override", value="GeneA, GeneB")
+            annotation_top_n = c_anno.number_input("Annotation top markers", min_value=3, max_value=30, value=12, step=1)
+
         c1, c2 = st.columns(2)
         if c1.button("Generate Plan", type="primary", width="stretch"):
             with st.spinner("Generating analysis plan..."):
                 state = preview_agent_plan(data_path=data_path, query=query, mode=mode, outdir=outdir)
+                state = _apply_ui_overrides(
+                    state,
+                    min_genes=min_genes,
+                    min_cells=min_cells,
+                    max_mt_pct=max_mt_pct,
+                    resolution=resolution,
+                    gene_text=gene_text,
+                    annotation_top_n=annotation_top_n,
+                )
             st.session_state.draft_state = state
             st.session_state.run_state = None
             st.session_state.plan_text = _plan_to_text(state.get("approved_plan", []))
@@ -424,12 +687,28 @@ with start_tab:
 
         if c2.button("Run Directly", width="stretch"):
             with st.spinner("Running workflow..."):
-                st.session_state.run_state = run_agent(data_path=data_path, query=query, mode=mode, outdir=outdir)
+                state = preview_agent_plan(data_path=data_path, query=query, mode=mode, outdir=outdir)
+                state = _apply_ui_overrides(
+                    state,
+                    min_genes=min_genes,
+                    min_cells=min_cells,
+                    max_mt_pct=max_mt_pct,
+                    resolution=resolution,
+                    gene_text=gene_text,
+                    annotation_top_n=annotation_top_n,
+                )
+                st.session_state.run_state = execute_agent_state(
+                    state,
+                    approved_plan=state.get("approved_plan", []),
+                    plan_source=state.get("plan_source", "rule_based"),
+                )
             st.session_state.draft_state = None
             st.session_state.plan_text = _plan_to_text(st.session_state.run_state.get("approved_plan", []))
             st.rerun()
 
     with right:
+        st.markdown('<div class="ss-section-title">Agent Map</div>', unsafe_allow_html=True)
+        _render_workflow_map(_active_state())
         st.markdown('<div class="ss-section-title">Tool Registry</div>', unsafe_allow_html=True)
         registry_df = pd.DataFrame(tool_contract_summary())
         st.dataframe(registry_df, hide_index=True, width="stretch", height=432)
@@ -439,6 +718,8 @@ with analyze_tab:
     if not state:
         st.info("Generate a plan from Start.")
     else:
+        st.markdown('<div class="ss-section-title">Workflow State</div>', unsafe_allow_html=True)
+        _render_workflow_map(state)
         st.markdown('<div class="ss-section-title">Dataset Readiness</div>', unsafe_allow_html=True)
         status_cols = st.columns(4)
         summary = state.get("dataset_summary", {})
@@ -449,11 +730,13 @@ with analyze_tab:
 
         st.markdown('<div class="ss-section-title">Approved Plan</div>', unsafe_allow_html=True)
         st.caption(state.get("plan_rationale") or "Plan rationale unavailable.")
-        st.session_state.plan_text = st.text_area(
-            "Plan JSON",
-            value=st.session_state.plan_text or _plan_to_text(state.get("approved_plan", [])),
-            height=360,
-        )
+        _render_plan_cards(state.get("approved_plan", []))
+        with st.expander("Edit Plan JSON", expanded=False):
+            st.session_state.plan_text = st.text_area(
+                "Plan JSON",
+                value=st.session_state.plan_text or _plan_to_text(state.get("approved_plan", [])),
+                height=360,
+            )
 
         b1, b2 = st.columns([1, 1])
         if b1.button("Validate Plan", width="stretch"):
@@ -500,8 +783,10 @@ with explore_tab:
         top[4].metric("Errors", len(state.get("errors", [])))
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
+        _render_evidence_cards(state)
 
         st.markdown('<div class="ss-section-title">Execution Trace</div>', unsafe_allow_html=True)
+        _render_workflow_map(state)
         trace_df = _trace_dataframe(state)
         st.dataframe(
             trace_df,
@@ -551,6 +836,16 @@ with explore_tab:
         st.markdown('<div class="ss-section-title">Tables</div>', unsafe_allow_html=True)
         tables = state.get("generated_tables", [])
         if tables:
+            annotation_table = next(
+                (table for table in tables if "annotation" in str(table.get("title", "")).lower()),
+                None,
+            )
+            annotation_preview = _read_table_preview(annotation_table.get("path")) if annotation_table else None
+            if annotation_preview is not None:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">Interpretation support</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Candidate Cluster Labels</div>', unsafe_allow_html=True)
+                    st.dataframe(annotation_preview, hide_index=True, width="stretch", height=260)
             for i in range(0, len(tables), 2):
                 cols = st.columns(2, gap="large")
                 for col, table in zip(cols, tables[i : i + 2]):
@@ -574,6 +869,8 @@ with report_tab:
         st.info("Run an approved plan first.")
     else:
         st.markdown('<div class="ss-section-title">Interpretation</div>', unsafe_allow_html=True)
+        _render_workflow_map(state)
+        _render_evidence_cards(state)
         with st.container(border=True):
             st.markdown('<div class="ss-mini-label">Agent summary</div>', unsafe_allow_html=True)
             st.write(state.get("final_answer"))

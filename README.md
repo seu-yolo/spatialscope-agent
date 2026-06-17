@@ -11,9 +11,10 @@ SpatialScope Agent is an OpenAI-compatible LLM-powered, LangGraph-orchestrated w
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
+- Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - HTML report, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`
-- CLI and Streamlit UI
+- CLI and a polished Streamlit analysis workspace
 
 ## Setup
 
@@ -86,23 +87,35 @@ python cli.py run \
 
 Outputs are written to `outputs/runs/<run_id>/`.
 
+One-command demo:
+
+```bash
+scripts/run_demo.sh
+```
+
 ## Streamlit
 
 ```bash
-streamlit run app.py
+scripts/run_app.sh
 ```
 
 Navigation:
 
-1. Start: upload data, enter a task, and generate a draft plan.
-2. Analyze: review/edit plan JSON, validate it, and execute the approved plan.
-3. Explore: inspect figures and tables.
-4. Report: download the reproducibility bundle.
+1. Start: upload data, enter a task, choose a run mode, and tune QC/clustering/gene-panel controls.
+2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
+3. Explore: inspect figures, tables, trace records, resolved genes, and candidate cluster labels.
+4. Report: read the cautious interpretation and download the reproducibility bundle.
 
 ## Tests
 
 ```bash
 pytest
+```
+
+Full local health check:
+
+```bash
+scripts/check_project.sh
 ```
 
 The lightweight tests avoid requiring Scanpy/Squidpy so they can validate project logic before the full scientific environment is installed.

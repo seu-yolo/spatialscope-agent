@@ -24,6 +24,8 @@ STOPWORDS = {
     "variables",
     "view",
     "views",
+    "cluster",
+    "clusters",
     "marker",
     "markers",
     "panel",
@@ -41,6 +43,15 @@ STOPWORDS = {
     "svg",
     "gene",
     "genes",
+    "cautious",
+    "candidate",
+    "annotation",
+    "annotations",
+    "suggest",
+    "suggestion",
+    "suggestions",
+    "label",
+    "labels",
 }
 
 
@@ -115,6 +126,12 @@ def make_analysis_plan(parsed_request: dict[str, Any], mode: RunMode, *, source:
                     "params": {"groupby": "leiden"},
                     "rationale": "Rank candidate marker genes for each Leiden cluster.",
                 },
+                {
+                    "id": "cluster_annotation_suggestions",
+                    "tool": "suggest_cluster_annotations",
+                    "params": {"groupby": "leiden", "top_n": 12},
+                    "rationale": "Provide cautious marker-overlap cluster label suggestions for interpretation support.",
+                },
             ]
         )
 
@@ -153,3 +170,55 @@ def make_plan(parsed_request: dict[str, Any], mode: RunMode) -> list[dict[str, A
 
 def validate_plan_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return normalize_plan_steps(steps, allowed_tools=available_tool_names())
+
+
+def _unique_step_id(step_id: str, seen: set[str]) -> str:
+    if step_id not in seen:
+        return step_id
+    index = 2
+    while f"{step_id}_{index}" in seen:
+        index += 1
+    return f"{step_id}_{index}"
+
+
+def merge_with_mode_baseline(
+    steps: list[dict[str, Any]],
+    parsed_request: dict[str, Any],
+    mode: RunMode,
+) -> list[dict[str, Any]]:
+    """Keep LLM choices but enforce the baseline workflow required for the selected mode."""
+
+    proposed = validate_plan_steps(steps)
+    baseline = [step.model_dump() for step in make_analysis_plan(parsed_request, mode).steps]
+    used_indexes: set[int] = set()
+    merged: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for baseline_step in baseline:
+        match_index = next(
+            (
+                index
+                for index, step in enumerate(proposed)
+                if index not in used_indexes and step["tool"] == baseline_step["tool"]
+            ),
+            None,
+        )
+        if match_index is None:
+            step = dict(baseline_step)
+            step["rationale"] = f"Baseline requirement for {mode} mode. {step.get('rationale', '')}".strip()
+        else:
+            step = dict(proposed[match_index])
+            used_indexes.add(match_index)
+        step["id"] = _unique_step_id(str(step["id"]), seen_ids)
+        seen_ids.add(str(step["id"]))
+        merged.append(step)
+
+    for index, proposed_step in enumerate(proposed):
+        if index in used_indexes:
+            continue
+        step = dict(proposed_step)
+        step["id"] = _unique_step_id(str(step["id"]), seen_ids)
+        seen_ids.add(str(step["id"]))
+        merged.append(step)
+
+    return validate_plan_steps(merged)

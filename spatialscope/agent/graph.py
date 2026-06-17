@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from spatialscope.agent.llm import LLMClient, interpret_with_llm, parse_query_with_llm, plan_with_llm
-from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, validate_plan_steps
+from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, merge_with_mode_baseline, validate_plan_steps
 from spatialscope.agent.state import RunMode, SpatialAgentState, initial_state
 from spatialscope.tools.base import ToolResult, safe_tool_call
 from spatialscope.tools.io_tools import load_h5ad
@@ -100,7 +100,7 @@ def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
                 mode=state["mode"],
                 tool_contracts=tool_contracts,
             )
-            state["task_plan"] = validate_plan_steps(plan.get("steps", []))
+            state["task_plan"] = merge_with_mode_baseline(plan.get("steps", []), state.get("parsed_request", {}), state["mode"])
             state["plan_source"] = "llm"
             state["plan_rationale"] = str(plan.get("rationale", ""))
             state["llm_enabled"] = True
