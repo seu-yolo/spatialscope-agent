@@ -27,7 +27,7 @@ control over parameters or biological interpretation.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
 7. Export a complete ZIP reproducibility bundle and HTML report.
-8. Revisit recent runs through Run Library, artifact manifests, and side-by-side Run Compare.
+8. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
 
@@ -51,6 +51,8 @@ A good run should satisfy:
   presentation, or external review.
 - Recent runs can be compared by mode, plan source, trace steps, figures,
   warnings, errors, repairs, and dataset hash.
+- A historical run can be rehydrated from public state, metadata, manifest, and
+  trace files without restoring raw AnnData matrices.
 - A first-time reviewer can run a bundled demo without knowing local paths or
   parameter defaults.
 
@@ -71,8 +73,8 @@ A good run should satisfy:
 - Optional spatially variable gene and neighborhood enrichment analysis.
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
 - Complete ZIP bundle export for each run.
-- Run Library and Run Compare for recent reports, reproducibility assets, and
-  lightweight audit across multiple runs.
+- Run Library, historical run rehydration, and Run Compare for recent reports,
+  reproducibility assets, and lightweight audit across multiple runs.
 - Demo Launchpad for one-click standard analysis on bundled synthetic spatial data.
 
 ## Product Roadmap
