@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpatialScope Agent</title>
+  <meta name="description" content="A LangGraph-orchestrated spatial transcriptomics analysis agent with reproducible reports and traceable workflows.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="shell">
+    <nav class="nav" aria-label="Primary navigation">
+      <div class="brand">SpatialScope Agent</div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#run">Run locally</a>
+        <a href="https://github.com/seu-yolo/spatialscope-agent">GitHub</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div>
+        <div class="kicker">Spatial Omics Agent</div>
+        <h1>空间转录组分析工作台</h1>
+        <p class="lead">
+          SpatialScope Agent turns a natural-language request into a traceable Scanpy/Squidpy workflow,
+          then writes figures, tables, interpretation, metadata, and a reproducibility bundle.
+        </p>
+        <div class="actions">
+          <a class="button" href="https://github.com/seu-yolo/spatialscope-agent">View source</a>
+          <a class="button secondary" href="#run">Run the demo</a>
+        </div>
+        <div class="tag-wall" aria-label="Project tags">
+          <span class="tag teal">LangGraph Workflow</span>
+          <span class="tag plum">GLM-ready LLM</span>
+          <span class="tag">Reproducible Trace</span>
+          <span class="tag amber">Scanpy / Squidpy</span>
+        </div>
+      </div>
+      <img class="atlas" src="assets/spatialscope-atlas.svg" alt="Spatial transcriptomics atlas illustration">
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-title">What It Does</div>
+      <div class="grid">
+        <article class="card">
+          <h3>Natural-language planning</h3>
+          <p>把用户请求解析成结构化 analysis plan，并在执行前允许审阅和编辑。</p>
+        </article>
+        <article class="card">
+          <h3>Deterministic analysis tools</h3>
+          <p>核心分析由 Scanpy/Squidpy 工具层执行，LLM 不接触原始表达矩阵。</p>
+        </article>
+        <article class="card">
+          <h3>Traceable execution</h3>
+          <p>每一步工具调用都会写入 agent_trace.json，包含参数、状态、警告和耗时。</p>
+        </article>
+        <article class="card">
+          <h3>Presentation-ready outputs</h3>
+          <p>输出 HTML report、figures、tables、metadata 和 parameters.yaml，便于复现和展示。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="section-title">Agent Workflow</div>
+      <div class="workflow">
+        <article class="phase sense">
+          <h3>感知</h3>
+          <p>理解请求并检查 AnnData。</p>
+          <code>parse_request</code>
+          <code>inspect_dataset</code>
+        </article>
+        <article class="phase design">
+          <h3>设计</h3>
+          <p>生成可编辑、可验证的 plan。</p>
+          <code>plan_analysis</code>
+          <code>preview_plan</code>
+        </article>
+        <article class="phase act">
+          <h3>执行</h3>
+          <p>调用工具、校验结果并修复失败。</p>
+          <code>execute_tool</code>
+          <code>validate_result</code>
+          <code>repair_or_continue</code>
+        </article>
+        <article class="phase tell">
+          <h3>叙述</h3>
+          <p>从工具摘要生成解释和报告。</p>
+          <code>interpret</code>
+          <code>report</code>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="run">
+      <div class="section-title">Run Locally</div>
+      <pre class="commands"><span># create environment</span>
+conda env create -f environment.yml
+conda activate spatialscope-agent
+python -m pip install -e ".[dev]"
+
+<span># configure LLM provider, optional for smoke tests</span>
+cp .env.example .env
+
+<span># run command-line demo</span>
+scripts/run_demo.sh
+
+<span># launch Streamlit workspace</span>
+scripts/run_app.sh</pre>
+      <p class="note">
+        GitHub Pages hosts this static project site. The interactive Streamlit application runs locally,
+        or can later be deployed to Streamlit Community Cloud, Hugging Face Spaces, or Render.
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="section-title">GitHub Management</div>
+      <div class="grid">
+        <article class="card">
+          <h3>main branch</h3>
+          <p>保持可运行、可测试、可展示。重大实验建议用 feature branch 或 Pull Request。</p>
+        </article>
+        <article class="card">
+          <h3>CI</h3>
+          <p>每次 push 自动运行 unit tests 和 CLI smoke demo，避免展示前才发现坏掉。</p>
+        </article>
+        <article class="card">
+          <h3>Pages</h3>
+          <p>docs/ 目录自动发布为项目主页，适合作为 GitHub README 之外的展示入口。</p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>seu-yolo / 东南大学计算生物学</span>
+      <span>SpatialScope Agent · Reproducible spatial transcriptomics workflows</span>
+    </footer>
+  </main>
+</body>
+</html>

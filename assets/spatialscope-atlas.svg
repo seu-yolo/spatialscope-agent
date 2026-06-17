@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 430" role="img" aria-labelledby="title desc">
+  <title id="title">SpatialScope Agent atlas illustration</title>
+  <desc id="desc">A stylized spatial transcriptomics tissue map with spots, traces, and analysis layers.</desc>
+  <defs>
+    <linearGradient id="tissue" x1="116" y1="77" x2="462" y2="338" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d9efed"/>
+      <stop offset="0.52" stop-color="#eee7f4"/>
+      <stop offset="1" stop-color="#f7ead3"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="52%" cy="42%" r="72%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.18"/>
+    </radialGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#172026" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect x="28" y="28" width="504" height="374" rx="28" fill="#fff" stroke="#d8e0e7" filter="url(#shadow)"/>
+  <path d="M76 70V360M134 70V360M192 70V360M250 70V360M308 70V360M366 70V360M424 70V360M482 70V360M64 104H496M64 162H496M64 220H496M64 278H496M64 336H496" fill="none" stroke="#66737f" stroke-opacity=".13"/>
+  <path d="M109 293C75 231 95 151 157 112C215 76 285 92 333 131C382 171 456 185 466 246C478 316 412 367 337 362C258 357 154 375 109 293Z" fill="url(#tissue)" stroke="#172026" stroke-opacity=".16" stroke-width="3"/>
+  <path d="M139 276C116 223 136 156 184 127C241 93 302 112 348 147C388 178 439 196 441 244C443 294 389 326 329 324C258 321 169 339 139 276Z" fill="url(#glow)"/>
+  <path d="M121 299C94 241 111 163 170 119C229 76 300 96 353 137C401 174 454 193 461 247C468 311 402 354 334 351C254 348 163 365 121 299Z" fill="none" stroke="#172026" stroke-opacity=".22" stroke-dasharray="11 12" stroke-linecap="round" stroke-width="3"/>
+  <path d="M143 263C186 205 226 236 263 170C298 106 345 165 388 138C431 111 459 159 454 204" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M165 309C208 282 235 311 282 278C328 247 362 285 407 246" fill="none" stroke="#6f4e8f" stroke-opacity=".45" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#fff" stroke-width="7">
+    <circle cx="143" cy="263" r="13" stroke="#0f766e"/>
+    <circle cx="263" cy="170" r="14" stroke="#6f4e8f"/>
+    <circle cx="388" cy="138" r="12" stroke="#c75f4a"/>
+    <circle cx="454" cy="204" r="12" stroke="#b7791f"/>
+    <circle cx="165" cy="309" r="12" stroke="#0f766e" opacity=".72"/>
+    <circle cx="282" cy="278" r="13" stroke="#c75f4a" opacity=".72"/>
+    <circle cx="407" cy="246" r="12" stroke="#6f4e8f" opacity=".72"/>
+    <circle cx="223" cy="133" r="10" stroke="#b7791f" opacity=".68"/>
+    <circle cx="340" cy="322" r="10" stroke="#0f766e" opacity=".65"/>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="18" font-weight="700" fill="#8a97a3" letter-spacing=".04em">
+    <text x="76" y="372">SPOTS</text>
+    <text x="391" y="372">TRACE</text>
+  </g>
+</svg>
