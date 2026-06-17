@@ -36,12 +36,14 @@ A good run should satisfy:
 - Every figure/table has a traceable generating tool.
 - Warnings are visible instead of hidden.
 - Failed steps produce structured repair diagnostics instead of silent skipping.
+- Each run has Quality Gates for dataset readiness, plan provenance, trace
+  integrity, evidence outputs, error review, interpretation, and reproducibility.
 - Cluster annotation is framed as candidate evidence, not final truth.
 - Missing genes trigger fuzzy matching rather than silent failure.
 - Missing optional dependencies degrade gracefully.
 - Output paths, parameters, software versions, and trace are preserved.
 - Every run writes an artifact manifest that indexes reports, figures, tables,
-  metadata, parameters, trace, repair diagnostics, and public state.
+  metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
 - Recent runs can be compared by mode, plan source, trace steps, figures,
   warnings, errors, repairs, and dataset hash.
 
@@ -52,6 +54,8 @@ A good run should satisfy:
 - Tool registry with contracts, preconditions, failures, and repair strategies.
 - Structured repair diagnostics with likely cause, action taken, and recommended
   next actions.
+- Quality Gates score and status for lightweight review before trusting or
+  presenting a run.
 - AnnData inspection, QC, preprocessing, PCA, UMAP, Leiden clustering.
 - Spatial cluster and gene expression visualization.
 - Marker gene ranking and candidate cluster annotation suggestions.
@@ -69,6 +73,7 @@ A good run should satisfy:
 - Add a stronger marker evidence panel with heatmap/dotplot summaries.
 - Run and document GLM-enabled planning/interpretation smoke tests.
 - Add filtering and saved review notes for repair categories.
+- Add saved reviewer notes and override decisions for Quality Gates.
 
 ### Medium Term
 
