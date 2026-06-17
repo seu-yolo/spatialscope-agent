@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible problem in SpatialScope Agent.
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include command, mode, data shape, or UI path when possible.
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Paste relevant warnings, errors, run_id, or trace excerpts. Do not paste API keys.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Local checks
+      options:
+        - label: I confirmed `.env` secrets are not included.
+        - label: I checked whether the issue reproduces with `data/demo_tiny.h5ad`.

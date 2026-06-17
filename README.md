@@ -1,5 +1,7 @@
 # SpatialScope Agent
 
+[![CI](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml)
+
 SpatialScope Agent is an OpenAI-compatible LLM-powered, LangGraph-orchestrated workspace for spatial transcriptomics exploration. It turns a natural-language request into a traceable Scanpy/Squidpy workflow with figures, tables, interpretation, and a reproducibility bundle.
 
 Project site: `https://seu-yolo.github.io/spatialscope-agent/`
@@ -72,6 +74,8 @@ and warnings/errors.
 
 Design references and rationale are summarized in
 [`docs/AGENT_DESIGN_REFERENCES.md`](docs/AGENT_DESIGN_REFERENCES.md).
+The product direction and quality bar are summarized in
+[`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md).
 
 ## Demo Data
 
@@ -130,6 +134,8 @@ The lightweight tests avoid requiring Scanpy/Squidpy so they can validate projec
 - `main` is the stable, presentation-ready branch.
 - GitHub Actions runs tests and a CLI smoke demo on push and pull request.
 - GitHub Pages can serve the static project site from the `docs/` directory.
+- Product quality notes are in [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md).
 - Repository workflow notes are in [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md).
+- Contribution notes are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 GitHub Pages must be enabled once in repository settings: Pages -> Deploy from a branch -> `main` -> `/docs`.

@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose an improvement to the agent, analysis tools, UI, or reports.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user or scientific workflow would this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior or design.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent planning
+        - Scientific analysis tool
+        - Visualization
+        - Streamlit UI
+        - Report/export
+        - Documentation
+        - Deployment
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: guardrails
+    attributes:
+      label: Scientific or privacy guardrails
+      description: Note any data privacy, LLM, reproducibility, or interpretation constraints.
