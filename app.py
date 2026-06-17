@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ import streamlit as st
 from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
+from spatialscope.utils.run_index import discover_runs
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -913,6 +915,79 @@ def _render_spatial_note(state: dict[str, Any] | None) -> None:
     st.markdown(note, unsafe_allow_html=True)
 
 
+def _format_run_time(timestamp: float | int | None) -> str:
+    if not timestamp:
+        return "NA"
+    return datetime.fromtimestamp(float(timestamp)).strftime("%Y-%m-%d %H:%M")
+
+
+def _render_run_library(outdir: str) -> None:
+    runs = discover_runs(outdir, limit=8)
+    if not runs:
+        st.caption("暂无历史运行。完成一次分析后，这里会出现 report、trace 和 manifest。")
+        return
+
+    latest = runs[0]
+    st.markdown(
+        f"""
+        <div class="ss-evidence-grid">
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">最近运行</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("run_id", ""))[:18])}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">历史数量</div>
+            <div class="ss-evidence-value">{len(runs)}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">最近图表</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("figures", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">最近状态</div>
+            <div class="ss-evidence-value">{'OK' if not latest.get("errors") else 'ERR'}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    rows = [
+        {
+            "Run": item.get("run_id"),
+            "Mode": item.get("mode"),
+            "Figures": item.get("figures"),
+            "Tables": item.get("tables"),
+            "Trace": item.get("trace_steps"),
+            "Warnings": item.get("warnings"),
+            "Errors": item.get("errors"),
+            "Updated": _format_run_time(item.get("modified_time")),
+        }
+        for item in runs
+    ]
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
+
+    c1, c2 = st.columns(2)
+    report_path = Path(str(latest.get("report_path") or ""))
+    manifest_path = Path(str(latest.get("manifest_path") or ""))
+    if report_path.exists():
+        c1.download_button(
+            "下载最近 Report",
+            report_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_report.html",
+            width="stretch",
+            key=f"history_report_{latest.get('run_id')}",
+        )
+    if manifest_path.exists():
+        c2.download_button(
+            "下载最近 Manifest",
+            manifest_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_artifact_manifest.json",
+            width="stretch",
+            key=f"history_manifest_{latest.get('run_id')}",
+        )
+
+
 def _render_plan_cards(plan: list[dict[str, Any]]) -> None:
     cards = []
     for index, step in enumerate(plan, start=1):
@@ -1101,6 +1176,8 @@ with start_tab:
         _render_workflow_map(_active_state())
         _render_spatial_note(_active_state())
         _render_acknowledgements()
+        st.markdown('<div class="ss-section-title">Run Library</div>', unsafe_allow_html=True)
+        _render_run_library(outdir)
         st.markdown('<div class="ss-section-title">工具注册表</div>', unsafe_allow_html=True)
         registry_df = pd.DataFrame(tool_contract_summary())
         st.dataframe(registry_df, hide_index=True, width="stretch", height=432)
@@ -1280,9 +1357,10 @@ with report_tab:
         trace_path = Path(str(state.get("run_dir"))) / "agent_trace.json"
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
+        manifest_path = Path(str(state.get("run_dir"))) / "artifact_manifest.json"
 
         st.markdown('<div class="ss-section-title">可复现输出包</div>', unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         if report_path and Path(str(report_path)).exists():
             with c1:
                 with st.container(border=True):
@@ -1312,6 +1390,12 @@ with report_tab:
                     st.markdown('<div class="ss-mini-label">参数</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">YAML</div>', unsafe_allow_html=True)
                     st.download_button("下载", param_path.read_bytes(), file_name="parameters.yaml", width="stretch")
+        if manifest_path.exists():
+            with c5:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)
+                    st.download_button("下载", manifest_path.read_bytes(), file_name="artifact_manifest.json", width="stretch")
 
         st.markdown('<div class="ss-quiet-rule"></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)

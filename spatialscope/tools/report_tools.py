@@ -7,6 +7,7 @@ from jinja2 import Template
 
 from spatialscope.tools.base import ToolResult
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
+from spatialscope.utils.run_index import build_artifact_manifest
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -267,8 +268,11 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     report_path.write_text(html, encoding="utf-8")
 
     write_json(run_dir / "state_public.json", public_state_copy(state))
+    manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
+    manifest_path = run_dir / "artifact_manifest.json"
+    write_json(manifest_path, manifest)
     return ToolResult(
         status="success",
         summary=f"Generated HTML report at {report_path}.",
-        observations={"report_path": str(report_path)},
+        observations={"report_path": str(report_path), "artifact_manifest_path": str(manifest_path)},
     )
