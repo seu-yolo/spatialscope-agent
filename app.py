@@ -14,7 +14,7 @@ from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
-from spatialscope.utils.run_index import compare_run_summaries, discover_runs
+from spatialscope.utils.run_index import compare_run_summaries, discover_runs, load_run_state
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -535,6 +535,7 @@ def _init_state() -> None:
         "run_state": None,
         "plan_text": "",
         "last_plan_error": "",
+        "loaded_run_notice": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -986,6 +987,8 @@ def _render_run_library(outdir: str) -> None:
         return
 
     latest = runs[0]
+    options = [str(item.get("run_id")) for item in runs]
+    run_by_id = {str(item.get("run_id")): item for item in runs}
     st.markdown(
         f"""
         <div class="ss-evidence-grid">
@@ -1065,12 +1068,25 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_bundle_{latest.get('run_id')}",
         )
 
+    st.markdown('<div class="ss-section-title">载入历史 Run</div>', unsafe_allow_html=True)
+    load_col, action_col = st.columns([1.4, 0.8])
+    load_id = load_col.selectbox("选择历史运行", options, index=0, key="load_run_id")
+    if action_col.button("载入到工作台", width="stretch", key="load_run_into_workspace"):
+        try:
+            loaded_state = load_run_state(run_by_id[load_id]["run_dir"])
+            st.session_state.run_state = loaded_state
+            st.session_state.draft_state = None
+            st.session_state.plan_text = _plan_to_text(loaded_state.get("approved_plan", []))
+            st.session_state.last_plan_error = ""
+            st.session_state.loaded_run_notice = f"已载入历史 run：{loaded_state.get('run_id', load_id)}"
+            st.rerun()
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"载入失败：{exc}")
+
     if len(runs) < 2:
         return
 
     st.markdown('<div class="ss-section-title">Run Compare</div>', unsafe_allow_html=True)
-    options = [str(item.get("run_id")) for item in runs]
-    run_by_id = {str(item.get("run_id")): item for item in runs}
     pick_a, pick_b = st.columns(2)
     left_id = pick_a.selectbox("Run A", options, index=0, key="compare_run_a")
     right_default = 1 if len(options) > 1 else 0
@@ -1189,6 +1205,7 @@ def _render_header(active: dict[str, Any] | None) -> None:
             _chip(plan_label, "neutral"),
             _chip(llm_label, llm_tone),
             _chip(health_label, health_tone),
+            _chip("历史载入", "warn") if active and active.get("restored_from_bundle") else "",
         ]
     )
     hero = (
@@ -1228,6 +1245,9 @@ _init_state()
 active = _active_state()
 _render_header(active)
 _render_credit_bar()
+if st.session_state.loaded_run_notice:
+    st.success(st.session_state.loaded_run_notice)
+    st.session_state.loaded_run_notice = ""
 
 start_tab, analyze_tab, explore_tab, report_tab = st.tabs(["开始", "方案", "探索", "报告"])
 

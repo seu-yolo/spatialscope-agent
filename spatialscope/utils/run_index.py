@@ -16,6 +16,34 @@ def _read_json(path: Path) -> dict[str, Any] | list[Any] | None:
         return None
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _trace_messages(trace: list[Any], field: str) -> list[str]:
+    messages: list[str] = []
+    for item in trace:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get(field)
+        if isinstance(raw, list):
+            messages.extend(str(message) for message in raw if message)
+        elif raw:
+            messages.append(str(raw))
+    return messages
+
+
 def file_record(path: Path, *, run_dir: Path, kind: str, title: str | None = None) -> dict[str, Any]:
     try:
         relpath = str(path.relative_to(run_dir))
@@ -83,6 +111,98 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
     }
     manifest["complete"] = all(item["exists"] for item in artifacts[:5])
     return manifest
+
+
+def _records_from_manifest(manifest: dict[str, Any], *, kind: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for artifact in _as_list(manifest.get("artifacts")):
+        if not isinstance(artifact, dict) or artifact.get("kind") != kind:
+            continue
+        records.append(
+            {
+                "path": artifact.get("path"),
+                "title": artifact.get("title") or Path(str(artifact.get("path") or "")).name,
+            }
+        )
+    return records
+
+
+def _figure_records_from_manifest(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    figures: list[dict[str, Any]] = []
+    svg_by_title: dict[str, str] = {}
+    for artifact in _as_list(manifest.get("artifacts")):
+        if not isinstance(artifact, dict) or artifact.get("kind") != "figure_svg":
+            continue
+        title = str(artifact.get("title") or "").replace(" SVG", "")
+        if title:
+            svg_by_title[title] = str(artifact.get("path") or "")
+    for figure in _records_from_manifest(manifest, kind="figure"):
+        title = str(figure.get("title") or "")
+        if svg_by_title.get(title):
+            figure["svg_path"] = svg_by_title[title]
+        figures.append(figure)
+    return figures
+
+
+def load_run_state(run_dir: str | Path) -> dict[str, Any]:
+    """Rehydrate the public, display-safe state for a historical run.
+
+    This intentionally restores only persisted summaries, traces, figures,
+    tables, and parameters. It never attempts to reconstruct AnnData or raw
+    expression matrices from disk.
+    """
+
+    root = Path(run_dir)
+    public_state = _as_dict(_read_json(root / "state_public.json"))
+    metadata = _as_dict(_read_json(root / "run_metadata.json"))
+    manifest = _as_dict(_read_json(root / "artifact_manifest.json"))
+    trace = _as_list(_read_json(root / "agent_trace.json"))
+
+    state: dict[str, Any] = dict(public_state)
+    report_path = root / "report.html"
+    parameters = _as_dict(_first_present(state.get("parameters"), metadata.get("parameters"), {}))
+
+    state["run_id"] = _first_present(state.get("run_id"), metadata.get("run_id"), manifest.get("run_id"), root.name)
+    state["run_dir"] = str(root)
+    state["outdir"] = str(root.parent)
+    state["figures_dir"] = str(root / "figures")
+    state["tables_dir"] = str(root / "tables")
+    state["intermediate_dir"] = str(root / "intermediate")
+    state["report_path"] = str(report_path) if report_path.exists() else state.get("report_path")
+    state["dataset_hash"] = _first_present(state.get("dataset_hash"), metadata.get("dataset_hash"), manifest.get("dataset_hash"))
+    state["dataset_summary"] = _as_dict(_first_present(state.get("dataset_summary"), metadata.get("dataset_summary"), {}))
+    state["environment"] = _as_dict(_first_present(state.get("environment"), metadata.get("environment"), {}))
+    state["parameters"] = parameters
+    state["mode"] = _first_present(state.get("mode"), parameters.get("mode"), manifest.get("mode"), "unknown")
+    state["user_query"] = _first_present(state.get("user_query"), metadata.get("query"), manifest.get("query"), "")
+    state["approved_plan"] = _as_list(_first_present(state.get("approved_plan"), metadata.get("approved_plan"), []))
+    state["task_plan"] = _as_list(_first_present(state.get("task_plan"), state.get("approved_plan"), []))
+    state["plan_source"] = _first_present(state.get("plan_source"), metadata.get("plan_source"), manifest.get("plan_source"), "unknown")
+    state["plan_rationale"] = _first_present(state.get("plan_rationale"), metadata.get("plan_rationale"), "")
+    state["llm_enabled"] = bool(_first_present(state.get("llm_enabled"), metadata.get("llm_enabled"), manifest.get("llm_enabled"), False))
+    state["tool_contracts"] = _as_list(_first_present(state.get("tool_contracts"), metadata.get("tool_contracts"), []))
+    state["repair_log"] = _as_list(_first_present(state.get("repair_log"), metadata.get("repair_log"), manifest.get("repair_log"), []))
+    state["generated_figures"] = _as_list(
+        _first_present(state.get("generated_figures"), metadata.get("figures"), _figure_records_from_manifest(manifest))
+    )
+    state["generated_tables"] = _as_list(
+        _first_present(state.get("generated_tables"), metadata.get("tables"), _records_from_manifest(manifest, kind="table"))
+    )
+    state["observations"] = _as_dict(state.get("observations"))
+    state["execution_trace"] = trace if trace else _as_list(state.get("execution_trace"))
+    state["warnings"] = _as_list(state.get("warnings")) or _trace_messages(state["execution_trace"], "warnings")
+    state["errors"] = _as_list(state.get("errors")) or _trace_messages(state["execution_trace"], "errors")
+    state["quality"] = _as_dict(_first_present(state.get("quality"), metadata.get("quality"), manifest.get("quality")))
+    if not state["quality"]:
+        state["quality"] = build_quality_report(state)
+    if state.get("final_answer") is None:
+        state["final_answer"] = ""
+    state["loaded_from_run_dir"] = str(root)
+    state["restored_from_bundle"] = True
+    state["needs_repair"] = False
+    state.pop("_adata", None)
+    state.pop("adata", None)
+    return state
 
 
 def _status_counts(manifest: dict[str, Any], trace: list[Any]) -> dict[str, int]:
