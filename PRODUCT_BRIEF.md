@@ -26,8 +26,9 @@ control over parameters or biological interpretation.
 4. Review an editable analysis plan.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
-7. Export a complete ZIP reproducibility bundle and HTML report.
-8. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
+7. Save Human Review notes with a decision, confidence level, tags, caveats, and rerun recommendations.
+8. Export a complete ZIP reproducibility bundle and HTML report.
+9. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
 
@@ -49,6 +50,8 @@ A good run should satisfy:
   metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
 - Every run can be downloaded as a complete ZIP bundle for submission,
   presentation, or external review.
+- Human Review notes can be saved after a run and are included in the artifact
+  manifest and ZIP bundle.
 - Recent runs can be compared by mode, plan source, trace steps, figures,
   warnings, errors, repairs, and dataset hash.
 - A historical run can be rehydrated from public state, metadata, manifest, and
@@ -67,6 +70,8 @@ A good run should satisfy:
   next actions.
 - Quality Gates score and status for lightweight review before trusting or
   presenting a run.
+- Human Review panel for saved reviewer decision, confidence, notes,
+  limitations, tags, manifest indexing, and bundle export.
 - AnnData inspection, QC, preprocessing, PCA, UMAP, Leiden clustering.
 - Spatial cluster and gene expression visualization.
 - Marker gene ranking and candidate cluster annotation suggestions.
@@ -86,7 +91,7 @@ A good run should satisfy:
 - Add a stronger marker evidence panel with heatmap/dotplot summaries.
 - Run and document GLM-enabled planning/interpretation smoke tests.
 - Add filtering and saved review notes for repair categories.
-- Add saved reviewer notes and override decisions for Quality Gates.
+- Add optional Quality Gate override decisions with explicit reviewer rationale.
 
 ### Medium Term
 
