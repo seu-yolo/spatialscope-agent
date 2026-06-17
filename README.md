@@ -41,6 +41,7 @@ Edit `.env`:
 SPATIALSCOPE_LLM_API_KEY=...
 SPATIALSCOPE_LLM_BASE_URL=...
 SPATIALSCOPE_LLM_MODEL=glm-5.1
+SPATIALSCOPE_LLM_TIMEOUT_SECONDS=45
 ```
 
 Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`

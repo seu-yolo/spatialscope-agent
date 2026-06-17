@@ -32,6 +32,7 @@ class LLMClient:
     api_key: str | None = None
     base_url: str = ""
     model: str = "glm-5.1"
+    timeout_seconds: float = 45.0
 
     @classmethod
     def from_env(cls) -> "LLMClient":
@@ -41,11 +42,13 @@ class LLMClient:
                 api_key=generic_api_key,
                 base_url=os.getenv("SPATIALSCOPE_LLM_BASE_URL", ""),
                 model=os.getenv("SPATIALSCOPE_LLM_MODEL", "glm-5.1"),
+                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
             )
         return cls(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             model=os.getenv("SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash"),
+            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
         )
 
     @property
@@ -61,7 +64,7 @@ class LLMClient:
             from openai import OpenAI
         except Exception as exc:
             raise RuntimeError("The `openai` package is required for OpenAI-compatible LLM access.") from exc
-        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+        return OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout_seconds, max_retries=0)
 
     def complete(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> str:
         client = self._client()
