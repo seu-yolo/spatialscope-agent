@@ -46,14 +46,16 @@ presentation or tagged milestone.
 ## GitHub Automation
 
 - `.github/workflows/ci.yml` runs tests and the CLI smoke demo.
-- `.github/workflows/pages.yml` deploys the static site from `docs/`.
+- GitHub Pages serves the static site from `docs/` after repository Pages is enabled.
 
 For GitHub Pages, configure the repository once:
 
 1. Open repository Settings.
 2. Go to Pages.
-3. Set Source to GitHub Actions.
-4. Trigger the `GitHub Pages` workflow or push to `main`.
+3. Set Source to `Deploy from a branch`.
+4. Select branch `main`.
+5. Select folder `/docs`.
+6. Save.
 
 The expected public site URL is:
 
