@@ -11,9 +11,9 @@ from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_s
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
 ACKNOWLEDGEMENTS = [
-    "This project was developed for the Computational Biology final assignment at Southeast University.",
     "We gratefully acknowledge Professor Peng Xie from the School of Biological Science and Medical Engineering, Southeast University.",
     "We also thank Teaching Assistant Binyu Gao for guidance and support throughout the course project.",
+    "This agent was built as an open, reproducible spatial transcriptomics analysis system.",
 ]
 
 
@@ -79,9 +79,9 @@ REPORT_TEMPLATE = """
     <h1>SpatialScope Agent 分析报告</h1>
     <p class="muted">{{ query }}</p>
     <div>
-      <span class="tag">期末大作业</span>
-      <span class="tag">LangGraph Agent</span>
-      <span class="tag">全流程可追踪</span>
+      <span class="tag">Spatial Omics Agent</span>
+      <span class="tag">LangGraph Workflow</span>
+      <span class="tag">Reproducible Trace</span>
       <span class="tag">Publication-minded figures</span>
     </div>
     <div class="signature">{{ project_signature }}</div>

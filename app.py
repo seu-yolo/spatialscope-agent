@@ -15,15 +15,15 @@ from spatialscope.tools.registry import tool_contract_summary
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
 PROJECT_TAGS = [
-    ("期末大作业", "info"),
-    ("LangGraph Agent", "success"),
-    ("全流程可追踪", "neutral"),
-    ("GLM 已适配", "warn"),
+    ("Spatial Omics Agent", "success"),
+    ("LangGraph Workflow", "info"),
+    ("Reproducible Trace", "neutral"),
+    ("GLM-ready", "warn"),
 ]
 ACKNOWLEDGEMENT_LINES = [
-    "This project was developed for the Computational Biology final assignment at Southeast University.",
     "We gratefully acknowledge Professor Peng Xie from the School of Biological Science and Medical Engineering, Southeast University.",
     "We also thank Teaching Assistant Binyu Gao for guidance and support throughout the course project.",
+    "This agent was built as an open, reproducible spatial transcriptomics analysis system.",
 ]
 
 
@@ -133,12 +133,6 @@ st.markdown(
         line-height: 1.55;
       }
       .ss-status-row { margin-top: 12px; }
-      .ss-tagline {
-        color: var(--ss-muted);
-        font-size: 0.86rem;
-        margin-top: 8px;
-        line-height: 1.5;
-      }
       .ss-stamp {
         border-top: 1px solid var(--ss-line);
         color: var(--ss-muted);
@@ -149,27 +143,47 @@ st.markdown(
         padding-top: 10px;
         text-transform: uppercase;
       }
-      .ss-glyph {
+      .ss-hero-art {
         border-left: 1px solid var(--ss-line);
+        min-width: 0;
         padding-left: 18px;
-        display: grid;
-        grid-template-columns: repeat(7, 16px);
-        grid-auto-rows: 16px;
-        gap: 6px;
-        justify-content: end;
       }
-      .ss-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        background: var(--ss-line-strong);
-        align-self: center;
-        justify-self: center;
+      .ss-atlas-svg {
+        display: block;
+        height: auto;
+        max-width: 214px;
+        width: 100%;
       }
-      .ss-dot.a { background: var(--ss-teal); }
-      .ss-dot.b { background: var(--ss-plum); }
-      .ss-dot.c { background: var(--ss-coral); }
-      .ss-dot.d { background: var(--ss-amber); }
+      .ss-atlas-bg { fill: #ffffff; stroke: var(--ss-line); }
+      .ss-atlas-grid { stroke: rgba(102, 115, 127, 0.13); stroke-width: 1; }
+      .ss-atlas-tissue { stroke: rgba(23, 32, 38, 0.16); stroke-width: 1.1; }
+      .ss-atlas-contour {
+        fill: none;
+        stroke: rgba(23, 32, 38, 0.22);
+        stroke-dasharray: 4 5;
+        stroke-linecap: round;
+        stroke-width: 1.1;
+      }
+      .ss-atlas-trace {
+        fill: none;
+        stroke: rgba(15, 118, 110, 0.68);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2;
+      }
+      .ss-atlas-spot { fill: #ffffff; stroke-width: 2.4; }
+      .ss-atlas-spot.a { stroke: var(--ss-teal); }
+      .ss-atlas-spot.b { stroke: var(--ss-plum); }
+      .ss-atlas-spot.c { stroke: var(--ss-coral); }
+      .ss-atlas-spot.d { stroke: var(--ss-amber); }
+      .ss-atlas-soft { opacity: 0.55; }
+      .ss-atlas-label {
+        fill: var(--ss-soft);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
       .ss-section-title {
         border-bottom: 1px solid var(--ss-line);
         color: var(--ss-ink);
@@ -367,32 +381,11 @@ st.markdown(
         overflow: hidden;
         padding: 14px;
       }
-      .ss-constellation {
-        background:
-          linear-gradient(90deg, rgba(15, 118, 110, 0.06) 1px, transparent 1px),
-          linear-gradient(0deg, rgba(111, 78, 143, 0.05) 1px, transparent 1px),
-          #ffffff;
-        background-size: 18px 18px;
-        border: 1px solid var(--ss-line);
-        border-radius: 8px;
-        height: 118px;
+      .ss-note-visual {
         justify-self: center;
-        width: 118px;
+        max-width: 174px;
+        width: 100%;
       }
-      .ss-constellation path {
-        fill: none;
-        stroke: rgba(15, 118, 110, 0.58);
-        stroke-dasharray: 3 4;
-        stroke-linecap: round;
-        stroke-width: 1.4;
-      }
-      .ss-constellation circle {
-        fill: #fff;
-        stroke-width: 2;
-      }
-      .ss-constellation .a { stroke: var(--ss-teal); }
-      .ss-constellation .b { stroke: var(--ss-plum); }
-      .ss-constellation .c { stroke: var(--ss-coral); }
       .ss-note-copy {
         color: var(--ss-muted);
         font-size: 0.88rem;
@@ -522,7 +515,7 @@ st.markdown(
       }
       @media (max-width: 760px) {
         .ss-hero { grid-template-columns: 1fr; }
-        .ss-glyph { display: none; }
+        .ss-hero-art { border-left: 0; padding-left: 0; }
         .ss-mode-grid, .ss-workflow, .ss-spatial-note { grid-template-columns: 1fr; }
         .ss-flow-phase { min-height: auto; }
       }
@@ -745,7 +738,7 @@ def _mode_cards_html() -> str:
         ),
         (
             "标准模式",
-            "覆盖期末要求的核心分析：预处理、聚类、marker genes、候选注释、图表和报告。",
+            "覆盖完整核心分析：预处理、聚类、marker genes、候选注释、图表和可复现报告。",
         ),
         (
             "高阶模式",
@@ -847,8 +840,52 @@ def _render_workflow_map(state: dict[str, Any] | None) -> None:
             f'<div class="ss-flow-phase-subtitle">{html.escape(subtitle)}</div>'
             f'{"".join(step_html)}'
             f"</div>"
-        )
+    )
     st.markdown(f'<div class="ss-workflow">{"".join(phase_html)}</div>', unsafe_allow_html=True)
+
+
+def _atlas_svg_html(identifier: str = "main", extra_class: str = "") -> str:
+    suffix = html.escape(identifier)
+    class_name = f"ss-atlas-svg {extra_class}".strip()
+    return (
+        f'<svg class="{html.escape(class_name)}" viewBox="0 0 220 178" role="img" '
+        'aria-label="Spatial transcriptomics atlas illustration">'
+        "<defs>"
+        f'<linearGradient id="ssTissue{suffix}" x1="38" y1="30" x2="188" y2="148" gradientUnits="userSpaceOnUse">'
+        '<stop offset="0" stop-color="#d9efed"/>'
+        '<stop offset="0.52" stop-color="#eee7f4"/>'
+        '<stop offset="1" stop-color="#f7ead3"/>'
+        "</linearGradient>"
+        f'<radialGradient id="ssGlow{suffix}" cx="50%" cy="42%" r="70%">'
+        '<stop offset="0" stop-color="#ffffff" stop-opacity="0.88"/>'
+        '<stop offset="1" stop-color="#ffffff" stop-opacity="0.22"/>'
+        "</radialGradient>"
+        "</defs>"
+        '<rect class="ss-atlas-bg" x="8" y="8" width="204" height="162" rx="14"/>'
+        '<path class="ss-atlas-grid" d="M34 18V160M66 18V160M98 18V160M130 18V160M162 18V160M194 18V160'
+        'M18 38H202M18 70H202M18 102H202M18 134H202"/>'
+        f'<path class="ss-atlas-tissue" fill="url(#ssTissue{suffix})" '
+        'd="M43 118C29 92 38 58 64 42C89 26 119 33 139 49C160 66 190 72 194 98'
+        'C199 128 171 150 139 148C106 146 62 153 43 118Z"/>'
+        f'<path fill="url(#ssGlow{suffix})" d="M55 112C46 90 53 62 74 50C98 36 124 45 143 60'
+        'C160 73 183 80 184 100C185 121 163 134 137 133C106 132 67 138 55 112Z"/>'
+        '<path class="ss-atlas-contour" d="M48 120C38 96 45 64 69 47C94 30 124 38 146 55'
+        'C166 71 188 80 190 101C193 126 166 143 138 142C104 141 64 148 48 120Z"/>'
+        '<path class="ss-atlas-trace" d="M58 105C75 82 92 96 108 69C123 45 143 67 161 57C176 49 184 66 183 84"/>'
+        '<path class="ss-atlas-trace" opacity="0.42" d="M69 123C87 111 99 124 119 111C139 99 151 113 170 98"/>'
+        '<circle class="ss-atlas-spot a" cx="58" cy="105" r="5.1"/>'
+        '<circle class="ss-atlas-spot b" cx="108" cy="69" r="5.3"/>'
+        '<circle class="ss-atlas-spot c" cx="161" cy="57" r="4.8"/>'
+        '<circle class="ss-atlas-spot d" cx="183" cy="84" r="4.4"/>'
+        '<circle class="ss-atlas-spot a ss-atlas-soft" cx="69" cy="123" r="4.5"/>'
+        '<circle class="ss-atlas-spot c ss-atlas-soft" cx="119" cy="111" r="4.8"/>'
+        '<circle class="ss-atlas-spot b ss-atlas-soft" cx="170" cy="98" r="4.5"/>'
+        '<circle class="ss-atlas-spot d ss-atlas-soft" cx="91" cy="54" r="3.7"/>'
+        '<circle class="ss-atlas-spot a ss-atlas-soft" cx="143" cy="129" r="3.9"/>'
+        '<text class="ss-atlas-label" x="24" y="154">SPOTS</text>'
+        '<text class="ss-atlas-label" x="154" y="154">TRACE</text>'
+        "</svg>"
+    )
 
 
 def _render_spatial_note(state: dict[str, Any] | None) -> None:
@@ -857,34 +894,23 @@ def _render_spatial_note(state: dict[str, Any] | None) -> None:
     spots = dataset.get("n_obs", "pending")
     genes = dataset.get("n_vars", "pending")
     mode = str(state.get("mode")) if state and state.get("mode") else "pending"
-    st.markdown(
-        f"""
-        <div class="ss-spatial-note">
-          <svg class="ss-constellation" viewBox="0 0 118 118" role="img" aria-label="Spatial spot constellation">
-            <path d="M20 74 C35 50, 45 56, 55 37 S83 38, 96 22" />
-            <path d="M28 91 C45 82, 63 88, 84 72" />
-            <circle class="a" cx="20" cy="74" r="4.5" />
-            <circle class="b" cx="55" cy="37" r="4.5" />
-            <circle class="c" cx="96" cy="22" r="4.5" />
-            <circle class="a" cx="28" cy="91" r="4.5" />
-            <circle class="b" cx="84" cy="72" r="4.5" />
-            <circle class="c" cx="66" cy="86" r="3.8" />
-          </svg>
-          <div>
-            <div class="ss-mini-label">Spatial note</div>
-            <div class="ss-card-title">把每个 spot 连成可以解释的星图</div>
-            <div class="ss-note-copy">每个 spot 像一盏小灯；Agent 把数据、图像、trace 和解释连成一张可复现的地图。</div>
-            <div class="ss-note-meta">
-              <span>run={html.escape(run_id)}</span>
-              <span>spots={html.escape(str(spots))}</span>
-              <span>genes={html.escape(str(genes))}</span>
-              <span>mode={html.escape(mode)}</span>
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    note = (
+        '<div class="ss-spatial-note">'
+        f'<div class="ss-note-visual">{_atlas_svg_html("note", "")}</div>'
+        "<div>"
+        '<div class="ss-mini-label">Spatial note</div>'
+        '<div class="ss-card-title">把每个 spot 连成可以解释的地图</div>'
+        '<div class="ss-note-copy">Agent 把空间位置、表达信号、trace 和解释连在一起，让一次分析不仅能运行，也能被审阅和复现。</div>'
+        '<div class="ss-note-meta">'
+        f"<span>run={html.escape(run_id)}</span>"
+        f"<span>spots={html.escape(str(spots))}</span>"
+        f"<span>genes={html.escape(str(genes))}</span>"
+        f"<span>mode={html.escape(mode)}</span>"
+        "</div>"
+        "</div>"
+        "</div>"
     )
+    st.markdown(note, unsafe_allow_html=True)
 
 
 def _render_plan_cards(plan: list[dict[str, Any]]) -> None:
@@ -927,52 +953,10 @@ def _render_evidence_cards(state: dict[str, Any]) -> None:
     st.markdown(f'<div class="ss-evidence-grid">{cards}</div>', unsafe_allow_html=True)
 
 
-def _glyph_html() -> str:
-    classes = [
-        "a",
-        "",
-        "",
-        "b",
-        "",
-        "d",
-        "",
-        "",
-        "a",
-        "",
-        "",
-        "c",
-        "",
-        "",
-        "d",
-        "",
-        "b",
-        "",
-        "",
-        "a",
-        "",
-        "",
-        "c",
-        "",
-        "d",
-        "",
-        "",
-        "b",
-        "",
-        "",
-        "a",
-        "",
-        "c",
-        "",
-        "",
-    ]
-    dots = "".join(f'<span class="ss-dot {klass}"></span>' for klass in classes)
-    return f'<div class="ss-glyph" aria-hidden="true">{dots}</div>'
-
-
 def _brand_mark_html() -> str:
     return (
-        "<div>"
-        f"{_glyph_html()}"
+        '<div class="ss-hero-art">'
+        f"{_atlas_svg_html('hero', '')}"
         f'<div class="ss-stamp">{html.escape(PROJECT_SIGNATURE)}</div>'
         "</div>"
     )
@@ -1006,13 +990,12 @@ def _render_header(active: dict[str, Any] | None) -> None:
     hero = (
         '<section class="ss-hero">'
         "<div>"
-        '<div class="ss-kicker">SpatialScope Agent · 中文友好版</div>'
+        '<div class="ss-kicker">SpatialScope Agent</div>'
         '<div class="ss-title">空间转录组分析工作台</div>'
         '<div class="ss-subtitle">'
         "从自然语言请求到可复现报告：自动规划、执行 Scanpy/Squidpy 工作流，并保留完整 trace。"
         f'当前运行 <span class="ss-run-path">{html.escape(run_label)}</span>'
         "</div>"
-        '<div class="ss-tagline">面向期末展示：流程清晰、图表精致、解释谨慎，并带有一点属于我们的项目签名。</div>'
         f'<div class="ss-status-row">{chips}</div>'
         f'<div class="ss-tag-wall">{"".join(_chip(label, tone) for label, tone in PROJECT_TAGS)}</div>'
         "</div>"
