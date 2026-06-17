@@ -35,18 +35,21 @@ A good run should satisfy:
 - No raw expression matrix is sent to the LLM.
 - Every figure/table has a traceable generating tool.
 - Warnings are visible instead of hidden.
+- Failed steps produce structured repair diagnostics instead of silent skipping.
 - Cluster annotation is framed as candidate evidence, not final truth.
 - Missing genes trigger fuzzy matching rather than silent failure.
 - Missing optional dependencies degrade gracefully.
 - Output paths, parameters, software versions, and trace are preserved.
 - Every run writes an artifact manifest that indexes reports, figures, tables,
-  metadata, parameters, trace, and public state.
+  metadata, parameters, trace, repair diagnostics, and public state.
 
 ## Current Capabilities
 
 - OpenAI-compatible LLM client, currently configured for GLM-style providers.
 - LangGraph orchestration with deterministic fallback.
 - Tool registry with contracts, preconditions, failures, and repair strategies.
+- Structured repair diagnostics with likely cause, action taken, and recommended
+  next actions.
 - AnnData inspection, QC, preprocessing, PCA, UMAP, Leiden clustering.
 - Spatial cluster and gene expression visualization.
 - Marker gene ranking and candidate cluster annotation suggestions.
@@ -62,7 +65,7 @@ A good run should satisfy:
 - Add screenshots or recorded demo clips to the GitHub Pages site.
 - Add a stronger marker evidence panel with heatmap/dotplot summaries.
 - Run and document GLM-enabled planning/interpretation smoke tests.
-- Add UI affordances for comparing multiple runs.
+- Add UI affordances for comparing multiple runs and filtering repair categories.
 
 ### Medium Term
 
