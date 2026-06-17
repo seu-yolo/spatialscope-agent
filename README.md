@@ -20,6 +20,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - HTML report, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `artifact_manifest.json`
+- Complete `run_bundle.zip` export for report, trace, metadata, figures, tables, and reproducibility assets
 - CLI and a polished Streamlit analysis workspace
 - Run Library and Run Compare for recent reports, reproducibility bundles, and side-by-side run audit
 - Streamlit Demo Launchpad for one-click standard showcase runs on bundled synthetic spatial data
@@ -102,7 +103,8 @@ python cli.py run \
 ```
 
 Outputs are written to `outputs/runs/<run_id>/`.
-Each run includes an `artifact_manifest.json` file that indexes the report,
+Each run includes a complete `run_bundle.zip` plus an `artifact_manifest.json`
+file that indexes the report,
 trace, metadata, parameters, figures, tables, repair diagnostics, Quality Gates,
 and public state bundle.
 
@@ -123,7 +125,7 @@ Navigation:
 1. Start: run the one-click Demo Launchpad, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
 3. Explore: inspect figures, tables, trace records, Quality Gates, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation and download the reproducibility bundle.
+4. Report: read the cautious interpretation and download the full reproducibility bundle or individual files.
 
 ## Tests
 

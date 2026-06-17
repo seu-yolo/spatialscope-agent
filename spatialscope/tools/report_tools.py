@@ -6,6 +6,7 @@ from typing import Any
 from jinja2 import Template
 
 from spatialscope.tools.base import ToolResult
+from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.run_index import build_artifact_manifest
@@ -326,8 +327,15 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
     manifest_path = run_dir / "artifact_manifest.json"
     write_json(manifest_path, manifest)
+    bundle = build_run_bundle(run_dir)
+    manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
+    write_json(manifest_path, manifest)
     return ToolResult(
         status="success",
         summary=f"Generated HTML report at {report_path}.",
-        observations={"report_path": str(report_path), "artifact_manifest_path": str(manifest_path)},
+        observations={
+            "report_path": str(report_path),
+            "artifact_manifest_path": str(manifest_path),
+            "run_bundle_path": bundle["path"],
+        },
     )

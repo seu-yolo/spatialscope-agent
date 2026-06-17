@@ -36,6 +36,7 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "agent_trace.json").exists()
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
+    assert (run_dir / "run_bundle.zip").exists()
     assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
@@ -43,7 +44,9 @@ def test_generate_report_bundle(tmp_path):
     assert metadata["repair_log"][0]["tool"] == "run_svg"
     assert "quality" in metadata
     assert "quality" in manifest
+    assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
     assert manifest["repairs_count"] == 1
+    assert result.observations["run_bundle_path"].endswith("run_bundle.zip")
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
 
 
@@ -86,4 +89,5 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert runs[0]["status_success"] == 1
     assert "quality_score" in runs[0]
     assert "quality_status" in runs[0]
+    assert runs[0]["bundle_path"].endswith("run_bundle.zip")
     assert runs[0]["complete"] is True

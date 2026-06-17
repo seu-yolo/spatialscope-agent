@@ -26,7 +26,7 @@ control over parameters or biological interpretation.
 4. Review an editable analysis plan.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
-7. Export a reproducibility bundle and HTML report.
+7. Export a complete ZIP reproducibility bundle and HTML report.
 8. Revisit recent runs through Run Library, artifact manifests, and side-by-side Run Compare.
 
 ## Quality Bar
@@ -45,6 +45,8 @@ A good run should satisfy:
 - Output paths, parameters, software versions, and trace are preserved.
 - Every run writes an artifact manifest that indexes reports, figures, tables,
   metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
+- Every run can be downloaded as a complete ZIP bundle for submission,
+  presentation, or external review.
 - Recent runs can be compared by mode, plan source, trace steps, figures,
   warnings, errors, repairs, and dataset hash.
 - A first-time reviewer can run a bundled demo without knowing local paths or
@@ -64,6 +66,7 @@ A good run should satisfy:
 - Marker gene ranking and candidate cluster annotation suggestions.
 - Optional spatially variable gene and neighborhood enrichment analysis.
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
+- Complete ZIP bundle export for each run.
 - Run Library and Run Compare for recent reports, reproducibility assets, and
   lightweight audit across multiple runs.
 - Demo Launchpad for one-click standard analysis on bundled synthetic spatial data.
