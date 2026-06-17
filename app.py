@@ -241,30 +241,181 @@ st.markdown(
         line-height: 1.5;
       }
       .ss-workflow {
-        display: grid;
-        grid-template-columns: repeat(9, minmax(74px, 1fr));
-        gap: 7px;
-        margin: 10px 0 18px;
-      }
-      .ss-node {
         border: 1px solid var(--ss-line);
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.94);
-        min-height: 74px;
-        padding: 9px 8px;
+        background:
+          linear-gradient(135deg, rgba(15, 118, 110, 0.045), rgba(199, 95, 74, 0.035)),
+          rgba(255, 255, 255, 0.96);
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin: 10px 0 18px;
+        padding: 13px;
       }
-      .ss-node .ss-mini-label { font-size: 0.66rem; }
-      .ss-node-name {
+      .ss-flow-phase {
+        border-left: 3px solid var(--phase-color, var(--ss-line-strong));
+        min-height: 154px;
+        padding: 2px 0 0 12px;
+        position: relative;
+      }
+      .ss-flow-phase::before {
+        background: var(--phase-color, var(--ss-line-strong));
+        border-radius: 999px;
+        content: "";
+        height: 8px;
+        left: -5.5px;
+        position: absolute;
+        top: 5px;
+        width: 8px;
+      }
+      .ss-flow-phase.sense { --phase-color: var(--ss-teal); }
+      .ss-flow-phase.design { --phase-color: var(--ss-plum); }
+      .ss-flow-phase.act { --phase-color: var(--ss-coral); }
+      .ss-flow-phase.tell { --phase-color: var(--ss-amber); }
+      .ss-flow-phase-title {
         color: var(--ss-ink);
-        font-size: 0.78rem;
+        font-size: 0.95rem;
+        font-weight: 760;
+        line-height: 1.25;
+        margin-bottom: 2px;
+      }
+      .ss-flow-phase-subtitle {
+        color: var(--ss-muted);
+        font-size: 0.76rem;
+        line-height: 1.36;
+        min-height: 34px;
+      }
+      .ss-flow-step {
+        align-items: start;
+        border-top: 1px solid rgba(216, 224, 231, 0.82);
+        display: grid;
+        gap: 7px;
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        padding: 8px 0;
+      }
+      .ss-flow-step:first-of-type { margin-top: 8px; }
+      .ss-flow-index {
+        align-items: center;
+        border: 1px solid var(--ss-line-strong);
+        border-radius: 999px;
+        color: var(--ss-muted);
+        display: inline-flex;
+        font-size: 0.67rem;
+        font-weight: 760;
+        height: 23px;
+        justify-content: center;
+        width: 23px;
+      }
+      .ss-flow-name {
+        color: var(--ss-ink);
+        display: block;
+        font-size: 0.83rem;
         font-weight: 720;
         line-height: 1.25;
+      }
+      .ss-flow-tool {
+        color: var(--ss-soft);
+        display: block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.68rem;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+      .ss-flow-status {
+        border: 1px solid var(--ss-line);
+        border-radius: 999px;
+        color: var(--ss-muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        white-space: nowrap;
+      }
+      .ss-flow-step.success .ss-flow-index,
+      .ss-flow-step.success .ss-flow-status {
+        background: var(--ss-teal-soft);
+        border-color: #afd8d4;
+        color: #075a54;
+      }
+      .ss-flow-step.warn .ss-flow-index,
+      .ss-flow-step.warn .ss-flow-status,
+      .ss-flow-step.repaired .ss-flow-index,
+      .ss-flow-step.repaired .ss-flow-status {
+        background: var(--ss-amber-soft);
+        border-color: #e3c898;
+        color: #83540d;
+      }
+      .ss-flow-step.fail .ss-flow-index,
+      .ss-flow-step.fail .ss-flow-status {
+        background: var(--ss-rose-soft);
+        border-color: #edb7af;
+        color: #8c1d14;
+      }
+      .ss-flow-step.pending { opacity: 0.62; }
+      .ss-flow-step.pending .ss-flow-index,
+      .ss-flow-step.pending .ss-flow-status {
+        background: #edf1f4;
+      }
+      .ss-spatial-note {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 251, 0.96));
+        display: grid;
+        gap: 13px;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        margin: 10px 0 16px;
+        overflow: hidden;
+        padding: 14px;
+      }
+      .ss-constellation {
+        background:
+          linear-gradient(90deg, rgba(15, 118, 110, 0.06) 1px, transparent 1px),
+          linear-gradient(0deg, rgba(111, 78, 143, 0.05) 1px, transparent 1px),
+          #ffffff;
+        background-size: 18px 18px;
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        height: 118px;
+        justify-self: center;
+        width: 118px;
+      }
+      .ss-constellation path {
+        fill: none;
+        stroke: rgba(15, 118, 110, 0.58);
+        stroke-dasharray: 3 4;
+        stroke-linecap: round;
+        stroke-width: 1.4;
+      }
+      .ss-constellation circle {
+        fill: #fff;
+        stroke-width: 2;
+      }
+      .ss-constellation .a { stroke: var(--ss-teal); }
+      .ss-constellation .b { stroke: var(--ss-plum); }
+      .ss-constellation .c { stroke: var(--ss-coral); }
+      .ss-note-copy {
+        color: var(--ss-muted);
+        font-size: 0.88rem;
+        line-height: 1.55;
         margin-top: 4px;
       }
-      .ss-node.pending { opacity: 0.58; }
-      .ss-node.success { border-color: #a8d5d1; background: #f3fbfa; }
-      .ss-node.warn, .ss-node.repaired { border-color: #e0c38f; background: #fff8ed; }
-      .ss-node.fail { border-color: #e9aaa2; background: #fff4f2; }
+      .ss-note-meta {
+        border-top: 1px solid var(--ss-line);
+        color: var(--ss-soft);
+        display: flex;
+        flex-wrap: wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.68rem;
+        gap: 4px 7px;
+        margin-top: 7px;
+        padding-top: 7px;
+      }
+      .ss-note-meta span {
+        background: #f3f6f8;
+        border: 1px solid var(--ss-line);
+        border-radius: 999px;
+        padding: 2px 6px;
+      }
       .ss-plan-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
@@ -372,7 +523,8 @@ st.markdown(
       @media (max-width: 760px) {
         .ss-hero { grid-template-columns: 1fr; }
         .ss-glyph { display: none; }
-        .ss-mode-grid, .ss-workflow { grid-template-columns: 1fr; }
+        .ss-mode-grid, .ss-workflow, .ss-spatial-note { grid-template-columns: 1fr; }
+        .ss-flow-phase { min-height: auto; }
       }
     </style>
     """,
@@ -608,16 +760,44 @@ def _mode_cards_html() -> str:
 
 
 def _render_workflow_map(state: dict[str, Any] | None) -> None:
-    nodes = [
-        ("parse_request", "解析请求"),
-        ("inspect_dataset", "检查数据"),
-        ("plan_analysis", "生成方案"),
-        ("preview_plan", "方案预览"),
-        ("execute_tool", "执行工具"),
-        ("validate_result", "结果校验"),
-        ("repair_or_continue", "自动修复"),
-        ("interpret", "结果解释"),
-        ("report", "生成报告"),
+    phases = [
+        (
+            "sense",
+            "感知",
+            "把自然语言和 AnnData 读成可执行上下文",
+            [
+                ("parse_request", "解析请求", "request"),
+                ("inspect_dataset", "检查数据", "adata"),
+            ],
+        ),
+        (
+            "design",
+            "设计",
+            "生成可编辑、可追踪的 analysis plan",
+            [
+                ("plan_analysis", "生成方案", "planner"),
+                ("preview_plan", "方案预览", "preview"),
+            ],
+        ),
+        (
+            "act",
+            "执行",
+            "调用工具、校验结果，并在必要时 repair",
+            [
+                ("execute_tool", "执行工具", "tools"),
+                ("validate_result", "结果校验", "validator"),
+                ("repair_or_continue", "自动修复", "repair"),
+            ],
+        ),
+        (
+            "tell",
+            "叙述",
+            "把图表、trace 和解释整理成报告",
+            [
+                ("interpret", "结果解释", "LLM summary"),
+                ("report", "生成报告", "HTML bundle"),
+            ],
+        ),
     ]
     status_labels = {
         "pending": "等待",
@@ -636,19 +816,75 @@ def _render_workflow_map(state: dict[str, Any] | None) -> None:
     if state and state.get("report_path"):
         seen.setdefault("report", "success")
 
-    html_nodes = []
-    for index, (node, label) in enumerate(nodes, start=1):
-        status = seen.get(node, "pending")
-        tone = "fail" if status == "failed" else status
-        html_nodes.append(
-            f"""
-            <div class="ss-node {tone}">
-              <div class="ss-mini-label">{index:02d} {html.escape(status_labels.get(status, status))}</div>
-              <div class="ss-node-name">{html.escape(label)}</div>
-            </div>
-            """
+    trace_tool_by_node = {
+        str(item.get("node")): str(item.get("tool") or item.get("node") or "")
+        for item in trace
+        if item.get("node")
+    }
+
+    step_index = 1
+    phase_html = []
+    for phase_class, title, subtitle, steps in phases:
+        step_html = []
+        for node, label, fallback_tool in steps:
+            status = seen.get(node, "pending")
+            tone = "fail" if status == "failed" else "warn" if status == "skipped" else status
+            tool_label = trace_tool_by_node.get(node) or fallback_tool
+            step_html.append(
+                f'<div class="ss-flow-step {tone}">'
+                f'<span class="ss-flow-index">{step_index:02d}</span>'
+                f"<span>"
+                f'<span class="ss-flow-name">{html.escape(label)}</span>'
+                f'<span class="ss-flow-tool">{html.escape(tool_label)}</span>'
+                f"</span>"
+                f'<span class="ss-flow-status">{html.escape(status_labels.get(status, status))}</span>'
+                f"</div>"
+            )
+            step_index += 1
+        phase_html.append(
+            f'<div class="ss-flow-phase {phase_class}">'
+            f'<div class="ss-flow-phase-title">{html.escape(title)}</div>'
+            f'<div class="ss-flow-phase-subtitle">{html.escape(subtitle)}</div>'
+            f'{"".join(step_html)}'
+            f"</div>"
         )
-    st.markdown(f'<div class="ss-workflow">{"".join(html_nodes)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="ss-workflow">{"".join(phase_html)}</div>', unsafe_allow_html=True)
+
+
+def _render_spatial_note(state: dict[str, Any] | None) -> None:
+    dataset = state.get("dataset_summary", {}) if state else {}
+    run_id = str(state.get("run_id"))[:18] if state and state.get("run_id") else "pending"
+    spots = dataset.get("n_obs", "pending")
+    genes = dataset.get("n_vars", "pending")
+    mode = str(state.get("mode")) if state and state.get("mode") else "pending"
+    st.markdown(
+        f"""
+        <div class="ss-spatial-note">
+          <svg class="ss-constellation" viewBox="0 0 118 118" role="img" aria-label="Spatial spot constellation">
+            <path d="M20 74 C35 50, 45 56, 55 37 S83 38, 96 22" />
+            <path d="M28 91 C45 82, 63 88, 84 72" />
+            <circle class="a" cx="20" cy="74" r="4.5" />
+            <circle class="b" cx="55" cy="37" r="4.5" />
+            <circle class="c" cx="96" cy="22" r="4.5" />
+            <circle class="a" cx="28" cy="91" r="4.5" />
+            <circle class="b" cx="84" cy="72" r="4.5" />
+            <circle class="c" cx="66" cy="86" r="3.8" />
+          </svg>
+          <div>
+            <div class="ss-mini-label">Spatial note</div>
+            <div class="ss-card-title">把每个 spot 连成可以解释的星图</div>
+            <div class="ss-note-copy">每个 spot 像一盏小灯；Agent 把数据、图像、trace 和解释连成一张可复现的地图。</div>
+            <div class="ss-note-meta">
+              <span>run={html.escape(run_id)}</span>
+              <span>spots={html.escape(str(spots))}</span>
+              <span>genes={html.escape(str(genes))}</span>
+              <span>mode={html.escape(mode)}</span>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_plan_cards(plan: list[dict[str, Any]]) -> None:
@@ -734,12 +970,12 @@ def _glyph_html() -> str:
 
 
 def _brand_mark_html() -> str:
-    return f"""
-    <div>
-      {_glyph_html()}
-      <div class="ss-stamp">{html.escape(PROJECT_SIGNATURE)}</div>
-    </div>
-    """
+    return (
+        "<div>"
+        f"{_glyph_html()}"
+        f'<div class="ss-stamp">{html.escape(PROJECT_SIGNATURE)}</div>'
+        "</div>"
+    )
 
 
 def _render_header(active: dict[str, Any] | None) -> None:
@@ -767,22 +1003,23 @@ def _render_header(active: dict[str, Any] | None) -> None:
             _chip(health_label, health_tone),
         ]
     )
-    st.markdown(
-        f"""
-        <section class="ss-hero">
-          <div>
-            <div class="ss-kicker">SpatialScope Agent · 中文友好版</div>
-            <div class="ss-title">空间转录组分析工作台</div>
-            <div class="ss-subtitle">从自然语言请求到可复现报告：自动规划、执行 Scanpy/Squidpy 工作流，并保留完整 trace。当前运行 <span class="ss-run-path">{run_label}</span></div>
-            <div class="ss-tagline">面向期末展示：流程清晰、图表精致、解释谨慎，并带有一点属于我们的项目签名。</div>
-            <div class="ss-status-row">{chips}</div>
-            <div class="ss-tag-wall">{"".join(_chip(label, tone) for label, tone in PROJECT_TAGS)}</div>
-          </div>
-          {_brand_mark_html()}
-        </section>
-        """,
-        unsafe_allow_html=True,
+    hero = (
+        '<section class="ss-hero">'
+        "<div>"
+        '<div class="ss-kicker">SpatialScope Agent · 中文友好版</div>'
+        '<div class="ss-title">空间转录组分析工作台</div>'
+        '<div class="ss-subtitle">'
+        "从自然语言请求到可复现报告：自动规划、执行 Scanpy/Squidpy 工作流，并保留完整 trace。"
+        f'当前运行 <span class="ss-run-path">{html.escape(run_label)}</span>'
+        "</div>"
+        '<div class="ss-tagline">面向期末展示：流程清晰、图表精致、解释谨慎，并带有一点属于我们的项目签名。</div>'
+        f'<div class="ss-status-row">{chips}</div>'
+        f'<div class="ss-tag-wall">{"".join(_chip(label, tone) for label, tone in PROJECT_TAGS)}</div>'
+        "</div>"
+        f"{_brand_mark_html()}"
+        "</section>"
     )
+    st.markdown(hero, unsafe_allow_html=True)
 
 
 def _render_footer(active: dict[str, Any] | None) -> None:
@@ -879,6 +1116,7 @@ with start_tab:
     with right:
         st.markdown('<div class="ss-section-title">Agent 流程图</div>', unsafe_allow_html=True)
         _render_workflow_map(_active_state())
+        _render_spatial_note(_active_state())
         _render_acknowledgements()
         st.markdown('<div class="ss-section-title">工具注册表</div>', unsafe_allow_html=True)
         registry_df = pd.DataFrame(tool_contract_summary())
@@ -955,6 +1193,7 @@ with explore_tab:
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
+        _render_spatial_note(state)
 
         st.markdown('<div class="ss-section-title">Execution Trace</div>', unsafe_allow_html=True)
         _render_workflow_map(state)
@@ -1044,6 +1283,7 @@ with report_tab:
         st.markdown('<div class="ss-section-title">结果解释</div>', unsafe_allow_html=True)
         _render_workflow_map(state)
         _render_evidence_cards(state)
+        _render_spatial_note(state)
         with st.container(border=True):
             st.markdown('<div class="ss-mini-label">Agent summary</div>', unsafe_allow_html=True)
             st.write(state.get("final_answer"))
