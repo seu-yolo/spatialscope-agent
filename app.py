@@ -13,6 +13,20 @@ from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 
 
+PROJECT_SIGNATURE = "seu-yolo / SEU Computational Biology"
+PROJECT_TAGS = [
+    ("Course project", "info"),
+    ("LangGraph agent", "success"),
+    ("Traceable science", "neutral"),
+    ("GLM-ready", "warn"),
+]
+ACKNOWLEDGEMENT_LINES = [
+    "Built for the Computational Biology final project.",
+    "Powered by LangGraph, Scanpy, Streamlit, and a cautious OpenAI-compatible LLM layer.",
+    "Thanks to the open-source spatial transcriptomics community for the analysis ecosystem.",
+]
+
+
 st.set_page_config(page_title="SpatialScope Agent", page_icon="S", layout="wide")
 
 st.markdown(
@@ -114,6 +128,21 @@ st.markdown(
         max-width: 760px;
       }
       .ss-status-row { margin-top: 12px; }
+      .ss-tagline {
+        color: var(--ss-muted);
+        font-size: 0.86rem;
+        margin-top: 8px;
+      }
+      .ss-stamp {
+        border-top: 1px solid var(--ss-line);
+        color: var(--ss-muted);
+        font-size: 0.74rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        margin-top: 12px;
+        padding-top: 10px;
+        text-transform: uppercase;
+      }
       .ss-glyph {
         border-left: 1px solid var(--ss-line);
         padding-left: 18px;
@@ -274,6 +303,50 @@ st.markdown(
         line-height: 1.1;
         margin-top: 4px;
       }
+      .ss-tag-wall {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 10px 0 14px;
+      }
+      .ss-ack {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(15, 118, 110, 0.06), rgba(111, 78, 143, 0.055)), #fff;
+        padding: 14px;
+        margin: 10px 0 16px;
+      }
+      .ss-ack-line {
+        color: var(--ss-muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+        margin-top: 4px;
+      }
+      .ss-footer {
+        border-top: 1px solid var(--ss-line);
+        color: var(--ss-muted);
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 0.82rem;
+        gap: 8px 14px;
+        justify-content: space-between;
+        margin-top: 18px;
+        padding: 16px 2px 4px;
+      }
+      .ss-credit-bar {
+        align-items: center;
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.84);
+        color: var(--ss-muted);
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 0.84rem;
+        gap: 8px 12px;
+        margin: -6px 0 14px;
+        padding: 9px 12px;
+      }
+      .ss-credit-bar strong { color: var(--ss-ink); }
       .stTabs [data-baseweb="tab-list"] { gap: 6px; }
       .stTabs [data-baseweb="tab"] {
         border: 1px solid var(--ss-line);
@@ -370,6 +443,38 @@ def _render_status_strip(state: dict[str, Any]) -> None:
         ]
     )
     st.markdown(f'<div class="ss-status-row">{chips}</div>', unsafe_allow_html=True)
+
+
+def _render_tag_wall() -> None:
+    tags = "".join(_chip(label, tone) for label, tone in PROJECT_TAGS)
+    st.markdown(f'<div class="ss-tag-wall">{tags}</div>', unsafe_allow_html=True)
+
+
+def _render_acknowledgements() -> None:
+    lines = "".join(f'<div class="ss-ack-line">{html.escape(line)}</div>' for line in ACKNOWLEDGEMENT_LINES)
+    st.markdown(
+        f"""
+        <div class="ss-ack">
+          <div class="ss-mini-label">Acknowledgements</div>
+          <div class="ss-card-title">A small note from the builder</div>
+          {lines}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_credit_bar() -> None:
+    st.markdown(
+        f"""
+        <div class="ss-credit-bar">
+          <strong>Acknowledgements</strong>
+          <span>{html.escape(ACKNOWLEDGEMENT_LINES[0])}</span>
+          <span>{html.escape(PROJECT_SIGNATURE)}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _read_table_preview(path: str | None) -> pd.DataFrame | None:
@@ -614,6 +719,15 @@ def _glyph_html() -> str:
     return f'<div class="ss-glyph" aria-hidden="true">{dots}</div>'
 
 
+def _brand_mark_html() -> str:
+    return f"""
+    <div>
+      {_glyph_html()}
+      <div class="ss-stamp">{html.escape(PROJECT_SIGNATURE)}</div>
+    </div>
+    """
+
+
 def _render_header(active: dict[str, Any] | None) -> None:
     run_label = str(active.get("run_id")) if active else "no active run"
     mode_label = str(active.get("mode")) if active else "mode not set"
@@ -644,10 +758,26 @@ def _render_header(active: dict[str, Any] | None) -> None:
             <div class="ss-kicker">SpatialScope Agent</div>
             <div class="ss-title">Spatial transcriptomics, planned and traced.</div>
             <div class="ss-subtitle">Run <span class="ss-run-path">{run_label}</span></div>
+            <div class="ss-tagline">A final-project agent with reproducible traces, publication-minded figures, and a little lab-bench signature.</div>
             <div class="ss-status-row">{chips}</div>
+            <div class="ss-tag-wall">{"".join(_chip(label, tone) for label, tone in PROJECT_TAGS)}</div>
           </div>
-          {_glyph_html()}
+          {_brand_mark_html()}
         </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_footer(active: dict[str, Any] | None) -> None:
+    run = html.escape(str(active.get("run_id"))) if active else "no active run"
+    st.markdown(
+        f"""
+        <footer class="ss-footer">
+          <span>{html.escape(PROJECT_SIGNATURE)}</span>
+          <span>SpatialScope Agent · reproducible spatial transcriptomics workspace</span>
+          <span>Run {run}</span>
+        </footer>
         """,
         unsafe_allow_html=True,
     )
@@ -657,6 +787,7 @@ _init_state()
 
 active = _active_state()
 _render_header(active)
+_render_credit_bar()
 
 start_tab, analyze_tab, explore_tab, report_tab = st.tabs(["Start", "Analyze", "Explore", "Report"])
 
@@ -731,6 +862,7 @@ with start_tab:
     with right:
         st.markdown('<div class="ss-section-title">Agent Map</div>', unsafe_allow_html=True)
         _render_workflow_map(_active_state())
+        _render_acknowledgements()
         st.markdown('<div class="ss-section-title">Tool Registry</div>', unsafe_allow_html=True)
         registry_df = pd.DataFrame(tool_contract_summary())
         st.dataframe(registry_df, hide_index=True, width="stretch", height=432)
@@ -943,3 +1075,5 @@ with report_tab:
 
         st.markdown('<div class="ss-quiet-rule"></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
+
+_render_footer(_active_state())

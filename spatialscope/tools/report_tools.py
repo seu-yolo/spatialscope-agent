@@ -9,6 +9,14 @@ from spatialscope.tools.base import ToolResult
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 
 
+PROJECT_SIGNATURE = "seu-yolo / SEU Computational Biology"
+ACKNOWLEDGEMENTS = [
+    "Built for the Computational Biology final project.",
+    "Powered by LangGraph, Scanpy, Streamlit, and an OpenAI-compatible LLM layer.",
+    "Thanks to the open-source spatial transcriptomics community for the analysis ecosystem.",
+]
+
+
 REPORT_TEMPLATE = """
 <!doctype html>
 <html lang="en">
@@ -59,6 +67,9 @@ REPORT_TEMPLATE = """
     .failed { background: var(--rose); }
     .skipped, .repaired { background: var(--amber); }
     .note { color: var(--muted); font-size: 13px; }
+    .tag { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); display: inline-block; font-size: 12px; margin: 3px 4px 3px 0; padding: 2px 8px; }
+    .signature { color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; margin-top: 10px; text-transform: uppercase; }
+    footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; margin-top: 34px; padding-top: 16px; }
     a { color: var(--plum); }
   </style>
 </head>
@@ -67,6 +78,13 @@ REPORT_TEMPLATE = """
   <header>
     <h1>SpatialScope Agent Report</h1>
     <p class="muted">{{ query }}</p>
+    <div>
+      <span class="tag">Course project</span>
+      <span class="tag">LangGraph agent</span>
+      <span class="tag">Traceable science</span>
+      <span class="tag">Publication-minded figures</span>
+    </div>
+    <div class="signature">{{ project_signature }}</div>
     <div class="meta">
       <div class="metric"><span>Run ID</span><strong>{{ run_id }}</strong></div>
       <div class="metric"><span>Mode</span><strong>{{ mode }}</strong></div>
@@ -165,6 +183,17 @@ REPORT_TEMPLATE = """
 
   <h2>Limitations</h2>
   <p>Interpretations are candidate, evidence-linked summaries for exploratory analysis. They do not establish causal mechanisms or confirmed cell type annotations.</p>
+
+  <h2>Acknowledgements</h2>
+  <ul>
+  {% for item in acknowledgements %}
+    <li>{{ item }}</li>
+  {% endfor %}
+  </ul>
+
+  <footer>
+    {{ project_signature }} · SpatialScope Agent · reproducible spatial transcriptomics workspace.
+  </footer>
 </main>
 </body>
 </html>
@@ -205,6 +234,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "plan_source": state.get("plan_source"),
             "plan_rationale": state.get("plan_rationale"),
             "llm_enabled": state.get("llm_enabled"),
+            "project_signature": PROJECT_SIGNATURE,
+            "acknowledgements": ACKNOWLEDGEMENTS,
             "tool_contracts": state.get("tool_contracts"),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
@@ -229,6 +260,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
         errors=state.get("errors", []),
+        project_signature=PROJECT_SIGNATURE,
+        acknowledgements=ACKNOWLEDGEMENTS,
     )
     report_path = run_dir / "report.html"
     report_path.write_text(html, encoding="utf-8")
