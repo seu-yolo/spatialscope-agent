@@ -21,12 +21,13 @@ control over parameters or biological interpretation.
 ## Core Experience
 
 1. Upload or select an AnnData file.
-2. Describe the intended analysis in natural language.
-3. Review an editable analysis plan.
-4. Run Quick, Standard, or Advanced mode.
-5. Inspect figures, tables, trace, warnings, and candidate annotations.
-6. Export a reproducibility bundle and HTML report.
-7. Revisit recent runs through Run Library, artifact manifests, and side-by-side Run Compare.
+2. Or run the Demo Launchpad for a one-click standard showcase.
+3. Describe the intended analysis in natural language.
+4. Review an editable analysis plan.
+5. Run Quick, Standard, or Advanced mode.
+6. Inspect figures, tables, trace, warnings, and candidate annotations.
+7. Export a reproducibility bundle and HTML report.
+8. Revisit recent runs through Run Library, artifact manifests, and side-by-side Run Compare.
 
 ## Quality Bar
 
@@ -46,6 +47,8 @@ A good run should satisfy:
   metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
 - Recent runs can be compared by mode, plan source, trace steps, figures,
   warnings, errors, repairs, and dataset hash.
+- A first-time reviewer can run a bundled demo without knowing local paths or
+  parameter defaults.
 
 ## Current Capabilities
 
@@ -63,6 +66,7 @@ A good run should satisfy:
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
 - Run Library and Run Compare for recent reports, reproducibility assets, and
   lightweight audit across multiple runs.
+- Demo Launchpad for one-click standard analysis on bundled synthetic spatial data.
 
 ## Product Roadmap
 

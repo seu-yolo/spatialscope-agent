@@ -12,6 +12,7 @@ import streamlit as st
 from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
+from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 from spatialscope.utils.run_index import compare_run_summaries, discover_runs
 
 
@@ -732,6 +733,16 @@ def _apply_ui_overrides(
     return state
 
 
+def _apply_demo_marker(state: dict[str, Any], demo_info: dict[str, Any], preset: dict[str, Any]) -> dict[str, Any]:
+    state.setdefault("parameters", {})["demo_preset"] = {
+        "enabled": True,
+        "data_created": bool(demo_info.get("created")),
+        "data_path": demo_info.get("path"),
+        "preset_mode": preset.get("mode"),
+    }
+    return state
+
+
 def _mode_cards_html() -> str:
     cards = [
         (
@@ -921,6 +932,13 @@ def _format_run_time(timestamp: float | int | None) -> str:
     return datetime.fromtimestamp(float(timestamp)).strftime("%Y-%m-%d %H:%M")
 
 
+def _existing_file(path_value: Any) -> Path | None:
+    if not path_value:
+        return None
+    path = Path(str(path_value))
+    return path if path.is_file() else None
+
+
 def _render_run_library(outdir: str) -> None:
     runs = discover_runs(outdir, limit=8)
     if not runs:
@@ -979,9 +997,9 @@ def _render_run_library(outdir: str) -> None:
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
     c1, c2 = st.columns(2)
-    report_path = Path(str(latest.get("report_path") or ""))
-    manifest_path = Path(str(latest.get("manifest_path") or ""))
-    if report_path.exists():
+    report_path = _existing_file(latest.get("report_path"))
+    manifest_path = _existing_file(latest.get("manifest_path"))
+    if report_path:
         c1.download_button(
             "下载最近 Report",
             report_path.read_bytes(),
@@ -989,7 +1007,7 @@ def _render_run_library(outdir: str) -> None:
             width="stretch",
             key=f"history_report_{latest.get('run_id')}",
         )
-    if manifest_path.exists():
+    if manifest_path:
         c2.download_button(
             "下载最近 Manifest",
             manifest_path.read_bytes(),
@@ -1169,6 +1187,78 @@ with start_tab:
     with left:
         st.markdown('<div class="ss-section-title">输入与运行设置</div>', unsafe_allow_html=True)
         st.markdown(_mode_cards_html(), unsafe_allow_html=True)
+        demo_preset = get_demo_preset()
+        st.markdown(
+            """
+            <div class="ss-panel">
+              <div class="ss-mini-label">Demo Launchpad</div>
+              <div class="ss-card-title">一键生成可展示的完整分析</div>
+              <div class="ss-figure-note">使用内置 synthetic spatial AnnData，自动运行标准模式、marker genes、候选注释、报告、manifest 和 Quality Gates。</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        demo_plan_col, demo_run_col = st.columns(2)
+        if demo_plan_col.button("生成 Demo 方案", width="stretch"):
+            try:
+                demo_info = ensure_demo_data(demo_preset["data_path"])
+                with st.spinner("正在准备 Demo 方案..."):
+                    state = preview_agent_plan(
+                        data_path=str(demo_info["path"]),
+                        query=str(demo_preset["query"]),
+                        mode=demo_preset["mode"],
+                        outdir=str(demo_preset["outdir"]),
+                    )
+                    state = _apply_ui_overrides(
+                        state,
+                        min_genes=int(demo_preset["min_genes"]),
+                        min_cells=int(demo_preset["min_cells"]),
+                        max_mt_pct=float(demo_preset["max_mt_pct"]),
+                        resolution=float(demo_preset["resolution"]),
+                        gene_text=str(demo_preset["gene_text"]),
+                        annotation_top_n=int(demo_preset["annotation_top_n"]),
+                    )
+                    state = _apply_demo_marker(state, demo_info, demo_preset)
+                st.session_state.draft_state = state
+                st.session_state.run_state = None
+                st.session_state.plan_text = _plan_to_text(state.get("approved_plan", []))
+                st.session_state.last_plan_error = ""
+                st.rerun()
+            except Exception as exc:  # noqa: BLE001
+                st.error(str(exc))
+
+        if demo_run_col.button("一键运行标准 Demo", type="primary", width="stretch"):
+            try:
+                demo_info = ensure_demo_data(demo_preset["data_path"])
+                with st.spinner("正在运行 Demo workflow..."):
+                    state = preview_agent_plan(
+                        data_path=str(demo_info["path"]),
+                        query=str(demo_preset["query"]),
+                        mode=demo_preset["mode"],
+                        outdir=str(demo_preset["outdir"]),
+                    )
+                    state = _apply_ui_overrides(
+                        state,
+                        min_genes=int(demo_preset["min_genes"]),
+                        min_cells=int(demo_preset["min_cells"]),
+                        max_mt_pct=float(demo_preset["max_mt_pct"]),
+                        resolution=float(demo_preset["resolution"]),
+                        gene_text=str(demo_preset["gene_text"]),
+                        annotation_top_n=int(demo_preset["annotation_top_n"]),
+                    )
+                    state = _apply_demo_marker(state, demo_info, demo_preset)
+                    st.session_state.run_state = execute_agent_state(
+                        state,
+                        approved_plan=state.get("approved_plan", []),
+                        plan_source=state.get("plan_source", "rule_based"),
+                    )
+                st.session_state.draft_state = None
+                st.session_state.plan_text = _plan_to_text(st.session_state.run_state.get("approved_plan", []))
+                st.session_state.last_plan_error = ""
+                st.rerun()
+            except Exception as exc:  # noqa: BLE001
+                st.error(str(exc))
+
         uploaded = st.file_uploader("上传空间 AnnData 文件（.h5ad）", type=["h5ad"])
         default_data = st.text_input("本地数据路径", value="data/demo_tiny.h5ad")
         query = st.text_area(
