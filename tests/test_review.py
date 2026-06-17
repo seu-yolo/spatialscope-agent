@@ -19,6 +19,7 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     (run_dir / "run_metadata.json").write_text("{}", encoding="utf-8")
     (run_dir / "parameters.yaml").write_text("mode: quick\n", encoding="utf-8")
     (run_dir / "state_public.json").write_text(json.dumps({"run_id": "run", "run_dir": str(run_dir)}), encoding="utf-8")
+    (run_dir / "README.md").write_text("old readme", encoding="utf-8")
     manifest = {
         "schema_version": "1.0",
         "run_id": "run",
@@ -50,8 +51,13 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     assert any(item["kind"] == "review" and item["exists"] for item in updated_manifest["artifacts"])
     public_state = json.loads((run_dir / "state_public.json").read_text(encoding="utf-8"))
     assert public_state["review_notes"]["reviewer"] == "SEU reviewer"
+    readme_text = (run_dir / "README.md").read_text(encoding="utf-8")
+    assert "SEU reviewer" in readme_text
+    assert "Accepted with caveats" in readme_text
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "review_notes.json" in archive.namelist()
+        assert "README.md" in archive.namelist()
+        assert "SEU reviewer" in archive.read("README.md").decode("utf-8")
     restored = load_run_state(run_dir)
     assert restored["review_notes"]["decision"] == "accepted_with_caveats"
     summary = summarize_run(run_dir)
@@ -85,6 +91,7 @@ def test_quality_gate_override_is_preserved_and_clearable(tmp_path):
     assert manifest["review"]["quality_gate_overrides_count"] == 1
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "review_notes.json" in archive.namelist()
+        assert "README.md" in archive.namelist()
 
     preserved = save_review_notes(
         state,

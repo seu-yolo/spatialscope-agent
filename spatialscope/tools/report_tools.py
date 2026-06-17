@@ -9,6 +9,7 @@ from spatialscope.tools.base import ToolResult
 from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
+from spatialscope.utils.run_readme import write_run_readme
 from spatialscope.utils.run_index import build_artifact_manifest
 
 
@@ -358,6 +359,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     )
     report_path = run_dir / "report.html"
     report_path.write_text(html, encoding="utf-8")
+    readme_path = write_run_readme(state, run_dir=run_dir, report_path=report_path)
 
     write_json(run_dir / "state_public.json", public_state_copy(state))
     manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
@@ -371,6 +373,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         summary=f"Generated HTML report at {report_path}.",
         observations={
             "report_path": str(report_path),
+            "run_readme_path": str(readme_path),
             "artifact_manifest_path": str(manifest_path),
             "run_bundle_path": bundle["path"],
         },

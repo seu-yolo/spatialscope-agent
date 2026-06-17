@@ -7,6 +7,7 @@ from typing import Any
 
 from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import write_json
+from spatialscope.utils.run_readme import write_run_readme
 from spatialscope.utils.run_index import file_record
 
 
@@ -128,7 +129,10 @@ def _upsert_manifest_review(manifest_path: Path, review_path: Path, review: dict
     root = manifest_path.parent
     manifest = _read_json(manifest_path) or {"schema_version": "1.0", "run_id": review.get("run_id"), "artifacts": []}
     artifacts = [item for item in manifest.get("artifacts", []) if isinstance(item, dict)]
-    artifacts = [item for item in artifacts if item.get("kind") != "review"]
+    artifacts = [item for item in artifacts if item.get("kind") not in {"review", "readme"}]
+    readme_path = root / "README.md"
+    if readme_path.exists():
+        artifacts.append(file_record(readme_path, run_dir=root, kind="readme", title="Run README"))
     artifacts.append(file_record(review_path, run_dir=root, kind="review", title="Human review notes"))
     manifest["artifacts"] = artifacts
     manifest["review"] = {
@@ -183,10 +187,11 @@ def save_review_notes(state: dict[str, Any], payload: dict[str, Any]) -> dict[st
     }
     review_path = root / "review_notes.json"
     write_json(review_path, review)
+    state["review_notes"] = review
     _upsert_public_state_review(root / "state_public.json", review)
+    write_run_readme(state, run_dir=root, report_path=root / "report.html")
     _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
     bundle = build_run_bundle(root)
-    state["review_notes"] = review
     state["review_bundle"] = bundle
     return review
 
@@ -224,9 +229,10 @@ def save_quality_gate_override(state: dict[str, Any], payload: dict[str, Any]) -
     review["updated_at"] = datetime.now().isoformat(timespec="seconds")
     review_path = root / "review_notes.json"
     write_json(review_path, review)
+    state["review_notes"] = review
     _upsert_public_state_review(root / "state_public.json", review)
+    write_run_readme(state, run_dir=root, report_path=root / "report.html")
     _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
     bundle = build_run_bundle(root)
-    state["review_notes"] = review
     state["review_bundle"] = bundle
     return review

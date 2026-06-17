@@ -1186,10 +1186,11 @@ def _render_run_library(outdir: str) -> None:
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     report_path = _existing_file(latest.get("report_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
+    readme_path = _existing_file(latest.get("readme_path"))
     if report_path:
         c1.download_button(
             "下载最近 Report",
@@ -1213,6 +1214,14 @@ def _render_run_library(outdir: str) -> None:
             file_name=f"{latest.get('run_id', 'run')}_bundle.zip",
             width="stretch",
             key=f"history_bundle_{latest.get('run_id')}",
+        )
+    if readme_path:
+        c4.download_button(
+            "下载 Run README",
+            readme_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_README.md",
+            width="stretch",
+            key=f"history_readme_{latest.get('run_id')}",
         )
 
     st.markdown('<div class="ss-section-title">载入历史 Run</div>', unsafe_allow_html=True)
@@ -1762,10 +1771,11 @@ with report_tab:
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
         manifest_path = Path(str(state.get("run_dir"))) / "artifact_manifest.json"
+        readme_path = Path(str(state.get("run_dir"))) / "README.md"
         bundle_path = Path(str(state.get("run_dir"))) / "run_bundle.zip"
 
         st.markdown('<div class="ss-section-title">可复现输出包</div>', unsafe_allow_html=True)
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1, c2, c3, c4 = st.columns(4)
         if bundle_path.exists():
             with c1:
                 with st.container(border=True):
@@ -1777,8 +1787,19 @@ with report_tab:
                         file_name=f"{state.get('run_id', 'spatialscope')}_bundle.zip",
                         width="stretch",
                     )
-        if report_path and Path(str(report_path)).exists():
+        if readme_path.exists():
             with c2:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">交接</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Run README</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        "下载",
+                        readme_path.read_bytes(),
+                        file_name=f"{state.get('run_id', 'spatialscope')}_README.md",
+                        width="stretch",
+                    )
+        if report_path and Path(str(report_path)).exists():
+            with c3:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">报告</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Report HTML</div>', unsafe_allow_html=True)
@@ -1789,25 +1810,27 @@ with report_tab:
                         width="stretch",
                     )
         if trace_path.exists():
-            with c3:
+            with c4:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">溯源</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Trace JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", trace_path.read_bytes(), file_name="agent_trace.json", width="stretch")
+
+        c5, c6, c7 = st.columns(3)
         if metadata_path.exists():
-            with c4:
+            with c5:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">元数据</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Run JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", metadata_path.read_bytes(), file_name="run_metadata.json", width="stretch")
         if param_path.exists():
-            with c5:
+            with c6:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">参数</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">YAML</div>', unsafe_allow_html=True)
                     st.download_button("下载", param_path.read_bytes(), file_name="parameters.yaml", width="stretch")
         if manifest_path.exists():
-            with c6:
+            with c7:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)

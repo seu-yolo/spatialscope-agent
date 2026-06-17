@@ -1,4 +1,5 @@
 import json
+import zipfile
 
 from spatialscope.tools.report_tools import generate_report
 from spatialscope.utils.run_index import discover_runs
@@ -62,7 +63,12 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
     assert (run_dir / "run_bundle.zip").exists()
+    assert (run_dir / "README.md").exists()
     assert (run_dir / "review_notes.json").exists()
+    readme_text = (run_dir / "README.md").read_text(encoding="utf-8")
+    assert "SpatialScope Run README" in readme_text
+    assert "Human Review" in readme_text
+    assert "Quality Gates" in readme_text
     assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
@@ -75,10 +81,14 @@ def test_generate_report_bundle(tmp_path):
     assert "quality" in metadata
     assert "quality" in manifest
     assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "readme" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
     assert manifest["repairs_count"] == 1
     assert result.observations["run_bundle_path"].endswith("run_bundle.zip")
+    assert result.observations["run_readme_path"].endswith("README.md")
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
+    with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
+        assert "README.md" in archive.namelist()
 
 
 def test_discover_runs_reads_manifest(tmp_path):
@@ -120,5 +130,6 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert runs[0]["status_success"] == 1
     assert "quality_score" in runs[0]
     assert "quality_status" in runs[0]
+    assert runs[0]["readme_path"].endswith("README.md")
     assert runs[0]["bundle_path"].endswith("run_bundle.zip")
     assert runs[0]["complete"] is True

@@ -68,6 +68,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         file_record(root / "agent_trace.json", run_dir=root, kind="trace", title="Agent trace"),
         file_record(root / "run_metadata.json", run_dir=root, kind="metadata", title="Run metadata"),
         file_record(root / "parameters.yaml", run_dir=root, kind="parameters", title="Parameters"),
+        file_record(root / "README.md", run_dir=root, kind="readme", title="Run README"),
         file_record(root / "state_public.json", run_dir=root, kind="state", title="Public state"),
     ]
     review_path = root / "review_notes.json"
@@ -268,6 +269,7 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "status_skipped": status_counts["skipped"],
         "report_path": str(report_path) if report_path.exists() else "",
         "manifest_path": str(root / "artifact_manifest.json") if (root / "artifact_manifest.json").exists() else "",
+        "readme_path": str(root / "README.md") if (root / "README.md").exists() else "",
         "bundle_path": str(root / "run_bundle.zip") if (root / "run_bundle.zip").exists() else "",
         "bundle_size": (root / "run_bundle.zip").stat().st_size if (root / "run_bundle.zip").exists() else 0,
         "modified_time": modified,
