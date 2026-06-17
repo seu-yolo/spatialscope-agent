@@ -9,11 +9,11 @@ from spatialscope.tools.base import ToolResult
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 
 
-PROJECT_SIGNATURE = "seu-yolo / SEU Computational Biology"
+PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
 ACKNOWLEDGEMENTS = [
-    "Built for the Computational Biology final project.",
-    "Powered by LangGraph, Scanpy, Streamlit, and an OpenAI-compatible LLM layer.",
-    "Thanks to the open-source spatial transcriptomics community for the analysis ecosystem.",
+    "This project was developed for the Computational Biology final assignment at Southeast University.",
+    "We gratefully acknowledge Professor Peng Xie from the School of Biological Science and Medical Engineering, Southeast University.",
+    "We also thank Teaching Assistant Binyu Gao for guidance and support throughout the course project.",
 ]
 
 
@@ -22,7 +22,7 @@ REPORT_TEMPLATE = """
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>SpatialScope Agent Report - {{ run_id }}</title>
+  <title>SpatialScope Agent 分析报告 - {{ run_id }}</title>
   <style>
     :root {
       --ink: #17202a;
@@ -36,7 +36,7 @@ REPORT_TEMPLATE = """
     }
     * { box-sizing: border-box; }
     body {
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
       color: var(--ink);
       background: #ffffff;
@@ -76,38 +76,38 @@ REPORT_TEMPLATE = """
 <body>
 <main>
   <header>
-    <h1>SpatialScope Agent Report</h1>
+    <h1>SpatialScope Agent 分析报告</h1>
     <p class="muted">{{ query }}</p>
     <div>
-      <span class="tag">Course project</span>
-      <span class="tag">LangGraph agent</span>
-      <span class="tag">Traceable science</span>
+      <span class="tag">期末大作业</span>
+      <span class="tag">LangGraph Agent</span>
+      <span class="tag">全流程可追踪</span>
       <span class="tag">Publication-minded figures</span>
     </div>
     <div class="signature">{{ project_signature }}</div>
     <div class="meta">
       <div class="metric"><span>Run ID</span><strong>{{ run_id }}</strong></div>
       <div class="metric"><span>Mode</span><strong>{{ mode }}</strong></div>
-      <div class="metric"><span>Plan Source</span><strong>{{ plan_source }}</strong></div>
+      <div class="metric"><span>Plan source</span><strong>{{ plan_source }}</strong></div>
       <div class="metric"><span>LLM</span><strong>{{ "enabled" if llm_enabled else "fallback" }}</strong></div>
     </div>
   </header>
 
-  <h2>Run Summary</h2>
+  <h2>运行摘要 / Run Summary</h2>
   <div class="summary">{{ final_answer }}</div>
 
-  <h2>Dataset Overview</h2>
+  <h2>数据概览 / Dataset Overview</h2>
   <pre>{{ dataset_summary }}</pre>
 
-  <h2>Evidence Snapshot</h2>
+  <h2>证据快照 / Evidence Snapshot</h2>
   <div class="meta">
     <div class="metric"><span>Figures</span><strong>{{ figures|length }}</strong></div>
     <div class="metric"><span>Tables</span><strong>{{ tables|length }}</strong></div>
-    <div class="metric"><span>Trace Steps</span><strong>{{ trace|length }}</strong></div>
-    <div class="metric"><span>Candidate Labels</span><strong>{{ annotations|length }}</strong></div>
+    <div class="metric"><span>Trace steps</span><strong>{{ trace|length }}</strong></div>
+    <div class="metric"><span>Candidate labels</span><strong>{{ annotations|length }}</strong></div>
   </div>
 
-  <h2>Analysis Plan</h2>
+  <h2>分析方案 / Analysis Plan</h2>
   <p class="note">{{ plan_rationale }}</p>
   <ol>
   {% for step in plan %}
@@ -116,7 +116,7 @@ REPORT_TEMPLATE = """
   </ol>
 
   {% if annotations %}
-  <h2>Candidate Cluster Annotation Suggestions</h2>
+  <h2>候选 Cluster 注释 / Candidate Annotation Suggestions</h2>
   <p class="note">These are marker-overlap suggestions, not confirmed cell type calls.</p>
   <table>
     <thead><tr><th>Cluster</th><th>Candidate Label</th><th>Confidence</th><th>Evidence Markers</th><th>Top Markers</th></tr></thead>
@@ -134,7 +134,7 @@ REPORT_TEMPLATE = """
   </table>
   {% endif %}
 
-  <h2>Figures</h2>
+  <h2>Figures 图表</h2>
   <div class="grid">
   {% for fig in figures %}
     <div class="figure">
@@ -146,14 +146,14 @@ REPORT_TEMPLATE = """
   {% endfor %}
   </div>
 
-  <h2>Tables</h2>
+  <h2>Tables 表格</h2>
   <ul>
   {% for table in tables %}
     <li><a href="{{ table.relpath }}">{{ table.title }}</a></li>
   {% endfor %}
   </ul>
 
-  <h2>Agent Execution Trace</h2>
+  <h2>Agent Execution Trace 执行追踪</h2>
   <table>
     <thead><tr><th>Node</th><th>Tool</th><th>Status</th><th>Duration</th><th>Summary</th></tr></thead>
     <tbody>
@@ -170,7 +170,7 @@ REPORT_TEMPLATE = """
   </table>
 
   {% if warnings or errors %}
-  <h2>Warnings And Errors</h2>
+  <h2>Warnings / Errors 提醒与错误</h2>
   {% if warnings %}
     <p><strong>Warnings:</strong></p>
     <ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
@@ -181,7 +181,7 @@ REPORT_TEMPLATE = """
   {% endif %}
   {% endif %}
 
-  <h2>Limitations</h2>
+  <h2>局限性 / Limitations</h2>
   <p>Interpretations are candidate, evidence-linked summaries for exploratory analysis. They do not establish causal mechanisms or confirmed cell type annotations.</p>
 
   <h2>Acknowledgements</h2>
@@ -192,7 +192,7 @@ REPORT_TEMPLATE = """
   </ul>
 
   <footer>
-    {{ project_signature }} · SpatialScope Agent · reproducible spatial transcriptomics workspace.
+    {{ project_signature }} · SpatialScope Agent · 可复现空间转录组分析工作台.
   </footer>
 </main>
 </body>
