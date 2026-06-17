@@ -948,8 +948,12 @@ def _render_run_library(outdir: str) -> None:
             <div class="ss-evidence-value">{html.escape(str(latest.get("repairs", 0)))}</div>
           </div>
           <div class="ss-evidence-card">
+            <div class="ss-mini-label">Quality</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("quality_score", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
             <div class="ss-mini-label">最近状态</div>
-            <div class="ss-evidence-value">{'OK' if not latest.get("errors") else 'ERR'}</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("quality_status", "unknown")).upper())}</div>
           </div>
         </div>
         """,
@@ -966,6 +970,8 @@ def _render_run_library(outdir: str) -> None:
             "Repairs": item.get("repairs"),
             "Warnings": item.get("warnings"),
             "Errors": item.get("errors"),
+            "Quality": item.get("quality_score"),
+            "Quality status": item.get("quality_status"),
             "Updated": _format_run_time(item.get("modified_time")),
         }
         for item in runs
@@ -1027,11 +1033,19 @@ def _render_run_library(outdir: str) -> None:
             <div class="ss-mini-label">A-B Repairs</div>
             <div class="ss-evidence-value">{html.escape(str(int(run_by_id[left_id].get("repairs", 0)) - int(run_by_id[right_id].get("repairs", 0))))}</div>
           </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">A-B Quality</div>
+            <div class="ss-evidence-value">{html.escape(str(int(run_by_id[left_id].get("quality_score", 0)) - int(run_by_id[right_id].get("quality_score", 0))))}</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.dataframe(pd.DataFrame(comparison["rows"]), hide_index=True, width="stretch", height=460)
+    comparison_df = pd.DataFrame(comparison["rows"])
+    for col in ["A", "B", "Delta A-B"]:
+        if col in comparison_df:
+            comparison_df[col] = comparison_df[col].astype(str)
+    st.dataframe(comparison_df, hide_index=True, width="stretch", height=460)
     for note in comparison["notes"]:
         st.caption(note)
 
@@ -1292,13 +1306,14 @@ with explore_tab:
         st.info("请先运行一个已批准的分析方案。")
     else:
         st.markdown('<div class="ss-section-title">运行快照</div>', unsafe_allow_html=True)
-        top = st.columns(6)
+        top = st.columns(7)
         top[0].metric("Figures", len(state.get("generated_figures", [])))
         top[1].metric("Tables", len(state.get("generated_tables", [])))
         top[2].metric("Trace steps", len(state.get("execution_trace", [])))
         top[3].metric("Repairs", len(state.get("repair_log", [])))
         top[4].metric("Warnings", len(state.get("warnings", [])))
         top[5].metric("Errors", len(state.get("errors", [])))
+        top[6].metric("Quality", (state.get("quality") or {}).get("score", "NA"))
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
@@ -1334,6 +1349,22 @@ with explore_tab:
                 for item in repair_log
             ]
             st.dataframe(pd.DataFrame(repair_rows), hide_index=True, width="stretch", height=min(260, 44 + len(repair_rows) * 48))
+
+        quality = state.get("quality") or {}
+        if quality.get("gates"):
+            st.markdown('<div class="ss-section-title">Quality Gates</div>', unsafe_allow_html=True)
+            quality_rows = [
+                {
+                    "Gate": gate.get("name"),
+                    "Status": gate.get("status"),
+                    "Score": gate.get("score"),
+                    "Summary": gate.get("summary"),
+                    "Evidence": gate.get("evidence"),
+                    "Recommendation": gate.get("recommendation"),
+                }
+                for gate in quality.get("gates", [])
+            ]
+            st.dataframe(pd.DataFrame(quality_rows), hide_index=True, width="stretch", height=360)
 
         st.markdown('<div class="ss-section-title">Figure Gallery</div>', unsafe_allow_html=True)
         figures = state.get("generated_figures", [])

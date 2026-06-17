@@ -13,6 +13,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Structured LLM parsing/planning with Pydantic validation and rule-based fallback
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
+- Quality Gates self-audit for dataset readiness, trace integrity, evidence outputs, interpretation, and reproducibility metadata
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
@@ -101,8 +102,8 @@ python cli.py run \
 
 Outputs are written to `outputs/runs/<run_id>/`.
 Each run includes an `artifact_manifest.json` file that indexes the report,
-trace, metadata, parameters, figures, tables, repair diagnostics, and public
-state bundle.
+trace, metadata, parameters, figures, tables, repair diagnostics, Quality Gates,
+and public state bundle.
 
 One-command demo:
 
@@ -120,7 +121,7 @@ Navigation:
 
 1. Start: upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
-3. Explore: inspect figures, tables, trace records, repair diagnostics, resolved genes, and candidate cluster labels.
+3. Explore: inspect figures, tables, trace records, Quality Gates, repair diagnostics, resolved genes, and candidate cluster labels.
 4. Report: read the cautious interpretation and download the reproducibility bundle.
 
 ## Tests

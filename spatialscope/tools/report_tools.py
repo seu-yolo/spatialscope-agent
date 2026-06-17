@@ -7,6 +7,7 @@ from jinja2 import Template
 
 from spatialscope.tools.base import ToolResult
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
+from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.run_index import build_artifact_manifest
 
 
@@ -67,6 +68,9 @@ REPORT_TEMPLATE = """
     .success { background: var(--teal); }
     .failed { background: var(--rose); }
     .skipped, .repaired { background: var(--amber); }
+    .pass { background: var(--teal); }
+    .warn { background: var(--amber); }
+    .fail { background: var(--rose); }
     .note { color: var(--muted); font-size: 13px; }
     .tag { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); display: inline-block; font-size: 12px; margin: 3px 4px 3px 0; padding: 2px 8px; }
     .signature { color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; margin-top: 10px; text-transform: uppercase; }
@@ -107,8 +111,26 @@ REPORT_TEMPLATE = """
     <div class="metric"><span>Tables</span><strong>{{ tables|length }}</strong></div>
     <div class="metric"><span>Trace steps</span><strong>{{ trace|length }}</strong></div>
     <div class="metric"><span>Repairs</span><strong>{{ repairs|length }}</strong></div>
+    <div class="metric"><span>Quality</span><strong>{{ quality.score }} / {{ quality.overall_status }}</strong></div>
     <div class="metric"><span>Candidate labels</span><strong>{{ annotations|length }}</strong></div>
   </div>
+
+  <h2>Quality Gates 质量自检</h2>
+  <table>
+    <thead><tr><th>Gate</th><th>Status</th><th>Score</th><th>Summary</th><th>Evidence</th><th>Recommendation</th></tr></thead>
+    <tbody>
+    {% for gate in quality.gates %}
+      <tr>
+        <td>{{ gate.name }}</td>
+        <td><span class="badge {{ gate.status }}">{{ gate.status }}</span></td>
+        <td>{{ gate.score }}</td>
+        <td>{{ gate.summary }}</td>
+        <td>{{ gate.evidence }}</td>
+        <td>{{ gate.recommendation }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 
   <h2>分析方案 / Analysis Plan</h2>
   <p class="note">{{ plan_rationale }}</p>
@@ -249,6 +271,8 @@ def _with_relpaths(items: list[dict[str, Any]], run_dir: Path) -> list[dict[str,
 
 def generate_report(state: dict[str, Any]) -> ToolResult:
     run_dir = Path(state["run_dir"])
+    quality = build_quality_report(state)
+    state["quality"] = quality
     write_json(run_dir / "agent_trace.json", state.get("execution_trace", []))
     write_json(
         run_dir / "run_metadata.json",
@@ -266,6 +290,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "acknowledgements": ACKNOWLEDGEMENTS,
             "tool_contracts": state.get("tool_contracts"),
             "repair_log": state.get("repair_log", []),
+            "quality": quality,
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
         },
@@ -287,6 +312,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         tables=_with_relpaths(state.get("generated_tables", []), run_dir),
         trace=state.get("execution_trace", []),
         repairs=state.get("repair_log", []),
+        quality=quality,
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
         errors=state.get("errors", []),

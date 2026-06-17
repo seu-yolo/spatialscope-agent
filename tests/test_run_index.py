@@ -18,6 +18,8 @@ def test_compare_run_summaries_reports_deltas_and_notes():
         "warnings": 2,
         "errors": 1,
         "repairs": 1,
+        "quality_score": 78,
+        "quality_status": "warn",
     }
     right = {
         "run_id": "b",
@@ -35,6 +37,8 @@ def test_compare_run_summaries_reports_deltas_and_notes():
         "warnings": 0,
         "errors": 0,
         "repairs": 0,
+        "quality_score": 100,
+        "quality_status": "pass",
     }
     comparison = compare_run_summaries(left, right)
     assert comparison["same_dataset"] is True
@@ -43,4 +47,6 @@ def test_compare_run_summaries_reports_deltas_and_notes():
     rows = {row["Metric"]: row for row in comparison["rows"]}
     assert rows["Figures"]["Delta A-B"] == 3
     assert rows["Errors"]["Delta A-B"] == 1
+    assert rows["Quality score"]["Delta A-B"] == -22
+    assert rows["Quality status"]["A"] == "warn"
     assert any("repair" in note.lower() for note in comparison["notes"])

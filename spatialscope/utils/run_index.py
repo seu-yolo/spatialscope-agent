@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from spatialscope.utils.quality import build_quality_report
+
 
 def _read_json(path: Path) -> dict[str, Any] | list[Any] | None:
     if not path.exists():
@@ -75,6 +77,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "repair_log": state.get("repair_log", []),
         "figures_count": len(state.get("generated_figures", [])),
         "tables_count": len(state.get("generated_tables", [])),
+        "quality": state.get("quality") or build_quality_report(state),
         "artifacts": artifacts,
     }
     manifest["complete"] = all(item["exists"] for item in artifacts[:5])
@@ -135,6 +138,8 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "manifest_path": str(root / "artifact_manifest.json") if (root / "artifact_manifest.json").exists() else "",
         "modified_time": modified,
         "complete": bool(manifest.get("complete")) if manifest else report_path.exists(),
+        "quality_score": int((manifest.get("quality") or metadata.get("quality") or {}).get("score") or 0),
+        "quality_status": str((manifest.get("quality") or metadata.get("quality") or {}).get("overall_status") or "unknown"),
     }
 
 
@@ -168,12 +173,14 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         ("Repaired steps", "status_repaired"),
         ("Warnings", "warnings"),
         ("Errors", "errors"),
+        ("Quality score", "quality_score"),
     ]
     rows: list[dict[str, Any]] = [
         {"Metric": "Mode", "A": left.get("mode"), "B": right.get("mode"), "Delta A-B": ""},
         {"Metric": "Plan source", "A": left.get("plan_source"), "B": right.get("plan_source"), "Delta A-B": ""},
         {"Metric": "LLM enabled", "A": bool(left.get("llm_enabled")), "B": bool(right.get("llm_enabled")), "Delta A-B": ""},
         {"Metric": "Bundle complete", "A": bool(left.get("complete")), "B": bool(right.get("complete")), "Delta A-B": ""},
+        {"Metric": "Quality status", "A": left.get("quality_status"), "B": right.get("quality_status"), "Delta A-B": ""},
     ]
     for label, key in metric_keys:
         diff = _delta(left.get(key, 0), right.get(key, 0))
