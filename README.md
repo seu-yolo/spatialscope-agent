@@ -12,6 +12,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - LangGraph workflow with a deterministic fallback runner
 - Structured LLM parsing/planning with Pydantic validation and rule-based fallback
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
+- Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
@@ -68,6 +69,9 @@ The tool layer is registry-driven. Each analysis tool exposes a contract with
 preconditions, postconditions, common failures, and repair strategies. The configured
 LLM can use these contracts to generate structured analysis plans, while the
 deterministic planner keeps demos reproducible when no API key is available.
+When a step fails, SpatialScope writes a repair diagnosis with failure category,
+likely cause, action taken, and recommended next actions instead of silently
+continuing.
 
 The LLM never receives raw expression matrices or raw coordinate matrices. It only
 sees dataset summaries, tool contracts, execution summaries, figure/table metadata,
@@ -97,7 +101,8 @@ python cli.py run \
 
 Outputs are written to `outputs/runs/<run_id>/`.
 Each run includes an `artifact_manifest.json` file that indexes the report,
-trace, metadata, parameters, figures, tables, and public state bundle.
+trace, metadata, parameters, figures, tables, repair diagnostics, and public
+state bundle.
 
 One-command demo:
 
@@ -115,7 +120,7 @@ Navigation:
 
 1. Start: upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, and inspect recent runs in Run Library.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
-3. Explore: inspect figures, tables, trace records, resolved genes, and candidate cluster labels.
+3. Explore: inspect figures, tables, trace records, repair diagnostics, resolved genes, and candidate cluster labels.
 4. Report: read the cautious interpretation and download the reproducibility bundle.
 
 ## Tests

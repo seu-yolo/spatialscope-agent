@@ -5,8 +5,11 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Callable
 
-from spatialscope.agent.llm import LLMClient, interpret_with_llm, parse_query_with_llm, plan_with_llm
+from dataclasses import asdict
+
+from spatialscope.agent.llm import LLMClient, interpret_with_llm, parse_query_with_llm, plan_with_llm, suggest_repair_with_llm
 from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, merge_with_mode_baseline, validate_plan_steps
+from spatialscope.agent.repair import diagnose_tool_failure
 from spatialscope.agent.state import RunMode, SpatialAgentState, initial_state
 from spatialscope.tools.base import ToolResult, safe_tool_call
 from spatialscope.tools.io_tools import load_h5ad
@@ -176,20 +179,64 @@ def validate_result_node(state: SpatialAgentState) -> SpatialAgentState:
 
 def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
     state["repair_attempts"] = int(state.get("repair_attempts", 0)) + 1
-    failed_step = state.get("current_step", "unknown")
-    message = f"Step `{failed_step}` failed and was skipped after recording the error."
+    plan = state.get("approved_plan", [])
+    index = int(state.get("current_step_index", 0))
+    failed_step = dict(plan[index]) if index < len(plan) else {"tool": state.get("current_step", "unknown"), "params": {}}
+    tool_name = str(failed_step.get("tool") or state.get("current_step", "unknown"))
+    result = dict(state.get("last_result", {}))
+    contract = None
+    optional_dependency = None
+    contract_payload: dict[str, Any] = {}
+    try:
+        spec = get_tool(tool_name)
+        contract = spec.contract
+        optional_dependency = spec.optional_dependency
+        contract_payload = asdict(spec.contract)
+    except Exception:
+        contract_payload = {}
+
+    llm_suggestion: dict[str, Any] | None = None
+    client = LLMClient.from_env()
+    if client.enabled:
+        try:
+            llm_suggestion = suggest_repair_with_llm(
+                client,
+                failed_step=failed_step,
+                tool_result=result,
+                tool_contract=contract_payload,
+                dataset_summary=state.get("dataset_summary", {}),
+            )
+            state["llm_enabled"] = True
+        except Exception as exc:  # noqa: BLE001
+            state.setdefault("warnings", []).append(f"LLM repair suggestion failed; rule-based repair used: {exc}")
+
+    diagnosis = diagnose_tool_failure(
+        failed_step,
+        result,
+        contract,
+        optional_dependency=optional_dependency,
+        llm_suggestion=llm_suggestion,
+    )
+    state.setdefault("repair_log", []).append(diagnosis)
+    state.setdefault("observations", {})["repair_log"] = state.get("repair_log", [])
+    message = str(diagnosis.get("user_message"))
     state.setdefault("warnings", []).append(message)
     state.setdefault("execution_trace", []).append(
         {
             "run_id": state.get("run_id"),
             "node": "repair_or_continue",
-            "tool": failed_step,
-            "params": {},
+            "tool": tool_name,
+            "params": {
+                "step_id": diagnosis.get("step_id"),
+                "category": diagnosis.get("category"),
+                "action": diagnosis.get("action"),
+            },
             "status": "repaired",
             "summary": message,
             "warnings": [message],
             "errors": [],
             "duration_sec": 0,
+            "repair": diagnosis,
         }
     )
     state["needs_repair"] = False
@@ -328,6 +375,7 @@ def _reset_execution_state(state: SpatialAgentState) -> SpatialAgentState:
     state["generated_figures"] = []
     state["generated_tables"] = []
     state["repair_attempts"] = 0
+    state["repair_log"] = []
     state["current_step_index"] = 0
     state["current_step"] = ""
     state["last_result"] = {}

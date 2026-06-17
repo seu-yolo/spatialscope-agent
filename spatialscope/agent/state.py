@@ -28,6 +28,7 @@ class SpatialAgentState(TypedDict, total=False):
     warnings: list[str]
     errors: list[str]
     repair_attempts: int
+    repair_log: list[dict[str, Any]]
     execution_trace: list[dict[str, Any]]
     environment: dict[str, Any]
     final_answer: str | None
@@ -78,6 +79,7 @@ def initial_state(
         "warnings": [],
         "errors": [],
         "repair_attempts": 0,
+        "repair_log": [],
         "execution_trace": [],
         "environment": {},
         "final_answer": None,

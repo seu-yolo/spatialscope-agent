@@ -944,6 +944,10 @@ def _render_run_library(outdir: str) -> None:
             <div class="ss-evidence-value">{html.escape(str(latest.get("figures", 0)))}</div>
           </div>
           <div class="ss-evidence-card">
+            <div class="ss-mini-label">修复诊断</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("repairs", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
             <div class="ss-mini-label">最近状态</div>
             <div class="ss-evidence-value">{'OK' if not latest.get("errors") else 'ERR'}</div>
           </div>
@@ -959,6 +963,7 @@ def _render_run_library(outdir: str) -> None:
             "Figures": item.get("figures"),
             "Tables": item.get("tables"),
             "Trace": item.get("trace_steps"),
+            "Repairs": item.get("repairs"),
             "Warnings": item.get("warnings"),
             "Errors": item.get("errors"),
             "Updated": _format_run_time(item.get("modified_time")),
@@ -1244,12 +1249,13 @@ with explore_tab:
         st.info("请先运行一个已批准的分析方案。")
     else:
         st.markdown('<div class="ss-section-title">运行快照</div>', unsafe_allow_html=True)
-        top = st.columns(5)
+        top = st.columns(6)
         top[0].metric("Figures", len(state.get("generated_figures", [])))
         top[1].metric("Tables", len(state.get("generated_tables", [])))
         top[2].metric("Trace steps", len(state.get("execution_trace", [])))
-        top[3].metric("Warnings", len(state.get("warnings", [])))
-        top[4].metric("Errors", len(state.get("errors", [])))
+        top[3].metric("Repairs", len(state.get("repair_log", [])))
+        top[4].metric("Warnings", len(state.get("warnings", [])))
+        top[5].metric("Errors", len(state.get("errors", [])))
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
@@ -1270,6 +1276,21 @@ with explore_tab:
                 "摘要": st.column_config.TextColumn("摘要", width="large"),
             },
         )
+
+        repair_log = state.get("repair_log", [])
+        if repair_log:
+            st.markdown('<div class="ss-section-title">Repair Diagnostics</div>', unsafe_allow_html=True)
+            repair_rows = [
+                {
+                    "Tool": item.get("tool"),
+                    "Category": item.get("category"),
+                    "Action": item.get("action"),
+                    "Likely cause": item.get("likely_cause"),
+                    "Recommendations": " / ".join(item.get("recommended_actions", [])),
+                }
+                for item in repair_log
+            ]
+            st.dataframe(pd.DataFrame(repair_rows), hide_index=True, width="stretch", height=min(260, 44 + len(repair_rows) * 48))
 
         st.markdown('<div class="ss-section-title">Figure Gallery</div>', unsafe_allow_html=True)
         figures = state.get("generated_figures", [])

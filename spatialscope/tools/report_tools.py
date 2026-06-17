@@ -70,6 +70,7 @@ REPORT_TEMPLATE = """
     .note { color: var(--muted); font-size: 13px; }
     .tag { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); display: inline-block; font-size: 12px; margin: 3px 4px 3px 0; padding: 2px 8px; }
     .signature { color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; margin-top: 10px; text-transform: uppercase; }
+    .repair-list { margin: 0; padding-left: 18px; }
     footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; margin-top: 34px; padding-top: 16px; }
     a { color: var(--plum); }
   </style>
@@ -105,6 +106,7 @@ REPORT_TEMPLATE = """
     <div class="metric"><span>Figures</span><strong>{{ figures|length }}</strong></div>
     <div class="metric"><span>Tables</span><strong>{{ tables|length }}</strong></div>
     <div class="metric"><span>Trace steps</span><strong>{{ trace|length }}</strong></div>
+    <div class="metric"><span>Repairs</span><strong>{{ repairs|length }}</strong></div>
     <div class="metric"><span>Candidate labels</span><strong>{{ annotations|length }}</strong></div>
   </div>
 
@@ -169,6 +171,31 @@ REPORT_TEMPLATE = """
     {% endfor %}
     </tbody>
   </table>
+
+  {% if repairs %}
+  <h2>Repair Diagnostics 修复诊断</h2>
+  <p class="note">Each repair record is generated from tool summaries, errors, and tool contracts. No raw expression matrix is sent to an LLM.</p>
+  <table>
+    <thead><tr><th>Tool</th><th>Category</th><th>Action</th><th>Likely Cause</th><th>Recommended Actions</th></tr></thead>
+    <tbody>
+    {% for item in repairs %}
+      <tr>
+        <td><code>{{ item.tool }}</code></td>
+        <td>{{ item.category }}</td>
+        <td>{{ item.action }}</td>
+        <td>{{ item.likely_cause }}</td>
+        <td>
+          <ul class="repair-list">
+          {% for action in item.recommended_actions %}
+            <li>{{ action }}</li>
+          {% endfor %}
+          </ul>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 
   {% if warnings or errors %}
   <h2>Warnings / Errors 提醒与错误</h2>
@@ -238,6 +265,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "project_signature": PROJECT_SIGNATURE,
             "acknowledgements": ACKNOWLEDGEMENTS,
             "tool_contracts": state.get("tool_contracts"),
+            "repair_log": state.get("repair_log", []),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
         },
@@ -258,6 +286,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         figures=_with_relpaths(state.get("generated_figures", []), run_dir),
         tables=_with_relpaths(state.get("generated_tables", []), run_dir),
         trace=state.get("execution_trace", []),
+        repairs=state.get("repair_log", []),
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
         errors=state.get("errors", []),

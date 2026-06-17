@@ -189,3 +189,41 @@ def interpret_with_llm(
         temperature=0.2,
     )
     return content.strip()
+
+
+def suggest_repair_with_llm(
+    client: LLMClient,
+    *,
+    failed_step: dict[str, Any],
+    tool_result: dict[str, Any],
+    tool_contract: dict[str, Any],
+    dataset_summary: dict[str, Any],
+) -> dict[str, Any]:
+    if not client.enabled:
+        raise RuntimeError("LLM client is disabled.")
+    payload = client.complete_json(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "A SpatialScope tool failed. Suggest a cautious repair diagnosis using only the "
+                    "provided step metadata, tool contract, dataset summary, and error summary. Do not "
+                    "ask for or infer from raw matrices. Return one JSON object with keys: "
+                    "`likely_cause` (string), `recommended_actions` (array of short strings), "
+                    "`user_message` (string), and `should_retry` (boolean). Keep `should_retry` false "
+                    "unless a safe parameter-only retry is obvious.\n\n"
+                    f"Failed step: {json.dumps(failed_step, ensure_ascii=False, default=str)}\n"
+                    f"Tool result: {json.dumps(tool_result, ensure_ascii=False, default=str)}\n"
+                    f"Tool contract: {json.dumps(tool_contract, ensure_ascii=False, default=str)}\n"
+                    f"Dataset summary: {json.dumps(dataset_summary, ensure_ascii=False, default=str)}"
+                ),
+            }
+        ],
+        temperature=0.05,
+    )
+    if not isinstance(payload.get("recommended_actions"), list):
+        payload["recommended_actions"] = []
+    payload["likely_cause"] = str(payload.get("likely_cause") or "")
+    payload["user_message"] = str(payload.get("user_message") or "")
+    payload["should_retry"] = bool(payload.get("should_retry", False))
+    return payload
