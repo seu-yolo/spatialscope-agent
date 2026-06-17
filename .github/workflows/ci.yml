@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests and demo smoke run
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create conda environment
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          environment-name: spatialscope-agent
+          cache-environment: true
+          cache-downloads: true
+
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run unit tests
+        run: pytest
+
+      - name: Run CLI smoke demo
+        run: |
+          python scripts/create_demo_data.py --output data/demo_tiny.h5ad
+          SPATIALSCOPE_LLM_API_KEY= DEEPSEEK_API_KEY= python cli.py run \
+            --data data/demo_tiny.h5ad \
+            --query "Run quick spatial analysis and plot GeneA GeneB" \
+            --mode quick

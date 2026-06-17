@@ -2,6 +2,8 @@
 
 SpatialScope Agent is an OpenAI-compatible LLM-powered, LangGraph-orchestrated workspace for spatial transcriptomics exploration. It turns a natural-language request into a traceable Scanpy/Squidpy workflow with figures, tables, interpretation, and a reproducibility bundle.
 
+Project site: `https://seu-yolo.github.io/spatialscope-agent/`
+
 ## Features
 
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
@@ -122,3 +124,12 @@ scripts/check_project.sh
 ```
 
 The lightweight tests avoid requiring Scanpy/Squidpy so they can validate project logic before the full scientific environment is installed.
+
+## GitHub Project Management
+
+- `main` is the stable, presentation-ready branch.
+- GitHub Actions runs tests and a CLI smoke demo on push and pull request.
+- GitHub Pages deploys the static project site from `docs/`.
+- Repository workflow notes are in [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md).
+
+GitHub Pages must be enabled once in repository settings: Pages -> Source -> GitHub Actions.
