@@ -27,7 +27,7 @@ control over parameters or biological interpretation.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
 7. Save Human Review notes with a decision, confidence level, tags, Quality Gate overrides, caveats, and rerun recommendations.
-8. Export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
+8. Inspect Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
 9. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
@@ -50,6 +50,8 @@ A good run should satisfy:
   metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
 - Every run includes a Markdown README that summarizes the query, evidence,
   quality state, review state, and key files for handoff.
+- Every run includes an Artifact Audit that checks file existence, sizes,
+  artifact types, missing files, and bundle status.
 - Every run can be downloaded as a complete ZIP bundle for submission,
   presentation, or external review.
 - Human Review notes can be saved after a run and are included in the artifact
@@ -83,6 +85,7 @@ A good run should satisfy:
 - Optional spatially variable gene and neighborhood enrichment analysis.
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
 - Run-level README generation for quick handoff and artifact orientation.
+- Artifact Audit panel and JSON export for reproducibility package inspection.
 - Complete ZIP bundle export for each run.
 - Run Library, historical run rehydration, and Run Compare for recent reports,
   reproducibility assets, and lightweight audit across multiple runs.
