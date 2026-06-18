@@ -27,7 +27,7 @@ control over parameters or biological interpretation.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
 7. Save Human Review notes with a decision, confidence level, tags, Quality Gate overrides, caveats, and rerun recommendations.
-8. Inspect Agent Audit and Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
+8. Inspect the Spatial Storyboard, Agent Audit, and Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
 9. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
@@ -38,6 +38,8 @@ A good run should satisfy:
 - LLM credentials are never displayed directly; provider status and smoke tests
   are exposed through a safe control center.
 - Every figure/table has a traceable generating tool.
+- Every polished run includes a Spatial Storyboard that turns key figures into
+  a compact visual narrative for presentation and review.
 - Warnings are visible instead of hidden.
 - Failed steps produce structured repair diagnostics instead of silent skipping.
 - Each run has Quality Gates for dataset readiness, plan provenance, trace
@@ -49,9 +51,9 @@ A good run should satisfy:
 - Missing genes trigger fuzzy matching rather than silent failure.
 - Missing optional dependencies degrade gracefully.
 - Output paths, parameters, software versions, and trace are preserved.
-- Every run writes an artifact manifest that indexes reports, figures, tables,
-  metadata, parameters, trace, repair diagnostics, Quality Gates, Agent Audit,
-  and public state.
+- Every run writes an artifact manifest that indexes reports, storyboard files,
+  figures, tables, metadata, parameters, trace, repair diagnostics, Quality
+  Gates, Agent Audit, and public state.
 - Every run includes a Markdown README that summarizes the query, evidence,
   quality state, review state, and key files for handoff.
 - Every run includes an Artifact Audit that checks file existence, sizes,
@@ -90,6 +92,7 @@ A good run should satisfy:
 - Optional spatially variable gene and neighborhood enrichment analysis.
 - CLI, Streamlit workspace, HTML report, GitHub Pages project site, CI smoke test.
 - Run-level README generation for quick handoff and artifact orientation.
+- Spatial Storyboard panel plus standalone HTML/JSON export for presentation.
 - Artifact Audit panel and JSON export for reproducibility package inspection.
 - Complete ZIP bundle export for each run.
 - Run Library, historical run rehydration, and Run Compare for recent reports,
