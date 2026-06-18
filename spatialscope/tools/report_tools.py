@@ -11,6 +11,7 @@ from spatialscope.utils.artifact_audit import write_artifact_audit
 from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
+from spatialscope.utils.replay import write_rerun_recipe
 from spatialscope.utils.run_readme import write_run_readme
 from spatialscope.utils.run_index import build_artifact_manifest
 from spatialscope.utils.storyboard import write_storyboard
@@ -122,6 +123,9 @@ REPORT_TEMPLATE = """
   </div>
   {% if storyboard %}
   <p><a href="storyboard.html">Open Spatial Storyboard</a> · {{ storyboard.n_cards }} curated visual panels</p>
+  {% endif %}
+  {% if rerun_recipe %}
+  <p><a href="RERUN.md">Open Rerun Recipe</a> · command and parameters for reproducing this run</p>
   {% endif %}
 
   <h2>Quality Gates 质量自检</h2>
@@ -336,11 +340,15 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     state["agent_audit"] = agent_audit
     storyboard = write_storyboard(state, run_dir)
     state["storyboard"] = storyboard
+    rerun_recipe = write_rerun_recipe(state, run_dir)
+    state["rerun_recipe"] = rerun_recipe
     write_json(run_dir / "agent_trace.json", state.get("execution_trace", []))
     write_json(
         run_dir / "run_metadata.json",
         {
             "run_id": state.get("run_id"),
+            "query": state.get("user_query"),
+            "data_path": state.get("data_path") or state.get("adata_path"),
             "dataset_hash": state.get("dataset_hash"),
             "dataset_summary": state.get("dataset_summary"),
             "environment": state.get("environment"),
@@ -356,6 +364,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "quality": quality,
             "agent_audit": agent_audit,
             "storyboard": storyboard,
+            "rerun_recipe": rerun_recipe,
             "review_notes": state.get("review_notes"),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
@@ -383,6 +392,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         quality=quality,
         agent_audit=agent_audit,
         storyboard=storyboard,
+        rerun_recipe=rerun_recipe,
         review=state.get("review_notes"),
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
@@ -416,6 +426,9 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "agent_audit_path": str(run_dir / "agent_audit.json"),
             "storyboard_path": str(run_dir / "storyboard.html"),
             "storyboard_json_path": str(run_dir / "storyboard.json"),
+            "rerun_recipe_path": str(run_dir / "rerun_recipe.json"),
+            "rerun_markdown_path": str(run_dir / "RERUN.md"),
+            "rerun_script_path": str(run_dir / "rerun.sh"),
             "artifact_audit_path": str(run_dir / "artifact_audit.json"),
             "artifact_manifest_path": str(manifest_path),
             "run_bundle_path": bundle["path"],

@@ -134,6 +134,15 @@ def _upsert_manifest_review(manifest_path: Path, review_path: Path, review: dict
     readme_path = root / "README.md"
     if readme_path.exists():
         artifacts.append(file_record(readme_path, run_dir=root, kind="readme", title="Run README"))
+    rerun_recipe_path = root / "rerun_recipe.json"
+    if rerun_recipe_path.exists() and not any(item.get("kind") == "rerun_recipe" for item in artifacts):
+        artifacts.append(file_record(rerun_recipe_path, run_dir=root, kind="rerun_recipe", title="Rerun recipe"))
+    rerun_markdown_path = root / "RERUN.md"
+    if rerun_markdown_path.exists() and not any(item.get("kind") == "rerun_markdown" for item in artifacts):
+        artifacts.append(file_record(rerun_markdown_path, run_dir=root, kind="rerun_markdown", title="Rerun instructions"))
+    rerun_script_path = root / "rerun.sh"
+    if rerun_script_path.exists() and not any(item.get("kind") == "rerun_script" for item in artifacts):
+        artifacts.append(file_record(rerun_script_path, run_dir=root, kind="rerun_script", title="Rerun script"))
     agent_audit_path = root / "agent_audit.json"
     if agent_audit_path.exists() and not any(item.get("kind") == "agent_audit" for item in artifacts):
         artifacts.append(file_record(agent_audit_path, run_dir=root, kind="agent_audit", title="Agent audit"))

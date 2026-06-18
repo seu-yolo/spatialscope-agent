@@ -87,6 +87,7 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - Quality: {quality.get("score", "N/A")} / {quality.get("overall_status", "unknown")}
 - Agent Audit: {agent_audit.get("score", "N/A")} / {agent_audit.get("overall_status", "unknown")}
 - Storyboard panels: {(state.get("storyboard") or {}).get("n_cards", "N/A")}
+- Rerun recipe: {"available" if state.get("rerun_recipe") else "not recorded"}
 
 ## Human Review
 
@@ -101,6 +102,9 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - `report.html`: main visual report
 - `storyboard.html`: presentation-oriented visual storyboard
 - `storyboard.json`: structured storyboard card metadata
+- `RERUN.md`: human-readable rerun recipe
+- `rerun_recipe.json`: machine-readable rerun recipe
+- `rerun.sh`: executable rerun helper script
 - `agent_trace.json`: tool execution trace
 - `run_metadata.json`: parameters, environment, plan, quality, and review metadata
 - `parameters.yaml`: compact parameter export

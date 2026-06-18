@@ -1285,6 +1285,78 @@ def _storyboard_for_state(state: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _rerun_recipe_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    recipe = state.get("rerun_recipe")
+    if isinstance(recipe, dict) and recipe:
+        return recipe
+    run_dir = state.get("run_dir")
+    if run_dir:
+        recipe_path = Path(str(run_dir)) / "rerun_recipe.json"
+        if recipe_path.exists():
+            try:
+                payload = json.loads(recipe_path.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    return payload
+            except Exception:
+                pass
+    return {}
+
+
+def _render_rerun_panel(state: dict[str, Any], *, key_prefix: str = "rerun") -> None:
+    recipe = _rerun_recipe_for_state(state)
+    if not recipe:
+        return
+    run_dir = Path(str(state.get("run_dir") or ""))
+    rerun_md = run_dir / "RERUN.md"
+    rerun_json = run_dir / "rerun_recipe.json"
+    rerun_script = run_dir / "rerun.sh"
+    st.markdown('<div class="ss-section-title">Run Replay / 复跑配方</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-story-shell">
+          <div class="ss-mini-label">Reproducible rerun</div>
+          <div class="ss-card-title">把这次分析变成可交接、可复跑的 recipe</div>
+          <div class="ss-figure-note">不会保存 API key；如需 LLM 规划或解释，请在本地 `.env` 中重新配置 provider。</div>
+          <div class="ss-evidence-grid">
+            <div class="ss-evidence-card"><div class="ss-mini-label">Mode</div><div class="ss-evidence-value">{html.escape(str(recipe.get("mode", "NA")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Dataset hash</div><div class="ss-evidence-value">{html.escape(str(recipe.get("dataset_hash") or "NA")[:12])}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Plan source</div><div class="ss-evidence-value">{html.escape(str(recipe.get("plan_source") or "unknown"))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Steps</div><div class="ss-evidence-value">{html.escape(str(len(recipe.get("approved_plan", []))))}</div></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    command = str(recipe.get("conda_command_string") or recipe.get("command_string") or "")
+    if command:
+        st.code(command, language="bash")
+    d1, d2, d3 = st.columns(3)
+    if rerun_md.exists():
+        d1.download_button(
+            "下载 RERUN.md",
+            rerun_md.read_bytes(),
+            file_name=f"{state.get('run_id', 'spatialscope')}_RERUN.md",
+            width="stretch",
+            key=f"{key_prefix}_rerun_md_{state.get('run_id', 'run')}",
+        )
+    if rerun_json.exists():
+        d2.download_button(
+            "下载 Recipe JSON",
+            rerun_json.read_bytes(),
+            file_name=f"{state.get('run_id', 'spatialscope')}_rerun_recipe.json",
+            width="stretch",
+            key=f"{key_prefix}_rerun_json_{state.get('run_id', 'run')}",
+        )
+    if rerun_script.exists():
+        d3.download_button(
+            "下载 rerun.sh",
+            rerun_script.read_bytes(),
+            file_name=f"{state.get('run_id', 'spatialscope')}_rerun.sh",
+            width="stretch",
+            key=f"{key_prefix}_rerun_sh_{state.get('run_id', 'run')}",
+        )
+
+
 def _render_storyboard_panel(state: dict[str, Any], *, key_prefix: str = "storyboard") -> None:
     storyboard = _storyboard_for_state(state)
     if not storyboard:
@@ -1424,12 +1496,13 @@ def _render_run_library(outdir: str) -> None:
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
     c1, c2, c3, c4 = st.columns(4)
-    c5, c6, c7 = st.columns(3)
+    c5, c6, c7, c8 = st.columns(4)
     report_path = _existing_file(latest.get("report_path"))
     storyboard_path = _existing_file(latest.get("storyboard_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
     readme_path = _existing_file(latest.get("readme_path"))
+    rerun_markdown_path = _existing_file(latest.get("rerun_markdown_path"))
     agent_audit_path = _existing_file(latest.get("agent_audit_path"))
     audit_path = _existing_file(latest.get("audit_path"))
     if report_path:
@@ -1472,8 +1545,16 @@ def _render_run_library(outdir: str) -> None:
             width="stretch",
             key=f"history_readme_{latest.get('run_id')}",
         )
-    if agent_audit_path:
+    if rerun_markdown_path:
         c6.download_button(
+            "下载 RERUN.md",
+            rerun_markdown_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_RERUN.md",
+            width="stretch",
+            key=f"history_rerun_{latest.get('run_id')}",
+        )
+    if agent_audit_path:
+        c7.download_button(
             "下载 Agent Audit",
             agent_audit_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_agent_audit.json",
@@ -1481,7 +1562,7 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_agent_audit_{latest.get('run_id')}",
         )
     if audit_path:
-        c7.download_button(
+        c8.download_button(
             "下载 Audit JSON",
             audit_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_artifact_audit.json",
@@ -2025,6 +2106,7 @@ with report_tab:
         _render_evidence_cards(state)
         _render_spatial_note(state)
         _render_storyboard_panel(state, key_prefix="report")
+        _render_rerun_panel(state, key_prefix="report")
         with st.container(border=True):
             st.markdown('<div class="ss-mini-label">Agent summary</div>', unsafe_allow_html=True)
             st.write(state.get("final_answer"))
@@ -2041,6 +2123,9 @@ with report_tab:
         report_path = state.get("report_path")
         storyboard_path = Path(str(state.get("run_dir"))) / "storyboard.html"
         storyboard_json_path = Path(str(state.get("run_dir"))) / "storyboard.json"
+        rerun_markdown_path = Path(str(state.get("run_dir"))) / "RERUN.md"
+        rerun_recipe_path = Path(str(state.get("run_dir"))) / "rerun_recipe.json"
+        rerun_script_path = Path(str(state.get("run_dir"))) / "rerun.sh"
         trace_path = Path(str(state.get("run_dir"))) / "agent_trace.json"
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
@@ -2103,7 +2188,7 @@ with report_tab:
                     st.markdown('<div class="ss-card-title">Trace JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", trace_path.read_bytes(), file_name="agent_trace.json", width="stretch")
 
-        c6, c7, c8, c9, c10, c11 = st.columns(6)
+        c6, c7, c8, c9, c10 = st.columns(5)
         if metadata_path.exists():
             with c6:
                 with st.container(border=True):
@@ -2116,26 +2201,46 @@ with report_tab:
                     st.markdown('<div class="ss-mini-label">参数</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">YAML</div>', unsafe_allow_html=True)
                     st.download_button("下载", param_path.read_bytes(), file_name="parameters.yaml", width="stretch")
-        if storyboard_json_path.exists():
+        if rerun_markdown_path.exists():
             with c8:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">复跑</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">RERUN.md</div>', unsafe_allow_html=True)
+                    st.download_button("下载", rerun_markdown_path.read_bytes(), file_name="RERUN.md", width="stretch")
+        if rerun_script_path.exists():
+            with c9:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">脚本</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">rerun.sh</div>', unsafe_allow_html=True)
+                    st.download_button("下载", rerun_script_path.read_bytes(), file_name="rerun.sh", width="stretch")
+        if storyboard_json_path.exists():
+            with c10:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">故事板</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Storyboard JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", storyboard_json_path.read_bytes(), file_name="storyboard.json", width="stretch")
+
+        c11, c12, c13, c14 = st.columns(4)
+        if rerun_recipe_path.exists():
+            with c11:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">复跑数据</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Recipe JSON</div>', unsafe_allow_html=True)
+                    st.download_button("下载", rerun_recipe_path.read_bytes(), file_name="rerun_recipe.json", width="stretch")
         if manifest_path.exists():
-            with c9:
+            with c12:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)
                     st.download_button("下载", manifest_path.read_bytes(), file_name="artifact_manifest.json", width="stretch")
         if agent_audit_path.exists():
-            with c10:
+            with c13:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">行为自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Agent Audit</div>', unsafe_allow_html=True)
                     st.download_button("下载", agent_audit_path.read_bytes(), file_name="agent_audit.json", width="stretch")
         if audit_path.exists():
-            with c11:
+            with c14:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Audit JSON</div>', unsafe_allow_html=True)

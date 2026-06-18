@@ -13,6 +13,7 @@ def test_generate_report_bundle(tmp_path):
     state = {
         "run_id": "run",
         "run_dir": str(run_dir),
+        "data_path": "data/demo_tiny.h5ad",
         "user_query": "demo",
         "dataset_summary": {"n_obs": 1, "n_vars": 1},
         "approved_plan": [{"tool": "run_qc", "params": {}, "rationale": "QC"}],
@@ -66,6 +67,9 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "artifact_manifest.json").exists()
     assert (run_dir / "storyboard.html").exists()
     assert (run_dir / "storyboard.json").exists()
+    assert (run_dir / "rerun_recipe.json").exists()
+    assert (run_dir / "RERUN.md").exists()
+    assert (run_dir / "rerun.sh").exists()
     assert (run_dir / "agent_audit.json").exists()
     assert (run_dir / "artifact_audit.json").exists()
     assert (run_dir / "run_bundle.zip").exists()
@@ -75,6 +79,7 @@ def test_generate_report_bundle(tmp_path):
     assert "SpatialScope Run README" in readme_text
     assert "Human Review" in readme_text
     assert "Quality Gates" in readme_text
+    assert "Rerun recipe" in readme_text
     assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
@@ -89,13 +94,20 @@ def test_generate_report_bundle(tmp_path):
     assert "quality" in metadata
     assert "agent_audit" in metadata
     assert "storyboard" in metadata
+    assert "rerun_recipe" in metadata
+    assert metadata["query"] == "demo"
+    assert metadata["data_path"] == "data/demo_tiny.h5ad"
     assert "quality" in manifest
     assert "agent_audit" in manifest
     assert "storyboard" in manifest
+    assert "rerun_recipe" in manifest
     assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "readme" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "storyboard" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "storyboard_data" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "rerun_recipe" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "rerun_markdown" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "rerun_script" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "agent_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "artifact_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
@@ -104,6 +116,9 @@ def test_generate_report_bundle(tmp_path):
     assert result.observations["run_readme_path"].endswith("README.md")
     assert result.observations["storyboard_path"].endswith("storyboard.html")
     assert result.observations["storyboard_json_path"].endswith("storyboard.json")
+    assert result.observations["rerun_recipe_path"].endswith("rerun_recipe.json")
+    assert result.observations["rerun_markdown_path"].endswith("RERUN.md")
+    assert result.observations["rerun_script_path"].endswith("rerun.sh")
     assert result.observations["agent_audit_path"].endswith("agent_audit.json")
     assert result.observations["artifact_audit_path"].endswith("artifact_audit.json")
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
@@ -111,6 +126,9 @@ def test_generate_report_bundle(tmp_path):
         assert "README.md" in archive.namelist()
         assert "storyboard.html" in archive.namelist()
         assert "storyboard.json" in archive.namelist()
+        assert "rerun_recipe.json" in archive.namelist()
+        assert "RERUN.md" in archive.namelist()
+        assert "rerun.sh" in archive.namelist()
         assert "agent_audit.json" in archive.namelist()
         assert "artifact_audit.json" in archive.namelist()
 
@@ -122,6 +140,7 @@ def test_discover_runs_reads_manifest(tmp_path):
     state = {
         "run_id": "run",
         "run_dir": str(run_dir),
+        "data_path": "data/demo_tiny.h5ad",
         "mode": "quick",
         "user_query": "demo",
         "dataset_summary": {"n_obs": 1, "n_vars": 1},
@@ -160,6 +179,9 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert "storyboard_cards" in runs[0]
     assert runs[0]["storyboard_path"].endswith("storyboard.html")
     assert runs[0]["storyboard_json_path"].endswith("storyboard.json")
+    assert runs[0]["rerun_recipe_path"].endswith("rerun_recipe.json")
+    assert runs[0]["rerun_markdown_path"].endswith("RERUN.md")
+    assert runs[0]["rerun_script_path"].endswith("rerun.sh")
     assert runs[0]["agent_audit_path"].endswith("agent_audit.json")
     assert runs[0]["audit_path"].endswith("artifact_audit.json")
     assert runs[0]["readme_path"].endswith("README.md")

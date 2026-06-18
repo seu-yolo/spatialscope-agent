@@ -67,6 +67,9 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         file_record(root / "run_bundle.zip", run_dir=root, kind="bundle", title="Complete run bundle"),
         file_record(root / "storyboard.html", run_dir=root, kind="storyboard", title="Spatial Storyboard"),
         file_record(root / "storyboard.json", run_dir=root, kind="storyboard_data", title="Spatial Storyboard data"),
+        file_record(root / "rerun_recipe.json", run_dir=root, kind="rerun_recipe", title="Rerun recipe"),
+        file_record(root / "RERUN.md", run_dir=root, kind="rerun_markdown", title="Rerun instructions"),
+        file_record(root / "rerun.sh", run_dir=root, kind="rerun_script", title="Rerun script"),
         file_record(root / "agent_trace.json", run_dir=root, kind="trace", title="Agent trace"),
         file_record(root / "run_metadata.json", run_dir=root, kind="metadata", title="Run metadata"),
         file_record(root / "parameters.yaml", run_dir=root, kind="parameters", title="Parameters"),
@@ -117,10 +120,22 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "quality": state.get("quality") or build_quality_report(state),
         "agent_audit": state.get("agent_audit"),
         "storyboard": state.get("storyboard"),
+        "rerun_recipe": state.get("rerun_recipe"),
         "review": state.get("review_notes"),
         "artifacts": artifacts,
     }
-    essential_kinds = {"report", "bundle", "storyboard", "storyboard_data", "trace", "metadata", "parameters"}
+    essential_kinds = {
+        "report",
+        "bundle",
+        "storyboard",
+        "storyboard_data",
+        "rerun_recipe",
+        "rerun_markdown",
+        "rerun_script",
+        "trace",
+        "metadata",
+        "parameters",
+    }
     manifest["complete"] = all(item["exists"] for item in artifacts if item.get("kind") in essential_kinds)
     return manifest
 
@@ -213,6 +228,14 @@ def load_run_state(run_dir: str | Path) -> dict[str, Any]:
     state["storyboard"] = _as_dict(
         _first_present(state.get("storyboard"), metadata.get("storyboard"), manifest.get("storyboard"), _read_json(root / "storyboard.json"))
     )
+    state["rerun_recipe"] = _as_dict(
+        _first_present(
+            state.get("rerun_recipe"),
+            metadata.get("rerun_recipe"),
+            manifest.get("rerun_recipe"),
+            _read_json(root / "rerun_recipe.json"),
+        )
+    )
     review_notes = _as_dict(_first_present(state.get("review_notes"), _read_json(root / "review_notes.json")))
     if review_notes:
         state["review_notes"] = review_notes
@@ -283,6 +306,9 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "report_path": str(report_path) if report_path.exists() else "",
         "storyboard_path": str(root / "storyboard.html") if (root / "storyboard.html").exists() else "",
         "storyboard_json_path": str(root / "storyboard.json") if (root / "storyboard.json").exists() else "",
+        "rerun_recipe_path": str(root / "rerun_recipe.json") if (root / "rerun_recipe.json").exists() else "",
+        "rerun_markdown_path": str(root / "RERUN.md") if (root / "RERUN.md").exists() else "",
+        "rerun_script_path": str(root / "rerun.sh") if (root / "rerun.sh").exists() else "",
         "manifest_path": str(root / "artifact_manifest.json") if (root / "artifact_manifest.json").exists() else "",
         "agent_audit_path": str(root / "agent_audit.json") if (root / "agent_audit.json").exists() else "",
         "audit_path": str(root / "artifact_audit.json") if (root / "artifact_audit.json").exists() else "",
