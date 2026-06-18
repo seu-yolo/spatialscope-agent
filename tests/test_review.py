@@ -18,6 +18,9 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     (run_dir / "agent_trace.json").write_text("[]", encoding="utf-8")
     (run_dir / "run_metadata.json").write_text("{}", encoding="utf-8")
     (run_dir / "parameters.yaml").write_text("mode: quick\n", encoding="utf-8")
+    (run_dir / "dataset_card.html").write_text("<h1>dataset</h1>", encoding="utf-8")
+    (run_dir / "dataset_card.json").write_text(json.dumps({"recommended_mode": "quick"}), encoding="utf-8")
+    (run_dir / "DATASET_CARD.md").write_text("# Dataset Card\n", encoding="utf-8")
     (run_dir / "state_public.json").write_text(json.dumps({"run_id": "run", "run_dir": str(run_dir)}), encoding="utf-8")
     (run_dir / "README.md").write_text("old readme", encoding="utf-8")
     manifest = {
@@ -49,6 +52,9 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     updated_manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
     assert updated_manifest["review"]["decision"] == "accepted_with_caveats"
     assert any(item["kind"] == "review" and item["exists"] for item in updated_manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card" and item["exists"] for item in updated_manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card_data" and item["exists"] for item in updated_manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card_markdown" and item["exists"] for item in updated_manifest["artifacts"])
     public_state = json.loads((run_dir / "state_public.json").read_text(encoding="utf-8"))
     assert public_state["review_notes"]["reviewer"] == "SEU reviewer"
     readme_text = (run_dir / "README.md").read_text(encoding="utf-8")
@@ -56,6 +62,9 @@ def test_save_review_notes_updates_manifest_bundle_and_public_state(tmp_path):
     assert "Accepted with caveats" in readme_text
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "review_notes.json" in archive.namelist()
+        assert "dataset_card.html" in archive.namelist()
+        assert "dataset_card.json" in archive.namelist()
+        assert "DATASET_CARD.md" in archive.namelist()
         assert "README.md" in archive.namelist()
         assert "SEU reviewer" in archive.read("README.md").decode("utf-8")
     restored = load_run_state(run_dir)

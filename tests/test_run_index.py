@@ -58,6 +58,10 @@ def test_load_run_state_restores_public_state_without_raw_adata(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "report.html").write_text("<h1>report</h1>", encoding="utf-8")
+    (run_dir / "dataset_card.json").write_text(
+        json.dumps({"run_id": "run", "recommended_mode": "quick", "metrics": {"spatial": "yes"}}),
+        encoding="utf-8",
+    )
     trace = [{"node": "inspect_dataset", "tool": "load_h5ad", "status": "success", "warnings": [], "errors": []}]
     state = {
         "run_id": "run",
@@ -87,6 +91,7 @@ def test_load_run_state_restores_public_state_without_raw_adata(tmp_path):
     assert restored["run_dir"] == str(run_dir)
     assert restored["report_path"] == str(run_dir / "report.html")
     assert restored["execution_trace"] == trace
+    assert restored["dataset_card"]["recommended_mode"] == "quick"
     assert restored["restored_from_bundle"] is True
     assert restored["loaded_from_run_dir"] == str(run_dir)
     assert "_adata" not in restored

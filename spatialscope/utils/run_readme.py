@@ -24,6 +24,7 @@ def build_run_readme(state: dict[str, Any], *, report_path: str | Path | None = 
     counts = _status_counts(trace)
     quality = state.get("quality") or {}
     agent_audit = state.get("agent_audit") or {}
+    dataset_card = state.get("dataset_card") or {}
     dataset = state.get("dataset_summary") or {}
     review = state.get("review_notes") or {}
     figures = state.get("generated_figures", [])
@@ -86,6 +87,7 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - Success / skipped / failed / repaired: {counts["success"]} / {counts["skipped"]} / {counts["failed"]} / {counts["repaired"]}
 - Quality: {quality.get("score", "N/A")} / {quality.get("overall_status", "unknown")}
 - Agent Audit: {agent_audit.get("score", "N/A")} / {agent_audit.get("overall_status", "unknown")}
+- Dataset Card: {dataset_card.get("recommended_mode", "not recorded")}
 - Storyboard panels: {(state.get("storyboard") or {}).get("n_cards", "N/A")}
 - Rerun recipe: {"available" if state.get("rerun_recipe") else "not recorded"}
 
@@ -100,6 +102,9 @@ This folder is a reproducible SpatialScope Agent run bundle.
 ## Key Files
 
 - `report.html`: main visual report
+- `dataset_card.html`: data suitability and schema preview
+- `dataset_card.json`: machine-readable dataset card
+- `DATASET_CARD.md`: human-readable dataset card
 - `storyboard.html`: presentation-oriented visual storyboard
 - `storyboard.json`: structured storyboard card metadata
 - `RERUN.md`: human-readable rerun recipe

@@ -149,6 +149,15 @@ def _upsert_manifest_review(manifest_path: Path, review_path: Path, review: dict
     audit_path = root / "artifact_audit.json"
     if audit_path.exists() and not any(item.get("kind") == "artifact_audit" for item in artifacts):
         artifacts.append(file_record(audit_path, run_dir=root, kind="artifact_audit", title="Artifact audit"))
+    dataset_card_path = root / "dataset_card.html"
+    if dataset_card_path.exists() and not any(item.get("kind") == "dataset_card" for item in artifacts):
+        artifacts.append(file_record(dataset_card_path, run_dir=root, kind="dataset_card", title="Dataset card"))
+    dataset_card_json_path = root / "dataset_card.json"
+    if dataset_card_json_path.exists() and not any(item.get("kind") == "dataset_card_data" for item in artifacts):
+        artifacts.append(file_record(dataset_card_json_path, run_dir=root, kind="dataset_card_data", title="Dataset card data"))
+    dataset_card_md_path = root / "DATASET_CARD.md"
+    if dataset_card_md_path.exists() and not any(item.get("kind") == "dataset_card_markdown" for item in artifacts):
+        artifacts.append(file_record(dataset_card_md_path, run_dir=root, kind="dataset_card_markdown", title="Dataset card markdown"))
     artifacts.append(file_record(review_path, run_dir=root, kind="review", title="Human review notes"))
     manifest["artifacts"] = artifacts
     manifest["review"] = {

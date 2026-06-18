@@ -9,6 +9,7 @@ from spatialscope.tools.base import ToolResult
 from spatialscope.utils.agent_audit import write_agent_audit
 from spatialscope.utils.artifact_audit import write_artifact_audit
 from spatialscope.utils.bundle import build_run_bundle
+from spatialscope.utils.dataset_card import write_dataset_card
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.replay import write_rerun_recipe
@@ -126,6 +127,9 @@ REPORT_TEMPLATE = """
   {% endif %}
   {% if rerun_recipe %}
   <p><a href="RERUN.md">Open Rerun Recipe</a> · command and parameters for reproducing this run</p>
+  {% endif %}
+  {% if dataset_card %}
+  <p><a href="dataset_card.html">Open Dataset Card</a> · recommended mode {{ dataset_card.recommended_mode }}</p>
   {% endif %}
 
   <h2>Quality Gates 质量自检</h2>
@@ -336,6 +340,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     run_dir = Path(state["run_dir"])
     quality = build_quality_report(state)
     state["quality"] = quality
+    dataset_card = write_dataset_card(state, run_dir)
+    state["dataset_card"] = dataset_card
     agent_audit = write_agent_audit(state, run_dir)
     state["agent_audit"] = agent_audit
     storyboard = write_storyboard(state, run_dir)
@@ -362,6 +368,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "tool_contracts": state.get("tool_contracts"),
             "repair_log": state.get("repair_log", []),
             "quality": quality,
+            "dataset_card": dataset_card,
             "agent_audit": agent_audit,
             "storyboard": storyboard,
             "rerun_recipe": rerun_recipe,
@@ -390,6 +397,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         trace=state.get("execution_trace", []),
         repairs=state.get("repair_log", []),
         quality=quality,
+        dataset_card=dataset_card,
         agent_audit=agent_audit,
         storyboard=storyboard,
         rerun_recipe=rerun_recipe,
@@ -423,6 +431,9 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         observations={
             "report_path": str(report_path),
             "run_readme_path": str(readme_path),
+            "dataset_card_path": str(run_dir / "dataset_card.html"),
+            "dataset_card_json_path": str(run_dir / "dataset_card.json"),
+            "dataset_card_markdown_path": str(run_dir / "DATASET_CARD.md"),
             "agent_audit_path": str(run_dir / "agent_audit.json"),
             "storyboard_path": str(run_dir / "storyboard.html"),
             "storyboard_json_path": str(run_dir / "storyboard.json"),

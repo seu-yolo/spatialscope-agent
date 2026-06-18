@@ -36,6 +36,14 @@ def test_fallback_parser_ignores_replay_terms():
     assert parsed["genes"] == ["GeneA", "GeneB"]
 
 
+def test_fallback_parser_ignores_dataset_card_terms():
+    parsed = fallback_parse_query(
+        "Run quick spatial analysis and generate a dataset card for GeneA GeneB",
+        "quick",
+    )
+    assert parsed["genes"] == ["GeneA", "GeneB"]
+
+
 def test_make_advanced_plan_contains_showcase_tools():
     parsed = {"genes": ["Sox17"]}
     tools = [step["tool"] for step in make_plan(parsed, "advanced")]

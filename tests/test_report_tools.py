@@ -62,6 +62,9 @@ def test_generate_report_bundle(tmp_path):
     result = generate_report(state)
     assert result.status == "success"
     assert (run_dir / "report.html").exists()
+    assert (run_dir / "dataset_card.html").exists()
+    assert (run_dir / "dataset_card.json").exists()
+    assert (run_dir / "DATASET_CARD.md").exists()
     assert (run_dir / "agent_trace.json").exists()
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
@@ -79,12 +82,14 @@ def test_generate_report_bundle(tmp_path):
     assert "SpatialScope Run README" in readme_text
     assert "Human Review" in readme_text
     assert "Quality Gates" in readme_text
+    assert "Dataset Card" in readme_text
     assert "Rerun recipe" in readme_text
     assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gate Overrides" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Agent Audit" in (run_dir / "report.html").read_text(encoding="utf-8")
+    assert "Open Dataset Card" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Spatial Storyboard" in (run_dir / "report.html").read_text(encoding="utf-8")
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
@@ -93,16 +98,21 @@ def test_generate_report_bundle(tmp_path):
     assert metadata["review_notes"]["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
     assert "quality" in metadata
     assert "agent_audit" in metadata
+    assert "dataset_card" in metadata
     assert "storyboard" in metadata
     assert "rerun_recipe" in metadata
     assert metadata["query"] == "demo"
     assert metadata["data_path"] == "data/demo_tiny.h5ad"
     assert "quality" in manifest
     assert "agent_audit" in manifest
+    assert "dataset_card" in manifest
     assert "storyboard" in manifest
     assert "rerun_recipe" in manifest
     assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "readme" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card_data" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "dataset_card_markdown" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "storyboard" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "storyboard_data" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "rerun_recipe" and item["exists"] for item in manifest["artifacts"])
@@ -114,6 +124,9 @@ def test_generate_report_bundle(tmp_path):
     assert manifest["repairs_count"] == 1
     assert result.observations["run_bundle_path"].endswith("run_bundle.zip")
     assert result.observations["run_readme_path"].endswith("README.md")
+    assert result.observations["dataset_card_path"].endswith("dataset_card.html")
+    assert result.observations["dataset_card_json_path"].endswith("dataset_card.json")
+    assert result.observations["dataset_card_markdown_path"].endswith("DATASET_CARD.md")
     assert result.observations["storyboard_path"].endswith("storyboard.html")
     assert result.observations["storyboard_json_path"].endswith("storyboard.json")
     assert result.observations["rerun_recipe_path"].endswith("rerun_recipe.json")
@@ -124,6 +137,9 @@ def test_generate_report_bundle(tmp_path):
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "README.md" in archive.namelist()
+        assert "dataset_card.html" in archive.namelist()
+        assert "dataset_card.json" in archive.namelist()
+        assert "DATASET_CARD.md" in archive.namelist()
         assert "storyboard.html" in archive.namelist()
         assert "storyboard.json" in archive.namelist()
         assert "rerun_recipe.json" in archive.namelist()
@@ -177,6 +193,10 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert "agent_audit_score" in runs[0]
     assert "agent_audit_status" in runs[0]
     assert "storyboard_cards" in runs[0]
+    assert runs[0]["dataset_card_path"].endswith("dataset_card.html")
+    assert runs[0]["dataset_card_json_path"].endswith("dataset_card.json")
+    assert runs[0]["dataset_card_markdown_path"].endswith("DATASET_CARD.md")
+    assert runs[0]["dataset_recommended_mode"] == "quick"
     assert runs[0]["storyboard_path"].endswith("storyboard.html")
     assert runs[0]["storyboard_json_path"].endswith("storyboard.json")
     assert runs[0]["rerun_recipe_path"].endswith("rerun_recipe.json")

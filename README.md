@@ -16,6 +16,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
 - Quality Gates self-audit for dataset readiness, trace integrity, evidence outputs, interpretation, and reproducibility metadata
 - Agent Audit for contract-bound planning, execution coverage, repair accountability, evidence-bounded interpretation, and public-state privacy checks
+- Dataset Card (`dataset_card.html`/`dataset_card.json`/`DATASET_CARD.md`) for data suitability, schema preview, spatial-coordinate status, recommended run depth, and privacy boundary
 - Human Review notes with decision, confidence, tags, Quality Gate overrides, reviewer comments, and bundle integration
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
@@ -24,7 +25,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - Spatial Storyboard (`storyboard.html`/`storyboard.json`) that turns key figures into a presentation-oriented visual narrative
 - Run Replay Recipe (`RERUN.md`, `rerun_recipe.json`, `rerun.sh`) for safe, secret-free reruns
-- HTML report, run-level `README.md`, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `review_notes.json`, `agent_audit.json`, `artifact_manifest.json`
+- HTML report, run-level `README.md`, `dataset_card.html`, `DATASET_CARD.md`, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `review_notes.json`, `agent_audit.json`, `artifact_manifest.json`
 - Artifact Audit with file existence, size, kind counts, missing-artifact warnings, and bundle status
 - Complete `run_bundle.zip` export for report, trace, metadata, figures, tables, and reproducibility assets
 - CLI and a polished Streamlit analysis workspace
@@ -123,7 +124,7 @@ Outputs are written to `outputs/runs/<run_id>/`.
 Each run includes a handoff-ready `README.md`, a complete `run_bundle.zip`, plus
 an `artifact_manifest.json` file that indexes the report,
 trace, metadata, parameters, figures, tables, repair diagnostics, Quality Gates,
-Agent Audit, Spatial Storyboard, Run Replay Recipe, Human Review notes, Artifact Audit, and public state bundle.
+Agent Audit, Dataset Card, Spatial Storyboard, Run Replay Recipe, Human Review notes, Artifact Audit, and public state bundle.
 
 One-command demo:
 
@@ -141,8 +142,8 @@ Navigation:
 
 1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, load a historical run back into the workspace, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
-3. Explore: inspect the Spatial Storyboard, figures, tables, trace records, Quality Gates, Agent Audit, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation, review the Spatial Storyboard, copy/download the Run Replay Recipe, save Human Review notes, record Quality Gate overrides, inspect Agent Audit and Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
+3. Explore: inspect the Dataset Card, Spatial Storyboard, figures, tables, trace records, Quality Gates, Agent Audit, repair diagnostics, resolved genes, and candidate cluster labels.
+4. Report: read the cautious interpretation, review the Dataset Card and Spatial Storyboard, copy/download the Run Replay Recipe, save Human Review notes, record Quality Gate overrides, inspect Agent Audit and Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
 
 ## Tests
 

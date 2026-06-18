@@ -27,7 +27,7 @@ control over parameters or biological interpretation.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
 7. Save Human Review notes with a decision, confidence level, tags, Quality Gate overrides, caveats, and rerun recommendations.
-8. Inspect the Spatial Storyboard, Run Replay Recipe, Agent Audit, and Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
+8. Inspect the Dataset Card, Spatial Storyboard, Run Replay Recipe, Agent Audit, and Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
 9. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
@@ -40,6 +40,9 @@ A good run should satisfy:
 - Every figure/table has a traceable generating tool.
 - Every polished run includes a Spatial Storyboard that turns key figures into
   a compact visual narrative for presentation and review.
+- Every run includes a Dataset Card that records data dimensions, spatial
+  coordinate availability, schema preview, recommended run depth, dataset hash,
+  and a clear privacy boundary.
 - Every run includes a secret-free Run Replay Recipe with a command, script,
   query, mode, parameters, data path, and approved plan for reproducibility.
 - Warnings are visible instead of hidden.
@@ -53,9 +56,9 @@ A good run should satisfy:
 - Missing genes trigger fuzzy matching rather than silent failure.
 - Missing optional dependencies degrade gracefully.
 - Output paths, parameters, software versions, and trace are preserved.
-- Every run writes an artifact manifest that indexes reports, storyboard files,
-  replay recipes, figures, tables, metadata, parameters, trace, repair
-  diagnostics, Quality Gates, Agent Audit, and public state.
+- Every run writes an artifact manifest that indexes reports, dataset cards,
+  storyboard files, replay recipes, figures, tables, metadata, parameters,
+  trace, repair diagnostics, Quality Gates, Agent Audit, and public state.
 - Every run includes a Markdown README that summarizes the query, evidence,
   quality state, review state, and key files for handoff.
 - Every run includes an Artifact Audit that checks file existence, sizes,
@@ -85,6 +88,8 @@ A good run should satisfy:
 - Quality Gates score and status for lightweight review before trusting or
   presenting a run.
 - Agent Audit panel and JSON export for behavior-level agent trust checks.
+- Dataset Card panel plus standalone HTML/JSON/Markdown export for data
+  suitability review before interpretation.
 - Human Review panel for saved reviewer decision, confidence, notes,
   limitations, tags, Quality Gate overrides, manifest indexing, and bundle
   export.

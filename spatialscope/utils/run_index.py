@@ -65,6 +65,9 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
     artifacts: list[dict[str, Any]] = [
         file_record(report, run_dir=root, kind="report", title="HTML report"),
         file_record(root / "run_bundle.zip", run_dir=root, kind="bundle", title="Complete run bundle"),
+        file_record(root / "dataset_card.html", run_dir=root, kind="dataset_card", title="Dataset card"),
+        file_record(root / "dataset_card.json", run_dir=root, kind="dataset_card_data", title="Dataset card data"),
+        file_record(root / "DATASET_CARD.md", run_dir=root, kind="dataset_card_markdown", title="Dataset card markdown"),
         file_record(root / "storyboard.html", run_dir=root, kind="storyboard", title="Spatial Storyboard"),
         file_record(root / "storyboard.json", run_dir=root, kind="storyboard_data", title="Spatial Storyboard data"),
         file_record(root / "rerun_recipe.json", run_dir=root, kind="rerun_recipe", title="Rerun recipe"),
@@ -108,6 +111,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "mode": state.get("mode"),
         "query": state.get("user_query"),
         "dataset_hash": state.get("dataset_hash"),
+        "dataset_summary": state.get("dataset_summary"),
         "plan_source": state.get("plan_source"),
         "llm_enabled": state.get("llm_enabled"),
         "status_counts": status_counts,
@@ -119,6 +123,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "tables_count": len(state.get("generated_tables", [])),
         "quality": state.get("quality") or build_quality_report(state),
         "agent_audit": state.get("agent_audit"),
+        "dataset_card": state.get("dataset_card"),
         "storyboard": state.get("storyboard"),
         "rerun_recipe": state.get("rerun_recipe"),
         "review": state.get("review_notes"),
@@ -127,6 +132,9 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
     essential_kinds = {
         "report",
         "bundle",
+        "dataset_card",
+        "dataset_card_data",
+        "dataset_card_markdown",
         "storyboard",
         "storyboard_data",
         "rerun_recipe",
@@ -225,6 +233,14 @@ def load_run_state(run_dir: str | Path) -> dict[str, Any]:
     state["agent_audit"] = _as_dict(
         _first_present(state.get("agent_audit"), metadata.get("agent_audit"), manifest.get("agent_audit"), _read_json(root / "agent_audit.json"))
     )
+    state["dataset_card"] = _as_dict(
+        _first_present(
+            state.get("dataset_card"),
+            metadata.get("dataset_card"),
+            manifest.get("dataset_card"),
+            _read_json(root / "dataset_card.json"),
+        )
+    )
     state["storyboard"] = _as_dict(
         _first_present(state.get("storyboard"), metadata.get("storyboard"), manifest.get("storyboard"), _read_json(root / "storyboard.json"))
     )
@@ -280,6 +296,12 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
     if not isinstance(review, dict):
         review = {}
     manifest_review = manifest.get("review") if isinstance(manifest.get("review"), dict) else {}
+    dataset_card = _as_dict(
+        _first_present(metadata.get("dataset_card"), manifest.get("dataset_card"), _read_json(root / "dataset_card.json"))
+    )
+    dataset_summary = _as_dict(
+        _first_present(metadata.get("dataset_summary"), manifest.get("dataset_summary"), {})
+    )
 
     report_path = root / "report.html"
     modified = max((path.stat().st_mtime for path in root.rglob("*") if path.is_file()), default=root.stat().st_mtime)
@@ -306,6 +328,11 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "report_path": str(report_path) if report_path.exists() else "",
         "storyboard_path": str(root / "storyboard.html") if (root / "storyboard.html").exists() else "",
         "storyboard_json_path": str(root / "storyboard.json") if (root / "storyboard.json").exists() else "",
+        "dataset_card_path": str(root / "dataset_card.html") if (root / "dataset_card.html").exists() else "",
+        "dataset_card_json_path": str(root / "dataset_card.json") if (root / "dataset_card.json").exists() else "",
+        "dataset_card_markdown_path": str(root / "DATASET_CARD.md") if (root / "DATASET_CARD.md").exists() else "",
+        "dataset_recommended_mode": str(dataset_card.get("recommended_mode") or ""),
+        "dataset_has_spatial": bool(dataset_summary.get("has_spatial") or (dataset_card.get("metrics") or {}).get("spatial") == "yes"),
         "rerun_recipe_path": str(root / "rerun_recipe.json") if (root / "rerun_recipe.json").exists() else "",
         "rerun_markdown_path": str(root / "RERUN.md") if (root / "RERUN.md").exists() else "",
         "rerun_script_path": str(root / "rerun.sh") if (root / "rerun.sh").exists() else "",
@@ -365,6 +392,12 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
     ]
     rows: list[dict[str, Any]] = [
         {"Metric": "Mode", "A": left.get("mode"), "B": right.get("mode"), "Delta A-B": ""},
+        {
+            "Metric": "Dataset recommended mode",
+            "A": left.get("dataset_recommended_mode") or "unknown",
+            "B": right.get("dataset_recommended_mode") or "unknown",
+            "Delta A-B": "",
+        },
         {"Metric": "Plan source", "A": left.get("plan_source"), "B": right.get("plan_source"), "Delta A-B": ""},
         {"Metric": "LLM enabled", "A": bool(left.get("llm_enabled")), "B": bool(right.get("llm_enabled")), "Delta A-B": ""},
         {"Metric": "Bundle complete", "A": bool(left.get("complete")), "B": bool(right.get("complete")), "Delta A-B": ""},
@@ -389,6 +422,8 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         notes.append("Dataset hashes differ or are missing; compare outputs cautiously.")
     if left.get("mode") != right.get("mode"):
         notes.append("Run modes differ, so extra figures or trace steps may reflect mode depth rather than better performance.")
+    if left.get("dataset_recommended_mode") != right.get("dataset_recommended_mode"):
+        notes.append("Dataset cards recommend different run depths; inspect data suitability before comparing biological outputs.")
     if int(left.get("errors", 0)) != int(right.get("errors", 0)):
         notes.append("Error counts differ; inspect Repair Diagnostics before comparing biological outputs.")
     if int(left.get("repairs", 0)) or int(right.get("repairs", 0)):

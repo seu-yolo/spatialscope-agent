@@ -211,7 +211,7 @@ def parse_query_with_llm(client: LLMClient, query: str) -> dict[str, Any]:
                 "content": (
                     "Parse this spatial transcriptomics request into the required JSON schema. "
                     "Only include genes explicitly requested by the user. Do not treat words like "
-                    "marker, cluster, spatial, variable, panel, or analysis as gene names.\n\n"
+                    "marker, cluster, spatial, variable, panel, dataset, card, or analysis as gene names.\n\n"
                     f"JSON schema:\n{json.dumps(parsed_request_json_schema(), ensure_ascii=False)}\n\n"
                     f"Request: {query}"
                 ),

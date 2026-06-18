@@ -15,6 +15,7 @@ from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.agent_audit import build_agent_audit, load_agent_audit
 from spatialscope.utils.artifact_audit import audit_artifacts
+from spatialscope.utils.dataset_card import build_dataset_card
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 from spatialscope.utils.review import (
     CONFIDENCE_LEVELS,
@@ -1267,6 +1268,108 @@ def _existing_file(path_value: Any) -> Path | None:
     return path if path.is_file() else None
 
 
+def _dataset_card_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    card = state.get("dataset_card")
+    if isinstance(card, dict) and card:
+        return card
+    run_dir = state.get("run_dir")
+    if run_dir:
+        card_path = Path(str(run_dir)) / "dataset_card.json"
+        if card_path.exists():
+            try:
+                payload = json.loads(card_path.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    state["dataset_card"] = payload
+                    return payload
+            except Exception:
+                pass
+    card = build_dataset_card(state)
+    state["dataset_card"] = card
+    return card
+
+
+def _render_dataset_card_panel(state: dict[str, Any], *, key_prefix: str = "dataset") -> None:
+    card = _dataset_card_for_state(state)
+    if not card:
+        return
+    metrics = card.get("metrics") if isinstance(card.get("metrics"), dict) else {}
+    checks = [item for item in card.get("checks", []) if isinstance(item, dict)]
+    status_counts = {
+        "pass": sum(1 for item in checks if item.get("status") == "pass"),
+        "warn": sum(1 for item in checks if item.get("status") == "warn"),
+        "fail": sum(1 for item in checks if item.get("status") == "fail"),
+    }
+    overall_tone = "fail" if status_counts["fail"] else "warn" if status_counts["warn"] else "success"
+    run_id = str(state.get("run_id") or "run")
+    run_dir = Path(str(state.get("run_dir") or ""))
+    html_path = run_dir / "dataset_card.html"
+    json_path = run_dir / "dataset_card.json"
+    md_path = run_dir / "DATASET_CARD.md"
+
+    st.markdown('<div class="ss-section-title">Dataset Card / 数据说明卡</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-story-shell">
+          <div class="ss-mini-label">Data boundary</div>
+          <div class="ss-card-title">先确认数据，再解释结果</div>
+          <div class="ss-figure-note">记录数据规模、空间坐标、schema preview、推荐运行深度和隐私边界；不保存原始表达矩阵或完整坐标数组。</div>
+          <div class="ss-evidence-grid">
+            <div class="ss-evidence-card"><div class="ss-mini-label">Observations</div><div class="ss-evidence-value">{html.escape(str(metrics.get("n_obs", "NA")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Genes</div><div class="ss-evidence-value">{html.escape(str(metrics.get("n_vars", "NA")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Spatial</div><div class="ss-evidence-value">{html.escape(str(metrics.get("spatial", "NA")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Recommended</div><div class="ss-evidence-value">{html.escape(str(card.get("recommended_mode", "unknown")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Hash</div><div class="ss-evidence-value">{html.escape(str(card.get("short_hash", "NA")))}</div></div>
+          </div>
+          <div class="ss-status-row">
+            {_chip(str(status_counts["pass"]) + " pass", "success")}
+            {_chip(str(status_counts["warn"]) + " warn", "warn")}
+            {_chip(str(status_counts["fail"]) + " fail", "fail")}
+            {_chip(str(card.get("recommended_mode", "unknown")), overall_tone)}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if checks:
+        rows = [
+            {
+                "Check": item.get("name"),
+                "Status": item.get("status"),
+                "Summary": item.get("summary"),
+                "Recommendation": item.get("recommendation"),
+            }
+            for item in checks
+        ]
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(260, 44 + len(rows) * 44))
+    with st.expander("Schema preview / 数据结构预览", expanded=False):
+        st.json(card.get("schema_preview", {}))
+    d1, d2, d3 = st.columns(3)
+    if html_path.exists():
+        d1.download_button(
+            "下载 Dataset Card HTML",
+            html_path.read_bytes(),
+            file_name=f"{run_id}_dataset_card.html",
+            width="stretch",
+            key=f"{key_prefix}_dataset_card_html_{run_id}",
+        )
+    if md_path.exists():
+        d2.download_button(
+            "下载 DATASET_CARD.md",
+            md_path.read_bytes(),
+            file_name=f"{run_id}_DATASET_CARD.md",
+            width="stretch",
+            key=f"{key_prefix}_dataset_card_md_{run_id}",
+        )
+    if json_path.exists():
+        d3.download_button(
+            "下载 Dataset Card JSON",
+            json_path.read_bytes(),
+            file_name=f"{run_id}_dataset_card.json",
+            width="stretch",
+            key=f"{key_prefix}_dataset_card_json_{run_id}",
+        )
+
+
 def _storyboard_for_state(state: dict[str, Any]) -> dict[str, Any]:
     storyboard = state.get("storyboard")
     if isinstance(storyboard, dict) and storyboard:
@@ -1453,6 +1556,10 @@ def _render_run_library(outdir: str) -> None:
             <div class="ss-evidence-value">{html.escape(str(latest.get("storyboard_cards", 0)))}</div>
           </div>
           <div class="ss-evidence-card">
+            <div class="ss-mini-label">Dataset Card</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("dataset_recommended_mode") or "NA").upper())}</div>
+          </div>
+          <div class="ss-evidence-card">
             <div class="ss-mini-label">修复诊断</div>
             <div class="ss-evidence-value">{html.escape(str(latest.get("repairs", 0)))}</div>
           </div>
@@ -1481,6 +1588,8 @@ def _render_run_library(outdir: str) -> None:
             "Storyboard": item.get("storyboard_cards"),
             "Tables": item.get("tables"),
             "Trace": item.get("trace_steps"),
+            "Data mode": item.get("dataset_recommended_mode") or "unknown",
+            "Spatial": "yes" if item.get("dataset_has_spatial") else "no",
             "Repairs": item.get("repairs"),
             "Warnings": item.get("warnings"),
             "Errors": item.get("errors"),
@@ -1497,8 +1606,12 @@ def _render_run_library(outdir: str) -> None:
 
     c1, c2, c3, c4 = st.columns(4)
     c5, c6, c7, c8 = st.columns(4)
+    c9, c10, c11 = st.columns(3)
     report_path = _existing_file(latest.get("report_path"))
     storyboard_path = _existing_file(latest.get("storyboard_path"))
+    dataset_card_path = _existing_file(latest.get("dataset_card_path"))
+    dataset_card_markdown_path = _existing_file(latest.get("dataset_card_markdown_path"))
+    dataset_card_json_path = _existing_file(latest.get("dataset_card_json_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
     readme_path = _existing_file(latest.get("readme_path"))
@@ -1568,6 +1681,30 @@ def _render_run_library(outdir: str) -> None:
             file_name=f"{latest.get('run_id', 'run')}_artifact_audit.json",
             width="stretch",
             key=f"history_audit_{latest.get('run_id')}",
+        )
+    if dataset_card_path:
+        c9.download_button(
+            "下载 Data Card HTML",
+            dataset_card_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_dataset_card.html",
+            width="stretch",
+            key=f"history_dataset_card_html_{latest.get('run_id')}",
+        )
+    if dataset_card_markdown_path:
+        c10.download_button(
+            "下载 DATASET_CARD.md",
+            dataset_card_markdown_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_DATASET_CARD.md",
+            width="stretch",
+            key=f"history_dataset_card_md_{latest.get('run_id')}",
+        )
+    if dataset_card_json_path:
+        c11.download_button(
+            "下载 Data Card JSON",
+            dataset_card_json_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_dataset_card.json",
+            width="stretch",
+            key=f"history_dataset_card_json_{latest.get('run_id')}",
         )
 
     st.markdown('<div class="ss-section-title">载入历史 Run</div>', unsafe_allow_html=True)
@@ -1980,6 +2117,7 @@ with explore_tab:
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
+        _render_dataset_card_panel(state, key_prefix="explore")
         _render_spatial_note(state)
         _render_storyboard_panel(state, key_prefix="explore")
 
@@ -2105,6 +2243,7 @@ with report_tab:
         _render_workflow_map(state)
         _render_evidence_cards(state)
         _render_spatial_note(state)
+        _render_dataset_card_panel(state, key_prefix="report")
         _render_storyboard_panel(state, key_prefix="report")
         _render_rerun_panel(state, key_prefix="report")
         with st.container(border=True):
@@ -2121,6 +2260,9 @@ with report_tab:
         _render_artifact_audit_panel(state)
 
         report_path = state.get("report_path")
+        dataset_card_path = Path(str(state.get("run_dir"))) / "dataset_card.html"
+        dataset_card_json_path = Path(str(state.get("run_dir"))) / "dataset_card.json"
+        dataset_card_markdown_path = Path(str(state.get("run_dir"))) / "DATASET_CARD.md"
         storyboard_path = Path(str(state.get("run_dir"))) / "storyboard.html"
         storyboard_json_path = Path(str(state.get("run_dir"))) / "storyboard.json"
         rerun_markdown_path = Path(str(state.get("run_dir"))) / "RERUN.md"
@@ -2245,6 +2387,44 @@ with report_tab:
                     st.markdown('<div class="ss-mini-label">自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Audit JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", audit_path.read_bytes(), file_name="artifact_audit.json", width="stretch")
+
+        c15, c16, c17 = st.columns(3)
+        if dataset_card_path.exists():
+            with c15:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">数据说明</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Dataset Card</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        "下载",
+                        dataset_card_path.read_bytes(),
+                        file_name="dataset_card.html",
+                        width="stretch",
+                        key=f"report_output_dataset_card_html_{state.get('run_id', 'run')}",
+                    )
+        if dataset_card_markdown_path.exists():
+            with c16:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">数据说明</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">DATASET_CARD.md</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        "下载",
+                        dataset_card_markdown_path.read_bytes(),
+                        file_name="DATASET_CARD.md",
+                        width="stretch",
+                        key=f"report_output_dataset_card_md_{state.get('run_id', 'run')}",
+                    )
+        if dataset_card_json_path.exists():
+            with c17:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">数据说明</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Card JSON</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        "下载",
+                        dataset_card_json_path.read_bytes(),
+                        file_name="dataset_card.json",
+                        width="stretch",
+                        key=f"report_output_dataset_card_json_{state.get('run_id', 'run')}",
+                    )
 
         st.markdown('<div class="ss-quiet-rule"></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)

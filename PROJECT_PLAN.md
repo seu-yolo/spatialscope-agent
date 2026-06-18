@@ -8,7 +8,7 @@ Core product:
 - Inspect AnnData structure and spatial coordinates.
 - Generate an editable analysis plan from a natural-language query.
 - Run Quick, Standard, or Advanced workflows.
-- Produce publication-style figures, tables, Agent Trace, metadata, and an HTML report.
+- Produce publication-style figures, tables, Dataset Card, Agent Trace, metadata, and an HTML report.
 
 Showcase features:
 
@@ -16,7 +16,10 @@ Showcase features:
 - Gene Panel Spatial View.
 - Spatially variable gene analysis.
 - Neighborhood enrichment.
+- Dataset Card for data suitability, schema preview, spatial-coordinate status, recommended run depth, and privacy boundary.
 - Reproducibility Bundle.
+- Spatial Storyboard and Run Replay Recipe.
+- Quality Gates, Agent Audit, Artifact Audit, Human Review, Run Library, and Run Compare.
 - Open tool registry with inspectable tool contracts.
 - Editable plan approval before execution in the Streamlit workspace.
 
@@ -25,6 +28,7 @@ Scientific guardrails:
 - LLM receives only summaries, captions, and table excerpts.
 - Full expression matrices are never sent to the LLM.
 - Every interpretation is grounded in generated figures/tables.
+- Dataset suitability is reported before interpretation.
 - Cluster interpretation is marker-based candidate interpretation, not confirmed annotation.
 
 Current v1 implementation status:
@@ -32,4 +36,5 @@ Current v1 implementation status:
 - Core conda environment is installable with Python 3.11.
 - Quick and Standard modes run with zero warnings/errors on the tiny demo data.
 - Advanced mode runs without hard errors; Squidpy-only steps are optional when Squidpy is absent.
-- LangGraph orchestration, structured plan validation, HTML report generation, and Streamlit plan approval are implemented.
+- LangGraph orchestration, structured plan validation, HTML report generation, Dataset Card generation, and Streamlit plan approval are implemented.
+- Each run writes a README, report, dataset card, storyboard, rerun recipe, metadata, parameters, trace, manifest, audits, and ZIP bundle.
