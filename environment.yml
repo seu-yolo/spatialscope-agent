@@ -17,6 +17,7 @@ dependencies:
   - pip:
       - streamlit
       - langgraph
+      - langgraph-checkpoint-sqlite
       - openai
       - python-dotenv
       - pydantic

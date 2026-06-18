@@ -25,8 +25,12 @@ def _dense_vector(values: Any) -> np.ndarray:
     return np.ravel(arr)
 
 
-def _gene_vector(adata: Any, gene: str) -> np.ndarray:
+def _gene_vector(adata: Any, gene: str, *, expression_layer: str | None = None) -> np.ndarray:
     idx = list(adata.var_names).index(gene)
+    if expression_layer and expression_layer not in {"X", "raw"} and expression_layer in getattr(adata, "layers", {}):
+        return _dense_vector(adata.layers[expression_layer][:, idx])
+    if expression_layer == "raw" and getattr(adata, "raw", None) is not None:
+        return _dense_vector(adata.raw[:, gene].X)
     return _dense_vector(adata.X[:, idx])
 
 
@@ -77,7 +81,14 @@ def plot_umap(adata: Any, *, figures_dir: str, color: str = "leiden") -> ToolRes
     )
 
 
-def plot_spatial(adata: Any, *, figures_dir: str, color: str = "leiden") -> ToolResult:
+def plot_spatial(
+    adata: Any,
+    *,
+    figures_dir: str,
+    color: str = "leiden",
+    expression_layer: str = "spatialscope_interpretation",
+    clip_percentiles: tuple[float, float] = (1, 99),
+) -> ToolResult:
     if "spatial" not in adata.obsm:
         return ToolResult(
             status="failed",
@@ -116,14 +127,18 @@ def plot_spatial(adata: Any, *, figures_dir: str, color: str = "leiden") -> Tool
         ax_leg.legend(handles=handles, labels=[str(cat) for cat in categories], title=color, loc="center left")
         caption = f"Spatial distribution colored by `{color}` using coordinates from `adata.obsm['spatial']`."
     else:
-        values = _gene_vector(adata, color)
-        lo, hi = np.nanpercentile(values, [1, 99])
+        layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else "X"
+        values = _gene_vector(adata, color, expression_layer=layer)
+        lo, hi = np.nanpercentile(values, clip_percentiles)
         clipped = np.clip(values, lo, hi)
         sc = ax.scatter(coords[:, 0], coords[:, 1], s=point_size, c=clipped, cmap=EXPRESSION_CMAP, alpha=0.92, linewidths=0)
         ax_leg.set_axis_off()
         cbar = fig.colorbar(sc, ax=ax_leg, fraction=0.9, pad=0.08)
         cbar.set_label(color)
-        caption = f"Spatial expression of `{color}` with 1-99 percentile clipping."
+        caption = (
+            f"Spatial expression of `{color}` using layer `{layer}`, coordinates `adata.obsm['spatial']`, "
+            f"and {clip_percentiles[0]}-{clip_percentiles[1]} percentile clipping."
+        )
     ax.set_aspect("equal")
     polish_axis(ax, title=f"Spatial view: {color}", subtitle=f"{adata.n_obs:,} spots/cells")
     ax.set_xticks([])
@@ -134,11 +149,19 @@ def plot_spatial(adata: Any, *, figures_dir: str, color: str = "leiden") -> Tool
     return ToolResult(
         status="success",
         summary=f"Generated spatial plot for {color}.",
-        figures=[{**saved, "title": f"Spatial view: {color}", "caption": caption}],
+        figures=[{**saved, "title": f"Spatial view: {color}", "caption": caption, "data_layer": expression_layer}],
+        observations={"expression_layer": expression_layer, "clip_percentiles": list(clip_percentiles)},
     )
 
 
-def plot_gene_panel(adata: Any, *, figures_dir: str, genes: list[str]) -> ToolResult:
+def plot_gene_panel(
+    adata: Any,
+    *,
+    figures_dir: str,
+    genes: list[str],
+    expression_layer: str = "spatialscope_interpretation",
+    clip_percentiles: tuple[float, float] = (1, 99),
+) -> ToolResult:
     if "spatial" not in adata.obsm:
         return ToolResult(status="failed", summary="Spatial coordinates not found.", warnings=["missing obsm['spatial']"])
     if not genes:
@@ -163,17 +186,18 @@ def plot_gene_panel(adata: Any, *, figures_dir: str, genes: list[str]) -> ToolRe
         return ToolResult(status="failed", summary="No requested genes could be matched.", warnings=warnings)
 
     coords = np.asarray(adata.obsm["spatial"])
+    layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else "X"
     n = len(resolved)
     ncols = min(3, n)
     nrows = int(np.ceil(n / ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.35 * nrows), squeeze=False, constrained_layout=True)
     point_size = max(3, min(22, 12000 / max(adata.n_obs, 1)))
     for ax, gene in zip(axes.ravel(), resolved):
-        values = _gene_vector(adata, gene)
-        lo, hi = np.nanpercentile(values, [1, 99])
+        values = _gene_vector(adata, gene, expression_layer=layer)
+        lo, hi = np.nanpercentile(values, clip_percentiles)
         clipped = np.clip(values, lo, hi)
         sc = ax.scatter(coords[:, 0], coords[:, 1], c=clipped, cmap=EXPRESSION_CMAP, s=point_size, alpha=0.92, linewidths=0)
-        polish_axis(ax, title=gene, subtitle=f"{lo:.2g}-{hi:.2g} clipped")
+        polish_axis(ax, title=gene, subtitle=f"{layer}; {lo:.2g}-{hi:.2g} clipped")
         ax.set_aspect("equal")
         ax.set_xticks([])
         ax.set_yticks([])
@@ -192,9 +216,13 @@ def plot_gene_panel(adata: Any, *, figures_dir: str, genes: list[str]) -> ToolRe
             {
                 **saved,
                 "title": "Gene Panel Spatial View",
-                "caption": "Small-multiple spatial expression plots using shared spatial coordinates and percentile-clipped expression.",
+                "caption": (
+                    "Small-multiple spatial expression plots using shared spatial coordinates, "
+                    f"layer `{layer}`, and {clip_percentiles[0]}-{clip_percentiles[1]} percentile clipping."
+                ),
+                "data_layer": layer,
             }
         ],
-        observations={"requested_genes": genes, "resolved_genes": resolved},
+        observations={"requested_genes": genes, "resolved_genes": resolved, "expression_layer": layer, "clip_percentiles": list(clip_percentiles)},
         warnings=warnings,
     )

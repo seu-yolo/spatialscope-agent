@@ -18,7 +18,7 @@ SpatialScope Agent follows a conservative, inspectable agent design rather than 
 
 1. **State first.** The LangGraph state stores dataset metadata, plan, parameters, trace, generated artifacts, warnings, and errors. LLM prompts are formatted from state rather than stored as opaque text.
 2. **Tool contracts.** Every analysis tool exposes preconditions, postconditions, common failures, and repair strategies through the registry.
-3. **Human-in-the-loop.** The Streamlit `Analyze` page lets users review and edit the generated plan before execution.
+3. **Human-in-the-loop.** The Streamlit `Plan` page lets users review and edit the interrupted LangGraph plan before execution.
 4. **Guarded autonomy.** LLM planning is allowed, but mode-specific baseline steps are enforced so required spatial transcriptomics analyses are not accidentally omitted.
 5. **Traceability.** Every tool call writes an execution trace and the final report links results to figures, tables, parameters, and warnings.
 6. **Evidence-first visualization.** Figures use consistent typography, color, SVG export, and captions. Plotting choices prioritize readable scientific evidence over decoration.

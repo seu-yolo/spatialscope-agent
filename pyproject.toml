@@ -11,6 +11,7 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
   "streamlit",
   "langgraph",
+  "langgraph-checkpoint-sqlite",
   "openai",
   "python-dotenv",
   "pydantic",

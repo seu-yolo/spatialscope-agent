@@ -34,13 +34,19 @@ class ParsedRequest(BaseModel):
 
 
 class PlanStep(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     id: str = Field(min_length=1, max_length=64)
     tool: str = Field(min_length=1, max_length=96)
     params: dict[str, Any] = Field(default_factory=dict)
+    parameter_origins: dict[str, str] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list)
+    expected_evidence: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    scientific_purpose: str = ""
     rationale: str = ""
     optional: bool = False
+    max_attempts: int = Field(default=2, ge=1, le=5)
 
 
 class AnalysisPlan(BaseModel):

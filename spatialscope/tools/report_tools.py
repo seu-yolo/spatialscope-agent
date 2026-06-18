@@ -211,13 +211,13 @@ REPORT_TEMPLATE = """
   <h2>候选 Cluster 注释 / Candidate Annotation Suggestions</h2>
   <p class="note">These are marker-overlap suggestions, not confirmed cell type calls.</p>
   <table>
-    <thead><tr><th>Cluster</th><th>Candidate Label</th><th>Confidence</th><th>Evidence Markers</th><th>Top Markers</th></tr></thead>
+    <thead><tr><th>Cluster</th><th>Candidate Label</th><th>Marker Evidence Score</th><th>Evidence Markers</th><th>Top Markers</th></tr></thead>
     <tbody>
     {% for item in annotations %}
       <tr>
         <td>{{ item.cluster }}</td>
         <td>{{ item.candidate_label }}</td>
-        <td>{{ item.confidence }}</td>
+        <td>{{ item.marker_evidence_score }}</td>
         <td>{{ item.evidence_markers }}</td>
         <td>{{ item.top_markers }}</td>
       </tr>
@@ -366,6 +366,9 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "project_signature": PROJECT_SIGNATURE,
             "acknowledgements": ACKNOWLEDGEMENTS,
             "tool_contracts": state.get("tool_contracts"),
+            "llm_calls": state.get("llm_calls", []),
+            "evidence_artifacts": state.get("evidence_artifacts", []),
+            "evidence_claims": state.get("evidence_claims", []),
             "repair_log": state.get("repair_log", []),
             "quality": quality,
             "dataset_card": dataset_card,

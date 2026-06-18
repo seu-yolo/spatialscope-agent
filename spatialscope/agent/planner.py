@@ -18,6 +18,8 @@ STOPWORDS = {
     "create",
     "generate",
     "show",
+    "inspect",
+    "assess",
     "quick",
     "standard",
     "advanced",
@@ -74,15 +76,30 @@ STOPWORDS = {
 
 
 def fallback_parse_query(query: str, mode: RunMode) -> dict[str, Any]:
+    lowered = query.lower()
     genes = []
     for token in GENE_PATTERN.findall(query):
         if token.lower() not in STOPWORDS:
             genes.append(token)
     seen: set[str] = set()
     genes = [gene for gene in genes if not (gene in seen or seen.add(gene))]
+    requested_steps: list[str] = []
+    if any(term in lowered for term in ["analysis", "analyze", "analyse", "overview", "explore"]):
+        requested_steps.append("overview")
+    if any(term in lowered for term in ["complete", "de novo", "full", "standard", "quality", "qc", "cluster", "clustering"]):
+        requested_steps.append("full_analysis")
+    if any(term in lowered for term in ["plot", "show", "view", "expression", "gene panel"]) and genes:
+        requested_steps.append("gene_panel")
+    if any(term in lowered for term in ["svg", "spatially variable", "variable gene"]):
+        requested_steps.append("svg")
+    if any(term in lowered for term in ["neighborhood", "neighbourhood", "enrichment"]):
+        requested_steps.append("neighborhood")
+    if any(term in lowered for term in ["annotation", "annotate", "cell type", "cell-type"]):
+        requested_steps.append("annotation")
+    requested_steps = list(dict.fromkeys(requested_steps))
     parsed = ParsedRequest(
         intent="spatial transcriptomics exploration",
-        requested_steps=[],
+        requested_steps=requested_steps,
         genes=genes[:8],
         preferred_mode=mode,
         notes="Rule-based parser used because DeepSeek API is not configured or failed.",
@@ -91,85 +108,180 @@ def fallback_parse_query(query: str, mode: RunMode) -> dict[str, Any]:
     return parsed.model_dump()
 
 
-def make_analysis_plan(parsed_request: dict[str, Any], mode: RunMode, *, source: str = "rule_based") -> AnalysisPlan:
+def _step(
+    step_id: str,
+    tool: str,
+    params: dict[str, Any] | None,
+    rationale: str,
+    *,
+    origins: dict[str, str] | None = None,
+    dependencies: list[str] | None = None,
+    expected: list[str] | None = None,
+    preconditions: list[str] | None = None,
+    optional: bool = False,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    return {
+        "id": step_id,
+        "tool": tool,
+        "params": params or {},
+        "parameter_origins": origins or {key: "dataset-aware default" for key in (params or {})},
+        "dependencies": dependencies or [],
+        "expected_evidence": expected or [],
+        "preconditions": preconditions or [],
+        "scientific_purpose": rationale,
+        "rationale": rationale,
+        "optional": optional,
+        "max_attempts": max_attempts,
+    }
+
+
+def make_analysis_plan(
+    parsed_request: dict[str, Any],
+    mode: RunMode,
+    *,
+    source: str = "rule_based",
+    dataset_summary: dict[str, Any] | None = None,
+) -> AnalysisPlan:
     genes = parsed_request.get("genes") or []
     if not genes:
         genes = ["GeneA", "GeneB", "GeneC"]
+    requested = set(map(str, parsed_request.get("requested_steps") or []))
+    dataset_summary = dataset_summary or {}
+    existing_obsm = set(map(str, dataset_summary.get("obsm_keys", [])))
+    existing_obs = set(map(str, dataset_summary.get("obs_columns", [])))
+    has_existing_embedding = "X_umap" in existing_obsm
+    has_existing_clusters = bool({"leiden", "cluster", "clusters"} & existing_obs)
+    wants_full = bool({"full_analysis", "qc", "cluster"} & requested) or mode in {"standard", "advanced"}
+    wants_overview = "overview" in requested
+    if requested and requested <= {"gene_panel"} and dataset_summary:
+        wants_full = False
+        wants_overview = False
 
     plan: list[dict[str, Any]] = [
-        {
-            "id": "qc",
-            "tool": "run_qc",
-            "params": {"min_genes": 20, "min_cells": 3, "max_mt_pct": 25},
-            "rationale": "Establish basic data quality before downstream modeling.",
-        },
-        {
-            "id": "preprocess",
-            "tool": "run_preprocess",
-            "params": {"n_top_genes": 2000},
-            "rationale": "Normalize and prepare the expression matrix for embedding and clustering.",
-        },
-        {
-            "id": "cluster",
-            "tool": "run_clustering",
-            "params": {"resolution": 0.8},
-            "rationale": "Create a low-dimensional embedding and cluster structure for exploration.",
-        },
-        {
-            "id": "umap_plot",
-            "tool": "plot_umap",
-            "params": {"color": "leiden"},
-            "rationale": "Check whether clusters separate in expression space.",
-        },
-        {
-            "id": "spatial_cluster",
-            "tool": "plot_spatial",
-            "params": {"color": "leiden"},
-            "rationale": "Map cluster labels back to tissue coordinates.",
-        },
-        {
-            "id": "gene_panel",
-            "tool": "plot_gene_panel",
-            "params": {"genes": genes[:6]},
-            "rationale": "Inspect requested or default genes in spatial context.",
-        },
     ]
+    if wants_full or wants_overview:
+        plan.extend(
+            [
+                _step(
+                    "qc",
+                    "run_qc",
+                    {"min_genes": 20, "min_cells": 3, "max_mt_pct": 25},
+                    "Establish basic data quality before downstream modeling.",
+                    expected=["QC metrics figure", "retention summary"],
+                ),
+                _step(
+                    "preprocess",
+                    "run_preprocess",
+                    {"n_top_genes": 2000},
+                    "Create explicit expression lineage and modeling representation.",
+                    dependencies=["qc"],
+                    expected=["highly variable gene summary", "expression lineage"],
+                ),
+                _step(
+                    "cluster",
+                    "run_clustering",
+                    {"resolution": 0.8},
+                    "Create PCA, neighbor graph, UMAP, and Leiden clusters for exploration.",
+                    dependencies=["preprocess"],
+                    expected=["cluster summary table", "embedding coordinates"],
+                ),
+            ]
+        )
+    elif not has_existing_embedding and not has_existing_clusters and "gene_panel" not in requested:
+        plan.append(
+            _step(
+                "preprocess",
+                "run_preprocess",
+                {"n_top_genes": 2000},
+                "Prepare a safe expression representation for requested lightweight views.",
+                expected=["expression lineage"],
+            )
+        )
+
+    if wants_full or wants_overview or has_existing_embedding:
+        plan.append(
+            _step(
+                "umap_plot",
+                "plot_umap",
+                {"color": "leiden"},
+                "Check whether clusters separate in expression space.",
+                dependencies=["cluster"] if wants_full or wants_overview else [],
+                expected=["UMAP figure"],
+            )
+        )
+    if wants_full or wants_overview or has_existing_clusters:
+        plan.append(
+            _step(
+                "spatial_cluster",
+                "plot_spatial",
+                {"color": "leiden"},
+                "Map cluster labels back to tissue coordinates.",
+                dependencies=["cluster"] if wants_full or wants_overview else [],
+                expected=["spatial cluster figure"],
+            )
+        )
+    if genes or "gene_panel" in requested:
+        plan.append(
+            _step(
+                "gene_panel",
+                "plot_gene_panel",
+                {"genes": genes[:6], "expression_layer": "spatialscope_interpretation"},
+                "Inspect requested genes in spatial context using the interpretation layer.",
+                origins={"genes": "user_query" if parsed_request.get("genes") else "dataset-aware default", "expression_layer": "agent_suggestion"},
+                expected=["spatial gene panel"],
+                preconditions=["valid spatial coordinates", "gene identifiers present"],
+            )
+        )
 
     if mode in {"standard", "advanced"}:
         plan.extend(
             [
-                {
-                    "id": "markers",
-                    "tool": "rank_markers",
-                    "params": {"groupby": "leiden", "top_n": 5},
-                    "rationale": "Rank candidate marker genes for each Leiden cluster.",
-                },
-                {
-                    "id": "cluster_annotation_suggestions",
-                    "tool": "suggest_cluster_annotations",
-                    "params": {"groupby": "leiden", "top_n": 12},
-                    "rationale": "Provide cautious marker-overlap cluster label suggestions for interpretation support.",
-                },
+                _step(
+                    "markers",
+                    "rank_markers",
+                    {"groupby": "leiden", "top_n": 5, "expression_layer": "spatialscope_interpretation"},
+                    "Rank marker genes for each Leiden cluster using the interpretation layer.",
+                    dependencies=["cluster"],
+                    origins={"groupby": "dataset-aware default", "top_n": "dataset-aware default", "expression_layer": "agent_suggestion"},
+                    expected=["marker table", "marker heatmap"],
+                ),
             ]
+        )
+    if "annotation" in requested:
+        plan.append(
+            _step(
+                "cluster_annotation_suggestions",
+                "suggest_cluster_annotations",
+                {"groupby": "leiden", "top_n": 12, "reference": "generic_marker_lexicon"},
+                "Provide cautious marker-overlap label suggestions only because annotation was explicitly requested.",
+                dependencies=["markers"],
+                expected=["candidate annotation table"],
+                optional=True,
+            )
         )
 
     if mode == "advanced":
         plan.extend(
             [
-                {
-                    "id": "svg",
-                    "tool": "run_svg",
-                    "params": {"mode": "moran"},
-                    "rationale": "Identify genes with spatial autocorrelation when Squidpy is available.",
-                    "optional": True,
-                },
-                {
-                    "id": "neighborhood",
-                    "tool": "run_neighborhood_enrichment",
-                    "params": {"cluster_key": "leiden"},
-                    "rationale": "Test spatial adjacency patterns between clusters when Squidpy is available.",
-                    "optional": True,
-                },
+                _step(
+                    "svg",
+                    "run_svg",
+                    {"mode": "moran"},
+                    "Identify genes with spatial autocorrelation when Squidpy is available.",
+                    dependencies=["preprocess"],
+                    expected=["SVG table", "SVG figure"],
+                    optional=True,
+                ),
+                _step(
+                    "neighborhood",
+                    "run_neighborhood_enrichment",
+                    {"cluster_key": "leiden"},
+                    "Test spatial adjacency patterns between clusters when Squidpy is available.",
+                    dependencies=["cluster"],
+                    expected=["neighborhood enrichment table"],
+                    optional=True,
+                ),
             ]
         )
 
@@ -177,7 +289,7 @@ def make_analysis_plan(parsed_request: dict[str, Any], mode: RunMode, *, source:
     return AnalysisPlan(
         mode=mode,
         source=source,  # type: ignore[arg-type]
-        rationale=f"{mode.title()} mode balances runtime, visual evidence, and reproducible outputs.",
+        rationale=f"{mode.title()} budget with dataset-aware minimal dependencies and explicit expression lineage.",
         steps=normalized,
     )
 

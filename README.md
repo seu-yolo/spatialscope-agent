@@ -10,7 +10,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
 - Safe LLM Control Center with masked key display, provider/model status, fallback explanation, and optional smoke test
-- LangGraph workflow with a deterministic fallback runner
+- LangGraph workflow with SQLite checkpoints, stable thread IDs, and a deterministic fallback path
 - Structured LLM parsing/planning with Pydantic validation and rule-based fallback
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
@@ -21,7 +21,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
 - Spatial cluster and gene expression visualization
 - Gene fuzzy matching repair and gene panel plots
-- Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon
+- Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon when explicitly requested
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - Spatial Storyboard (`storyboard.html`/`storyboard.json`) that turns key figures into a presentation-oriented visual narrative
 - Run Replay Recipe (`RERUN.md`, `rerun_recipe.json`, `rerun.sh`) for safe, secret-free reruns
@@ -58,7 +58,7 @@ Edit `.env`:
 SPATIALSCOPE_LLM_API_KEY=...
 SPATIALSCOPE_LLM_BASE_URL=...
 SPATIALSCOPE_LLM_MODEL=glm-5.1
-SPATIALSCOPE_LLM_TIMEOUT_SECONDS=45
+SPATIALSCOPE_LLM_TIMEOUT_SECONDS=15
 ```
 
 Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`
@@ -81,10 +81,14 @@ python cli.py llm-check --live
 SpatialScope uses a LangGraph state machine:
 
 ```text
-parse_request -> inspect_dataset -> plan_analysis -> preview_plan
+parse_request -> inspect_dataset -> plan_analysis -> review_plan
 -> execute_tool -> validate_result -> repair_or_continue
 -> interpret -> report
 ```
+
+`review_plan` uses a real LangGraph interrupt/resume checkpoint. The CLI auto-approves
+the generated plan for unattended smoke runs, while Streamlit exposes the pause so the
+user can inspect and edit the plan before execution.
 
 The tool layer is registry-driven. Each analysis tool exposes a contract with
 preconditions, postconditions, common failures, and repair strategies. The configured
@@ -140,10 +144,12 @@ scripts/run_app.sh
 
 Navigation:
 
-1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, load a historical run back into the workspace, and compare two runs side by side.
-2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
-3. Explore: inspect the Dataset Card, Spatial Storyboard, figures, tables, trace records, Quality Gates, Agent Audit, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation, review the Dataset Card and Spatial Storyboard, copy/download the Run Replay Recipe, save Human Review notes, record Quality Gate overrides, inspect Agent Audit and Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
+1. Workspace: run the Demo Launchpad, upload/select data, write the research request, tune QC/clustering/gene controls, and generate or directly run a plan.
+2. Plan: review the interrupted LangGraph plan, inspect dataset profile fields, edit JSON, validate it, and resume execution.
+3. Run: inspect workflow status, execution trace, repair diagnostics, Quality Gates, Agent Audit, and Artifact Audit.
+4. Explore: browse figures/tables and use the evidence-bounded contextual copilot for cautious figure explanation.
+5. Report: read the final summary, preview/download the report, and export the reproducibility bundle.
+6. Provenance: inspect LLM status, telemetry, tool contracts, run library, and public state JSON.
 
 ## Tests
 

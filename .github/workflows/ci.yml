@@ -32,6 +32,9 @@ jobs:
       - name: Run unit tests
         run: pytest
 
+      - name: Compile app and UI modules
+        run: python -m compileall app.py spatialscope/ui
+
       - name: Run CLI smoke demo
         run: |
           python scripts/create_demo_data.py --output data/demo_tiny.h5ad

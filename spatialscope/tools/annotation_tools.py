@@ -105,9 +105,16 @@ def suggest_cluster_annotations(
     figures_dir: str,
     groupby: str = "leiden",
     top_n: int = 12,
+    reference: str | None = None,
 ) -> ToolResult:
     if groupby not in adata.obs:
         return ToolResult(status="failed", summary=f"Group column not found: {groupby}", errors=[groupby])
+    if reference not in {"generic_marker_lexicon"}:
+        return ToolResult(
+            status="skipped",
+            summary="Cluster annotation suggestions are disabled until a compatible marker reference is explicitly selected.",
+            warnings=["Annotation is off by default; choose a compatible reference profile before requesting labels."],
+        )
 
     marker_df = _extract_marker_frame(adata, groupby=groupby, top_n=top_n)
     if marker_df.empty:
@@ -125,10 +132,10 @@ def suggest_cluster_annotations(
             {
                 "cluster": str(group),
                 "candidate_label": label,
-                "confidence": confidence,
+                "marker_evidence_score": confidence,
                 "evidence_markers": ", ".join(evidence) if evidence else "",
                 "top_markers": ", ".join(genes[: min(8, len(genes))]),
-                "note": "Candidate label from a compact canonical marker lexicon; validate with domain context.",
+                "note": "Candidate label from a compact generic marker lexicon; not reliable for early mouse embryo without a compatible reference.",
             }
         )
 
@@ -143,9 +150,9 @@ def suggest_cluster_annotations(
     fig, ax = plt.subplots(figsize=(7.2, fig_height), constrained_layout=True)
     labels = [f"{row.cluster}: {row.candidate_label}" for row in suggestions.itertuples()]
     colors = [CLUSTER_PALETTE[i % len(CLUSTER_PALETTE)] for i in range(len(suggestions))]
-    bars = ax.barh(labels, suggestions["confidence"], color=colors, alpha=0.9, edgecolor="white", linewidth=0.6)
+    bars = ax.barh(labels, suggestions["marker_evidence_score"], color=colors, alpha=0.9, edgecolor="white", linewidth=0.6)
     for bar, row in zip(bars, suggestions.itertuples()):
-        value = float(row.confidence)
+        value = float(row.marker_evidence_score)
         ax.text(
             min(value + 0.02, 0.98),
             bar.get_y() + bar.get_height() / 2,
@@ -156,7 +163,7 @@ def suggest_cluster_annotations(
             color=SIGNAL_TEAL if value > 0 else NEUTRAL_MUTED,
         )
     ax.set_xlim(0, 1)
-    ax.set_xlabel("Marker-overlap confidence")
+    ax.set_xlabel("Marker-overlap evidence score")
     polish_axis(ax, title="Candidate Cluster Annotation Suggestions", subtitle="exploratory, marker-overlap based")
     ax.invert_yaxis()
     fig_path = Path(figures_dir) / "cluster_annotation_suggestions.png"
@@ -174,7 +181,7 @@ def suggest_cluster_annotations(
             {
                 **saved,
                 "title": "Candidate Cluster Annotation Suggestions",
-                "caption": "Exploratory labels scored by overlap between top ranked marker genes and a compact canonical marker lexicon.",
+                "caption": "Exploratory labels scored by overlap between top ranked marker genes and a compact generic marker lexicon; not a calibrated confidence score.",
             }
         ],
         tables=[{"path": str(table_path), "title": "Cluster annotation suggestions"}],

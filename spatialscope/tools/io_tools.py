@@ -5,12 +5,14 @@ from typing import Any
 
 import numpy as np
 
+from spatialscope.domain.dataset_profile import profile_adata
 from spatialscope.tools.base import ToolResult, missing_dependency
 from spatialscope.utils.paths import file_sha256
 
 
-def _summary_from_adata(adata: Any) -> dict[str, Any]:
+def _summary_from_adata(adata: Any, *, path: str, dataset_hash: str) -> dict[str, Any]:
     has_spatial = "spatial" in getattr(adata, "obsm", {})
+    profile = profile_adata(adata, data_path=path, dataset_hash=dataset_hash)
     summary: dict[str, Any] = {
         "n_obs": int(adata.n_obs),
         "n_vars": int(adata.n_vars),
@@ -19,6 +21,13 @@ def _summary_from_adata(adata: Any) -> dict[str, Any]:
         "obsm_keys": list(map(str, adata.obsm.keys())),
         "layer_keys": list(map(str, adata.layers.keys())),
         "has_spatial": has_spatial,
+        "matrix_state": profile.matrix_state,
+        "recommended_run_depth": profile.recommended_run_depth,
+        "cluster_columns": profile.cluster_fields,
+        "cell_type_columns": profile.cell_type_fields,
+        "scientific_warnings": profile.scientific_warnings,
+        "dataset_profile": profile.model_dump(),
+        "expression_lineage": profile.expression_lineage,
         "var_names_preview": list(map(str, adata.var_names[:10])),
         "obs_names_preview": list(map(str, adata.obs_names[:10])),
     }
@@ -49,10 +58,12 @@ def load_h5ad(path: str) -> tuple[Any, ToolResult]:
         return None, ToolResult(status="failed", summary=str(err), errors=[f"{type(exc).__name__}: {exc}"])
 
     adata = ad.read_h5ad(data_path)
-    summary = _summary_from_adata(adata)
-    summary["dataset_hash"] = file_sha256(data_path, max_bytes=64 * 1024 * 1024)
+    dataset_hash = file_sha256(data_path, max_bytes=64 * 1024 * 1024)
+    summary = _summary_from_adata(adata, path=str(data_path), dataset_hash=dataset_hash)
+    summary["dataset_hash"] = dataset_hash
     return adata, ToolResult(
         status="success",
         summary=f"Loaded {data_path.name}: {adata.n_obs} observations x {adata.n_vars} genes.",
         observations={"dataset_summary": summary},
+        warnings=list(summary.get("scientific_warnings", [])),
     )

@@ -25,6 +25,7 @@ def test_suggest_cluster_annotations_from_ranked_markers(tmp_path):
         figures_dir=str(tmp_path),
         groupby="leiden",
         top_n=4,
+        reference="generic_marker_lexicon",
     )
 
     assert result.status == "success"
@@ -32,3 +33,4 @@ def test_suggest_cluster_annotations_from_ranked_markers(tmp_path):
     assert "Endothelial-like" in result.summary
     assert (tmp_path / "cluster_annotation_suggestions.csv").exists()
     assert (tmp_path / "cluster_annotation_suggestions.png").exists()
+    assert "marker_evidence_score" in result.observations["cluster_annotation_suggestions"][0]

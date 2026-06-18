@@ -11,11 +11,17 @@ class SpatialAgentState(TypedDict, total=False):
     user_query: str
     llm_enabled: bool
     data_path: str | None
+    dataset_ref: str | None
+    working_dataset_ref: str | None
+    thread_id: str
     dataset_hash: str | None
     adata_path: str | None
+    dataset_profile: dict[str, Any]
+    research_brief: dict[str, Any]
     dataset_summary: dict[str, Any]
     task_plan: list[dict[str, Any]]
     approved_plan: list[dict[str, Any]]
+    plan_review_payload: dict[str, Any]
     plan_source: str
     plan_rationale: str
     tool_contracts: list[dict[str, Any]]
@@ -27,6 +33,11 @@ class SpatialAgentState(TypedDict, total=False):
     observations: dict[str, Any]
     warnings: list[str]
     errors: list[str]
+    llm_calls: list[dict[str, Any]]
+    evidence_artifacts: list[dict[str, Any]]
+    evidence_claims: list[dict[str, Any]]
+    step_attempts: dict[str, int]
+    aborted: bool
     repair_attempts: int
     repair_log: list[dict[str, Any]]
     execution_trace: list[dict[str, Any]]
@@ -42,7 +53,6 @@ class SpatialAgentState(TypedDict, total=False):
     parsed_request: dict[str, Any]
     last_result: dict[str, Any]
     needs_repair: bool
-    _adata: Any
 
 
 def initial_state(
@@ -62,11 +72,17 @@ def initial_state(
         "user_query": query,
         "llm_enabled": False,
         "data_path": data_path,
+        "dataset_ref": data_path,
+        "working_dataset_ref": None,
+        "thread_id": run_id,
         "adata_path": None,
         "dataset_hash": None,
+        "dataset_profile": {},
+        "research_brief": {},
         "dataset_summary": {},
         "task_plan": [],
         "approved_plan": [],
+        "plan_review_payload": {},
         "plan_source": "rule_based",
         "plan_rationale": "",
         "tool_contracts": [],
@@ -78,6 +94,11 @@ def initial_state(
         "observations": {},
         "warnings": [],
         "errors": [],
+        "llm_calls": [],
+        "evidence_artifacts": [],
+        "evidence_claims": [],
+        "step_attempts": {},
+        "aborted": False,
         "repair_attempts": 0,
         "repair_log": [],
         "execution_trace": [],

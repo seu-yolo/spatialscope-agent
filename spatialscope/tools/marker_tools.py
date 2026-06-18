@@ -23,6 +23,7 @@ def _marker_heatmap(
     groupby: str,
     figures_dir: str,
     top_n: int,
+    expression_layer: str,
 ) -> dict[str, Any] | None:
     top = marker_df.groupby("group", observed=False).head(top_n)
     genes = [str(gene) for gene in top["names"] if str(gene) in set(map(str, adata.var_names))]
@@ -34,7 +35,8 @@ def _marker_heatmap(
     clusters = sorted(labels.unique(), key=numeric_sort_key)
     var_names = list(map(str, adata.var_names))
     gene_indices = [var_names.index(gene) for gene in genes]
-    x = _dense_matrix(adata.X[:, gene_indices])
+    matrix_source = adata.layers[expression_layer] if expression_layer in getattr(adata, "layers", {}) else adata.X
+    x = _dense_matrix(matrix_source[:, gene_indices])
 
     mean_by_cluster = []
     for cluster in clusters:
@@ -60,7 +62,7 @@ def _marker_heatmap(
     ax.set_xticklabels(genes, rotation=60, ha="right")
     ax.set_yticks(range(len(clusters)))
     ax.set_yticklabels([f"Cluster {cluster}" for cluster in clusters])
-    polish_axis(ax, title="Top Marker Expression Heatmap", subtitle="z-scored mean expression by cluster")
+    polish_axis(ax, title="Top Marker Expression Heatmap", subtitle=f"z-scored mean expression by cluster; layer={expression_layer}")
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
     cbar.set_label("relative expression")
     cbar.ax.tick_params(labelsize=6.5, colors=NEUTRAL_MUTED)
@@ -70,11 +72,20 @@ def _marker_heatmap(
     return {
         **saved,
         "title": "Top Marker Expression Heatmap",
-        "caption": "Cluster-level mean expression of top ranked marker genes, z-scored per gene for visual comparison.",
+        "caption": f"Cluster-level mean expression of top ranked marker genes from layer `{expression_layer}`, z-scored per gene for visual comparison.",
+        "data_layer": expression_layer,
     }
 
 
-def rank_markers(adata: Any, *, tables_dir: str, figures_dir: str, groupby: str = "leiden", top_n: int = 5) -> ToolResult:
+def rank_markers(
+    adata: Any,
+    *,
+    tables_dir: str,
+    figures_dir: str,
+    groupby: str = "leiden",
+    top_n: int = 5,
+    expression_layer: str = "spatialscope_interpretation",
+) -> ToolResult:
     if groupby not in adata.obs:
         return ToolResult(status="failed", summary=f"Group column not found: {groupby}", errors=[groupby])
     try:
@@ -82,7 +93,9 @@ def rank_markers(adata: Any, *, tables_dir: str, figures_dir: str, groupby: str 
     except Exception as exc:
         raise missing_dependency("scanpy", "marker gene ranking") from exc
 
-    sc.tl.rank_genes_groups(adata, groupby=groupby, method="wilcoxon")
+    layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else None
+    warnings = [] if layer else [f"Requested expression layer `{expression_layer}` not found; marker ranking used X."]
+    sc.tl.rank_genes_groups(adata, groupby=groupby, method="wilcoxon", layer=layer)
     marker_df = sc.get.rank_genes_groups_df(adata, group=None)
     table_path = Path(tables_dir) / "marker_genes.csv"
     marker_df.to_csv(table_path, index=False)
@@ -91,16 +104,24 @@ def rank_markers(adata: Any, *, tables_dir: str, figures_dir: str, groupby: str 
     top_path = Path(tables_dir) / "marker_genes_top5.csv"
     top.to_csv(top_path, index=False)
     figures = []
-    heatmap = _marker_heatmap(adata, marker_df, groupby=groupby, figures_dir=figures_dir, top_n=min(top_n, 4))
+    heatmap = _marker_heatmap(
+        adata,
+        marker_df,
+        groupby=groupby,
+        figures_dir=figures_dir,
+        top_n=min(top_n, 4),
+        expression_layer=layer or "X",
+    )
     if heatmap:
         figures.append(heatmap)
     return ToolResult(
         status="success",
-        summary=f"Ranked marker genes for `{groupby}` and saved {len(marker_df)} rows.",
+        summary=f"Ranked marker genes for `{groupby}` using layer `{layer or 'X'}` and saved {len(marker_df)} rows.",
         figures=figures,
         tables=[
             {"path": str(table_path), "title": "Marker genes"},
             {"path": str(top_path), "title": "Top 5 marker genes per cluster"},
         ],
-        observations={"marker_rows": int(len(marker_df)), "groupby": groupby, "marker_heatmap_genes": heatmap is not None},
+        observations={"marker_rows": int(len(marker_df)), "groupby": groupby, "marker_heatmap_genes": heatmap is not None, "expression_layer": layer or "X"},
+        warnings=warnings,
     )

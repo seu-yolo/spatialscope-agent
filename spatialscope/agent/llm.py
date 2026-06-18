@@ -33,7 +33,7 @@ class LLMClient:
     api_key: str | None = None
     base_url: str = ""
     model: str = "glm-5.1"
-    timeout_seconds: float = 45.0
+    timeout_seconds: float = 15.0
 
     @classmethod
     def from_env(cls) -> "LLMClient":
@@ -43,13 +43,13 @@ class LLMClient:
                 api_key=generic_api_key,
                 base_url=os.getenv("SPATIALSCOPE_LLM_BASE_URL", ""),
                 model=os.getenv("SPATIALSCOPE_LLM_MODEL", "glm-5.1"),
-                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
+                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")),
             )
         return cls(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             model=os.getenv("SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash"),
-            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
+            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")),
         )
 
     @property
@@ -82,10 +82,10 @@ class LLMClient:
     def complete_json(self, messages: list[dict[str, str]], *, temperature: float = 0.1) -> dict[str, Any]:
         last_error: Exception | None = None
         for _ in range(2):
+            content = self.complete(messages, temperature=temperature)
             try:
-                content = self.complete(messages, temperature=temperature)
                 return extract_json_object(content)
-            except Exception as exc:  # noqa: BLE001 - retry parser failures
+            except Exception as exc:  # noqa: BLE001 - retry parser failures only
                 last_error = exc
                 messages = [
                     *messages,
@@ -132,11 +132,11 @@ def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         api_key = ""
         base_url = _env_value(env, "SPATIALSCOPE_LLM_BASE_URL") or _env_value(env, "DEEPSEEK_BASE_URL", "")
         model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "glm-5.1")
-    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")
+    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")
     try:
         timeout_seconds = float(timeout_raw)
     except ValueError:
-        timeout_seconds = 45.0
+        timeout_seconds = 15.0
     enabled = bool(api_key and base_url and model)
     missing: list[str] = []
     if not api_key:
