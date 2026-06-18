@@ -166,7 +166,7 @@ def render_research_brief(state: dict[str, Any]) -> None:
 
 def render_workflow(state: dict[str, Any] | None) -> None:
     phases = [
-        ("Sense", "理解请求与数据边界", [("parse_request", "Parse"), ("inspect_dataset", "Inspect")]),
+        ("Sense", "先读取数据，再理解问题", [("inspect_dataset", "Inspect"), ("parse_request", "Understand")]),
         ("Plan", "生成并等待人工批准", [("plan_analysis", "Plan"), ("review_plan", "Review")]),
         ("Act", "执行工具、校验、修复", [("execute_tool", "Tools"), ("validate_result", "Validate"), ("repair_or_continue", "Repair")]),
         ("Tell", "证据解释与报告", [("interpret", "Interpret"), ("report", "Report")]),
@@ -176,6 +176,10 @@ def render_workflow(state: dict[str, Any] | None) -> None:
     if state and state.get("task_plan"):
         status_by_node.setdefault("parse_request", "success")
         status_by_node.setdefault("plan_analysis", "success")
+    if state and any(str(item.get("node")) == "execute_tool" for item in trace):
+        status_by_node.setdefault("validate_result", "failed" if state.get("needs_repair") else "success")
+    if state and state.get("report_path") and "repair_or_continue" not in status_by_node:
+        status_by_node["repair_or_continue"] = "skipped"
     if state and state.get("final_answer"):
         status_by_node.setdefault("interpret", "success")
     if state and state.get("report_path"):
@@ -300,6 +304,45 @@ def render_figures(state: dict[str, Any]) -> None:
                         st.download_button("下载 SVG", svg.read_bytes(), file_name=svg.name, width="stretch", key=f"svg_{i}_{svg.name}")
 
 
+def _find_figure(state: dict[str, Any], *needles: str) -> dict[str, Any] | None:
+    for fig in state.get("generated_figures", []):
+        haystack = f"{fig.get('title', '')} {fig.get('path', '')}".lower()
+        if all(needle.lower() in haystack for needle in needles):
+            return fig
+    for fig in state.get("generated_figures", []):
+        haystack = f"{fig.get('title', '')} {fig.get('caption', '')} {fig.get('path', '')}".lower()
+        if all(needle.lower() in haystack for needle in needles):
+            return fig
+    return None
+
+
+def render_linked_explore(state: dict[str, Any]) -> None:
+    umap = _find_figure(state, "umap") or _find_figure(state, "embedding")
+    spatial = _find_figure(state, "spatial_", "leiden") or _find_figure(state, "spatial view")
+    genes = state.get("observations", {}).get("resolved_genes") or state.get("observations", {}).get("requested_genes") or []
+    cluster_key = state.get("observations", {}).get("groupby") or "leiden"
+    c1, c2, c3 = st.columns([1, 1, 1], gap="large")
+    selected_cluster = c1.selectbox("Cluster key", [str(cluster_key)], index=0)
+    selected_gene = c2.selectbox("Gene focus", list(map(str, genes)) or ["no resolved gene"], index=0)
+    layer = state.get("observations", {}).get("expression_layer") or "recorded expression layer"
+    c3.text_input("Expression source", value=str(layer), disabled=True)
+    st.caption(f"Spatial and UMAP cluster views use the same cluster palette for `{selected_cluster}`. Gene focus: `{selected_gene}`.")
+    left, right = st.columns(2, gap="large")
+    for col, fig, label in [(left, spatial, "Spatial evidence"), (right, umap, "UMAP evidence")]:
+        with col:
+            with st.container(border=True):
+                st.markdown(f"<div class='ss-mini-label'>{label}</div>", unsafe_allow_html=True)
+                if not fig:
+                    st.info("This paired view is not available for the current run.")
+                    continue
+                path = Path(str(fig.get("path") or ""))
+                st.markdown(f"**{fig.get('title') or path.name}**")
+                st.caption(f"Evidence ID: `{fig.get('evidence_id', 'not recorded')}`")
+                st.caption(str(fig.get("caption") or ""))
+                if path.exists():
+                    st.image(str(path), width="stretch")
+
+
 def render_tables(state: dict[str, Any]) -> None:
     tables = state.get("generated_tables", [])
     if not tables:
@@ -315,6 +358,78 @@ def render_tables(state: dict[str, Any]) -> None:
                 st.dataframe(preview, hide_index=True, width="stretch", height=250)
             if path.exists():
                 st.download_button("下载 CSV", path.read_bytes(), file_name=path.name, width="stretch", key=f"table_{path.name}")
+
+
+def _evidence_ids_matching(state: dict[str, Any], *needles: str) -> list[str]:
+    ids: list[str] = []
+    for item in state.get("evidence_artifacts", []):
+        haystack = f"{item.get('title', '')} {item.get('caption', '')} {item.get('tool', '')} {item.get('path', '')}".lower()
+        if all(needle.lower() in haystack for needle in needles):
+            ids.append(str(item.get("evidence_id")))
+    return [item for item in ids if item]
+
+
+def _evidence_ids_for_tools(state: dict[str, Any], *tools: str) -> list[str]:
+    wanted = set(tools)
+    ids = [
+        str(item.get("evidence_id"))
+        for item in state.get("evidence_artifacts", [])
+        if str(item.get("tool")) in wanted and str(item.get("evidence_id"))
+    ]
+    return list(dict.fromkeys(ids))
+
+
+def render_report_findings(state: dict[str, Any]) -> None:
+    warnings = list(map(str, state.get("warnings", [])))
+    findings = [
+        {
+            "title": "Dataset is suitable for spatial exploration",
+            "text": f"{state.get('dataset_summary', {}).get('n_obs', 'NA')} observations and {state.get('dataset_summary', {}).get('n_vars', 'NA')} genes were inspected before planning.",
+            "evidence": ["trace:inspect_dataset"],
+            "caveat": "Dataset profile is heuristic and depends on AnnData metadata quality.",
+        },
+        {
+            "title": "Cluster structure is available for linked spatial and embedding review",
+            "text": "Spatial and UMAP cluster views can be compared with shared cluster colors when clustering succeeds.",
+            "evidence": _evidence_ids_for_tools(state, "plot_spatial", "plot_umap"),
+            "caveat": "Cluster separation is exploratory; it is not a confirmed biological annotation.",
+        },
+        {
+            "title": "Requested genes have spatial evidence when matched safely",
+            "text": "Gene-panel evidence is generated only after gene matching and expression-source checks.",
+            "evidence": _evidence_ids_for_tools(state, "plot_gene_panel") or _evidence_ids_matching(state, "gene panel"),
+            "caveat": "Expression patterns depend on the recorded expression source and clipping parameters.",
+        },
+        {
+            "title": "Marker ranking is bounded by expression lineage",
+            "text": "Marker tables and heatmaps are included only when a safe expression source is available.",
+            "evidence": _evidence_ids_for_tools(state, "rank_markers"),
+            "caveat": "Marker genes suggest cluster differences but do not assign definitive cell identities.",
+        },
+    ]
+    if warnings:
+        findings.append(
+            {
+                "title": "Warnings define the interpretation boundary",
+                "text": warnings[0],
+                "evidence": ["run:warnings"],
+                "caveat": "Warnings should be resolved before making strong biological claims.",
+            }
+        )
+    st.markdown("<div class='ss-section-title'>Findings</div>", unsafe_allow_html=True)
+    for finding in findings[:5]:
+        evidence = ", ".join(finding["evidence"] or ["not available"])
+        st.markdown(
+            (
+                "<div class='ss-story'>"
+                f"<div class='ss-card-title'>{html.escape(finding['title'])}</div>"
+                f"<p>{html.escape(finding['text'])}</p>"
+                f"<p><strong>Evidence:</strong> {html.escape(evidence)}</p>"
+                f"<p><strong>Caveat:</strong> {html.escape(finding['caveat'])}</p>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def render_dataset_profile(state: dict[str, Any]) -> None:
@@ -407,8 +522,17 @@ def render_audits(state: dict[str, Any]) -> None:
         cols[3].metric("Size", artifact_audit.get("total_size", "0 B"))
 
 
-def render_report_assets(state: dict[str, Any]) -> None:
+def render_report_assets(state: dict[str, Any], *, primary: bool = False) -> None:
     run_dir = Path(str(state.get("run_dir") or ""))
+    if primary:
+        bundle = run_dir / "run_bundle.zip"
+        report = Path(str(state.get("report_path") or run_dir / "report.html"))
+        cols = st.columns(2)
+        if report.exists():
+            cols[0].download_button("Download report HTML", report.read_bytes(), file_name=report.name, width="stretch")
+        if bundle.exists():
+            cols[1].download_button("Download reproducibility bundle", bundle.read_bytes(), file_name=bundle.name, width="stretch")
+        return
     paths = [
         ("Report HTML", Path(str(state.get("report_path") or run_dir / "report.html"))),
         ("Run README", run_dir / "README.md"),
@@ -425,21 +549,42 @@ def render_report_assets(state: dict[str, Any]) -> None:
 
 
 def render_contextual_copilot(state: dict[str, Any]) -> None:
-    figures = state.get("generated_figures", [])
-    if not figures:
+    evidence = state.get("evidence_artifacts", [])
+    if not evidence:
         return
-    labels = [str(fig.get("title") or Path(str(fig.get("path", ""))).name) for fig in figures]
-    selected = st.selectbox("选择证据上下文", labels)
-    figure = figures[labels.index(selected)]
-    question = st.text_input("Ask the evidence copilot", value="Explain this view cautiously.")
+    labels = [
+        f"{item.get('evidence_id')} · {item.get('title') or Path(str(item.get('path', ''))).name}"
+        for item in evidence
+    ]
+    selected_labels = st.multiselect("选择证据上下文", labels, default=labels[: min(2, len(labels))])
+    selected_items = [evidence[labels.index(label)] for label in selected_labels] if selected_labels else [evidence[0]]
+    question = st.text_input("Ask the evidence copilot", value="What does this evidence support, and what is the main caveat?")
     if st.button("生成证据边界解释", width="stretch"):
+        table_titles = [str(table.get("title") or table.get("path")) for table in state.get("generated_tables", [])[:4]]
         context = {
-            **figure,
-            "selected_table_titles": [str(table.get("title") or table.get("path")) for table in state.get("generated_tables", [])[:4]],
+            "title": "; ".join(str(item.get("title") or item.get("path")) for item in selected_items),
+            "evidence_ids": [str(item.get("evidence_id")) for item in selected_items],
+            "selected_evidence": selected_items,
+            "selected_table_titles": table_titles,
             "warnings": list(map(str, state.get("warnings", [])[:6])),
         }
-        answer = LLMGateway.from_env().answer_contextual_question(context=context, question=question)
-        st.markdown(f"<div class='ss-story'>{html.escape(answer).replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
+        gateway = LLMGateway.from_env()
+        answer = gateway.answer_contextual_question(context=context, question=question)
+        state.setdefault("llm_calls", []).extend(gateway.telemetry)
+        st.session_state.run_state = state
+        used_ids = answer.get("evidence_ids", [])
+        st.markdown(
+            (
+                "<div class='ss-story'>"
+                f"<div class='ss-mini-label'>Copilot answer · {html.escape(str(answer.get('source', 'llm')))}</div>"
+                f"<p>{html.escape(str(answer.get('answer', '')))}</p>"
+                f"<p><strong>Evidence IDs used:</strong> {html.escape(', '.join(map(str, used_ids)) or 'none')}</p>"
+                f"<p><strong>Caveat:</strong> {html.escape(str(answer.get('caveat', '')))}</p>"
+                f"<p><strong>Next step:</strong> {html.escape(str(answer.get('next_step', '')))}</p>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def render_run_library(outdir: str) -> None:

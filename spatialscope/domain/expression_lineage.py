@@ -58,7 +58,7 @@ def infer_matrix_state(matrix: Any) -> MatrixStateAssessment:
         f"negative_fraction={frac_negative:.3f}",
     ]
 
-    if non_negative and integer_like and max_value > 20:
+    if non_negative and integer_like and max_value > 1:
         return MatrixStateAssessment("count_like", evidence)
     if frac_negative > 0.01:
         return MatrixStateAssessment("scaled", evidence)
@@ -72,7 +72,7 @@ def select_interpretation_layer(adata: Any) -> str | None:
         if layer in getattr(adata, "layers", {}):
             return layer
     if getattr(adata, "raw", None) is not None:
-        return None
+        return "raw"
     return None
 
 
@@ -82,6 +82,8 @@ def build_expression_lineage(adata: Any, *, preferred_layer: str | None = None) 
     selected = preferred_layer if preferred_layer in layer_keys else select_interpretation_layer(adata)
     if selected is None and "spatialscope_interpretation" in layer_keys:
         selected = "spatialscope_interpretation"
+    if selected is None and assessment.state in {"count_like", "log_normalized"}:
+        selected = "X"
     warnings: list[str] = []
     if assessment.state == "unknown":
         warnings.append("Input matrix state is unknown; interpretation layer must be treated as an assumption.")
@@ -92,7 +94,7 @@ def build_expression_lineage(adata: Any, *, preferred_layer: str | None = None) 
         "assessment_evidence": assessment.evidence,
         "heuristic": assessment.heuristic,
         "available_layers": layer_keys,
-        "recommended_interpretation_layer": selected or "X_assumed",
+        "recommended_interpretation_layer": selected or "unavailable",
         "modeling_layer": "spatialscope_model_scaled" if "spatialscope_model_scaled" in layer_keys else "X",
         "warnings": warnings,
     }

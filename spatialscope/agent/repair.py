@@ -51,7 +51,7 @@ def _infer_category(summary: str, errors: list[str]) -> tuple[str, str, float, l
             0.8,
             ["Use an AnnData file with `adata.obsm['spatial']`, or skip spatial-only tools for this dataset."],
         )
-    if any(term in text for term in ["no requested genes match", "no genes", "gene is absent", "gene not found"]):
+    if any(term in text for term in ["unmatched_genes", "need clarification", "no requested genes match", "no genes", "gene is absent", "gene not found"]):
         return (
             "unmatched_genes",
             "Requested genes could not be matched to the dataset gene index.",

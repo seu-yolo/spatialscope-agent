@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from spatialscope.domain.expression_lineage import infer_matrix_state
 from spatialscope.tools.base import ToolResult
 from spatialscope.utils.gene_matching import match_gene_name
 from spatialscope.visualization.theme import (
@@ -32,6 +33,27 @@ def _gene_vector(adata: Any, gene: str, *, expression_layer: str | None = None) 
     if expression_layer == "raw" and getattr(adata, "raw", None) is not None:
         return _dense_vector(adata.raw[:, gene].X)
     return _dense_vector(adata.X[:, idx])
+
+
+def _safe_expression_layer(adata: Any, requested: str) -> tuple[str | None, str | None]:
+    layers = getattr(adata, "layers", {})
+    if requested in layers:
+        return requested, None
+    if requested == "raw" and getattr(adata, "raw", None) is not None:
+        return "raw", None
+    if requested == "X":
+        assessment = infer_matrix_state(adata.X)
+        if assessment.state in {"count_like", "log_normalized"}:
+            return "X", None
+    assessment = infer_matrix_state(adata.X)
+    if assessment.state in {"count_like", "log_normalized"}:
+        return "X", None
+    lineage = getattr(adata, "uns", {}).get("spatialscope_expression_lineage", {})
+    recommended = lineage.get("recommended_interpretation_layer")
+    return None, (
+        f"No safe expression source is available for `{requested}`. "
+        f"Recommended source recorded by expression lineage: `{recommended or 'unavailable'}`."
+    )
 
 
 def plot_umap(adata: Any, *, figures_dir: str, color: str = "leiden") -> ToolResult:
@@ -127,7 +149,9 @@ def plot_spatial(
         ax_leg.legend(handles=handles, labels=[str(cat) for cat in categories], title=color, loc="center left")
         caption = f"Spatial distribution colored by `{color}` using coordinates from `adata.obsm['spatial']`."
     else:
-        layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else "X"
+        layer, layer_error = _safe_expression_layer(adata, expression_layer)
+        if layer_error:
+            return ToolResult(status="failed", summary=layer_error, errors=[layer_error])
         values = _gene_vector(adata, color, expression_layer=layer)
         lo, hi = np.nanpercentile(values, clip_percentiles)
         clipped = np.clip(values, lo, hi)
@@ -173,20 +197,38 @@ def plot_gene_panel(
     var_names = list(map(str, adata.var_names))
     resolved: list[str] = []
     warnings: list[str] = []
+    suggestions: dict[str, list[str]] = {}
     for gene in genes:
         match = match_gene_name(gene, var_names)
         if match["match"] is None:
             warnings.append(f"No match found for gene `{gene}`.")
+            suggestions[gene] = list(map(str, match.get("candidates", []) or []))
             continue
         if match["match"] != gene:
-            warnings.append(f"Gene `{gene}` matched to `{match['match']}` (score={match['score']}).")
+            warnings.append(f"Gene `{gene}` needs confirmation; closest match is `{match['match']}` (score={match['score']}).")
+            suggestions[gene] = list(map(str, match.get("candidates", []) or []))
+            continue
         resolved.append(str(match["match"]))
 
-    if not resolved:
-        return ToolResult(status="failed", summary="No requested genes could be matched.", warnings=warnings)
+    if suggestions:
+        best_patch = [*resolved, *[items[0] for items in suggestions.values() if items]]
+        return ToolResult(
+            status="failed",
+            summary="One or more requested genes need clarification before expression plotting.",
+            errors=["unmatched_genes"],
+            warnings=warnings,
+            observations={"gene_suggestions": suggestions, "suggested_genes": best_patch},
+        )
 
     coords = np.asarray(adata.obsm["spatial"])
-    layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else "X"
+    layer, layer_error = _safe_expression_layer(adata, expression_layer)
+    if layer_error:
+        return ToolResult(
+            status="failed",
+            summary=layer_error,
+            errors=["unsafe_expression_source"],
+            observations={"requested_genes": genes, "resolved_genes": resolved, "expression_layer": expression_layer},
+        )
     n = len(resolved)
     ncols = min(3, n)
     nrows = int(np.ceil(n / ncols))

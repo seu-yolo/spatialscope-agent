@@ -36,6 +36,20 @@ class FakeStructuredClient:
                     }
                 ],
             }
+        if "Answer the user's question" in content:
+            if "main caveat" in content:
+                return {
+                    "answer": "The main caveat is that this is exploratory figure evidence, not a cell-type call.",
+                    "evidence_ids": ["execute_tool:plot_gene_panel:figure:0"],
+                    "caveat": "No mechanism is inferred.",
+                    "next_step": "Compare with marker tables.",
+                }
+            return {
+                "answer": "The selected gene view supports cautious spatial-expression review.",
+                "evidence_ids": ["execute_tool:plot_gene_panel:figure:0"],
+                "caveat": "Bounded to the selected evidence.",
+                "next_step": "Check cluster views.",
+            }
         return {
             "summary": "The selected evidence supports cautious spatial exploration.",
             "caveats": ["No biological mechanism is inferred."],
@@ -112,3 +126,20 @@ def test_gateway_interpretation_uses_evidence_only_and_records_schema(monkeypatc
     assert gateway.telemetry[-1]["purpose"] == "synthesize_interpretation"
     assert gateway.telemetry[-1]["validation_outcome"] == "passed"
     assert "[[9, 9]]" not in client.prompts[-1]
+
+
+def test_contextual_copilot_questions_are_question_aware_and_cite_evidence(monkeypatch):
+    _enable_mock_llm(monkeypatch)
+    gateway = LLMGateway(client=FakeStructuredClient())
+    context = {
+        "title": "Sox17 spatial expression",
+        "evidence_ids": ["execute_tool:plot_gene_panel:figure:0"],
+        "selected_evidence": [{"caption": "Layer: spatialscope_interpretation"}],
+    }
+
+    caveat_answer = gateway.answer_contextual_question(context=context, question="What is the main caveat?")
+    gene_answer = gateway.answer_contextual_question(context=context, question="What gene expression pattern is supported?")
+
+    assert caveat_answer["answer"] != gene_answer["answer"]
+    assert caveat_answer["evidence_ids"] == ["execute_tool:plot_gene_panel:figure:0"]
+    assert gene_answer["evidence_ids"] == ["execute_tool:plot_gene_panel:figure:0"]

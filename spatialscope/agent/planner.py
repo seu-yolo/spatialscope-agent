@@ -145,7 +145,7 @@ def make_analysis_plan(
 ) -> AnalysisPlan:
     genes = parsed_request.get("genes") or []
     if not genes:
-        genes = ["GeneA", "GeneB", "GeneC"]
+        genes = ["Pou5f1", "Sox2", "Sox17", "Mesp1"]
     requested = set(map(str, parsed_request.get("requested_steps") or []))
     dataset_summary = dataset_summary or {}
     existing_obsm = set(map(str, dataset_summary.get("obsm_keys", [])))

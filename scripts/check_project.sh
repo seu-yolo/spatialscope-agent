@@ -12,12 +12,12 @@ run_cmd() {
   fi
 }
 
-if [ ! -f data/demo_tiny.h5ad ]; then
-  run_cmd python scripts/create_demo_data.py --output data/demo_tiny.h5ad
+if [ ! -f data/demo_embryo.h5ad ]; then
+  run_cmd python scripts/create_demo_data.py --output data/demo_embryo.h5ad
 fi
 
 run_cmd pytest
 SPATIALSCOPE_LLM_API_KEY= DEEPSEEK_API_KEY= run_cmd python cli.py run \
-  --data data/demo_tiny.h5ad \
-  --query "Run quick spatial analysis and plot GeneA GeneB" \
+  --data data/demo_embryo.h5ad \
+  --query "Run quick spatial analysis and plot Pou5f1 Sox17 Mesp1" \
   --mode quick

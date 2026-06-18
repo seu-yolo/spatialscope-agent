@@ -42,6 +42,15 @@ def _record_trace(
     status_override: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
+    evidence_artifacts = _evidence_from_result(result, tool=tool, node=node)
+    figures = [dict(item) for item in result.figures]
+    tables = [dict(item) for item in result.tables]
+    figure_ids = [item["evidence_id"] for item in evidence_artifacts if item.get("kind") == "figure"]
+    table_ids = [item["evidence_id"] for item in evidence_artifacts if item.get("kind") == "table"]
+    for fig, evidence_id in zip(figures, figure_ids):
+        fig.setdefault("evidence_id", evidence_id)
+    for table, evidence_id in zip(tables, table_ids):
+        table.setdefault("evidence_id", evidence_id)
     trace_record: dict[str, Any] = {
         "run_id": state.get("run_id"),
         "node": node,
@@ -58,10 +67,10 @@ def _record_trace(
     state.setdefault("execution_trace", []).append(trace_record)
     state.setdefault("warnings", []).extend(result.warnings)
     state.setdefault("errors", []).extend(result.errors)
-    state.setdefault("generated_figures", []).extend(result.figures)
-    state.setdefault("generated_tables", []).extend(result.tables)
+    state.setdefault("generated_figures", []).extend(figures)
+    state.setdefault("generated_tables", []).extend(tables)
     state.setdefault("observations", {}).update(result.observations)
-    state.setdefault("evidence_artifacts", []).extend(_evidence_from_result(result, tool=tool, node=node))
+    state.setdefault("evidence_artifacts", []).extend(evidence_artifacts)
     state["last_result"] = result.to_dict()
     state["needs_repair"] = result.status == "failed"
 
@@ -337,7 +346,12 @@ def _first_valid_color(state: SpatialAgentState) -> str | None:
     return obs_columns[0] if obs_columns else None
 
 
-def _repair_patch_for_step(state: SpatialAgentState, step: dict[str, Any], diagnosis: dict[str, Any]) -> dict[str, Any] | None:
+def _repair_patch_for_step(
+    state: SpatialAgentState,
+    step: dict[str, Any],
+    diagnosis: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any] | None:
     tool = str(step.get("tool") or "")
     category = str(diagnosis.get("category") or "")
     params = dict(step.get("params", {}))
@@ -349,6 +363,10 @@ def _repair_patch_for_step(state: SpatialAgentState, step: dict[str, Any], diagn
         color = _first_valid_color(state)
         if color and color != params.get("groupby"):
             return {"groupby": color}
+    if tool == "plot_gene_panel" and category in {"unmatched_genes", "missing_input_or_column"}:
+        suggested = result.get("observations", {}).get("suggested_genes", [])
+        if suggested:
+            return {"genes": list(dict.fromkeys(map(str, suggested)))[:8]}
     if tool == "suggest_cluster_annotations" and not params.get("reference"):
         return {"reference": "generic_marker_lexicon"}
     return None
@@ -391,7 +409,7 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
     step_id = str(failed_step.get("id") or tool_name)
     attempt_no = int(state.get("step_attempts", {}).get(step_id, 1))
     max_attempts = int(failed_step.get("max_attempts") or 2)
-    patch = _repair_patch_for_step(state, failed_step, diagnosis)
+    patch = _repair_patch_for_step(state, failed_step, diagnosis, result)
     if patch and attempt_no < max_attempts:
         plan[index] = {**failed_step, "params": {**dict(failed_step.get("params", {})), **patch}}
         state["approved_plan"] = validate_plan_steps(plan)
@@ -529,9 +547,9 @@ def build_langgraph(checkpointer: Any | None = None):
     graph.add_node("repair_or_continue", repair_or_continue_node)
     graph.add_node("interpret", interpret_node)
     graph.add_node("report", report_node)
-    graph.add_edge(START, "parse_request")
-    graph.add_edge("parse_request", "inspect_dataset")
-    graph.add_edge("inspect_dataset", "plan_analysis")
+    graph.add_edge(START, "inspect_dataset")
+    graph.add_edge("inspect_dataset", "parse_request")
+    graph.add_edge("parse_request", "plan_analysis")
     graph.add_edge("plan_analysis", "review_plan")
     graph.add_edge("review_plan", "execute_tool")
     graph.add_edge("execute_tool", "validate_result")
@@ -553,8 +571,8 @@ def build_langgraph(checkpointer: Any | None = None):
 def run_fallback_graph(state: SpatialAgentState) -> SpatialAgentState:
     """Compatibility path for tests that need non-interactive execution."""
 
-    state = parse_request_node(state)
     state = inspect_dataset_node(state)
+    state = parse_request_node(state)
     state = plan_analysis_node(state)
     state = preview_plan_node(state)
     while int(state.get("current_step_index", 0)) < len(state.get("approved_plan", [])):

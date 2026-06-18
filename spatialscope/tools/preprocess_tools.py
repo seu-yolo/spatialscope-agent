@@ -30,14 +30,19 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
     elif assessment.state == "log_normalized":
         adata.layers["spatialscope_interpretation"] = adata.X.copy()
         interpretation_note = "input X heuristically treated as log-normalized"
-    else:
-        adata.layers["spatialscope_interpretation"] = adata.X.copy()
-        interpretation_note = f"input X preserved as interpretation layer under {assessment.state} assumption"
+    elif getattr(adata, "raw", None) is not None:
+        interpretation_note = f"input X is {assessment.state}; raw representation is available for interpretation"
         warnings.append(
-            f"Input matrix state is {assessment.state}; expression interpretation uses a labeled assumption instead of naming X as counts."
+            f"Input matrix state is {assessment.state}; expression interpretation should use adata.raw instead of X."
+        )
+    else:
+        interpretation_note = f"input X is {assessment.state}; no safe raw or normalized expression source was found"
+        warnings.append(
+            f"Input matrix state is {assessment.state}; marker/gene interpretation is disabled until a safe raw or normalized layer is provided."
         )
 
-    adata.X = adata.layers["spatialscope_interpretation"].copy()
+    if "spatialscope_interpretation" in adata.layers:
+        adata.X = adata.layers["spatialscope_interpretation"].copy()
     try:
         sc.pp.highly_variable_genes(adata, n_top_genes=min(n_top_genes, adata.n_vars), flavor="seurat")
     except Exception:
@@ -47,7 +52,7 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
     adata.layers["spatialscope_model_scaled"] = adata.X.copy()
     adata.uns["spatialscope_expression_lineage"] = build_expression_lineage(
         adata,
-        preferred_layer="spatialscope_interpretation",
+        preferred_layer="spatialscope_interpretation" if "spatialscope_interpretation" in adata.layers else None,
     )
     adata.uns["spatialscope_expression_lineage"]["source_layer"] = source_layer
     adata.uns["spatialscope_expression_lineage"]["preprocess_note"] = interpretation_note
@@ -81,7 +86,7 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
         status="success",
         summary=(
             f"Prepared expression lineage, selected up to {n_top_genes} HVGs, and created a scaled modeling representation. "
-            f"Interpretation layer: spatialscope_interpretation ({interpretation_note})."
+            f"Interpretation source: {adata.uns['spatialscope_expression_lineage'].get('recommended_interpretation_layer')} ({interpretation_note})."
         ),
         figures=[
             {
@@ -89,7 +94,8 @@ def run_preprocess(adata: Any, *, figures_dir: str, n_top_genes: int = 2000) -> 
                 "title": "Highly variable genes",
                 "caption": (
                     "Number of selected highly variable genes used for downstream embedding. "
-                    "Interpretation layer: spatialscope_interpretation; modeling layer: spatialscope_model_scaled."
+                    f"Interpretation source: {adata.uns['spatialscope_expression_lineage'].get('recommended_interpretation_layer')}; "
+                    "modeling layer: spatialscope_model_scaled."
                 ),
             }
         ],

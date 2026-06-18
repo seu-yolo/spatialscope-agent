@@ -60,6 +60,74 @@ def _safe_for_llm(value: Any) -> Any:
     return value
 
 
+def _question_focus(question: str) -> str:
+    lower = question.lower()
+    if any(term in lower for term in ["marker", "rank", "cell type", "annotation", "解读", "细胞类型"]):
+        return "marker_risk"
+    if any(term in lower for term in ["caveat", "limitation", "uncertain", "risk", "trust", "局限", "风险", "可靠"]):
+        return "caveat"
+    if any(term in lower for term in ["gene", "expression", "表达", "基因"]):
+        return "gene_expression"
+    if any(term in lower for term in ["spatial", "umap", "cluster", "embedding", "空间", "聚类"]):
+        return "spatial_structure"
+    if any(term in lower for term in ["qc", "quality", "mitochondrial", "counts", "质量"]):
+        return "qc"
+    return "general"
+
+
+def _focus_frame(
+    *,
+    focus: str,
+    title: str,
+    layer: str,
+    table_text: str,
+    warning_count: int,
+) -> tuple[str, str, str]:
+    if focus == "marker_risk":
+        return (
+            "For marker interpretation, the selected evidence should be treated as a guardrail: it can show whether QC "
+            f"context is available for `{title}`, but it does not by itself validate marker ranking, cell identity, or "
+            "biological mechanism. Marker claims should remain blocked or cautious unless the run has a safe expression "
+            f"source (`{layer}`) plus linked marker tables.",
+            "QC and figure/table evidence bound marker interpretation; they do not prove cell types or mechanisms.",
+            "Open the marker table and expression-source record, then compare marker ranking with spatial and UMAP views.",
+        )
+    if focus == "caveat":
+        return (
+            f"The uncertainty is that `{title}` is selected evidence from `{layer}` rather than a definitive biological "
+            f"claim. It should be interpreted with run warnings ({warning_count}) and linked tables ({table_text}).",
+            "Grounded only in selected evidence, captions, table previews, and run warnings.",
+            "Check whether the same signal appears in an independent linked figure or table.",
+        )
+    if focus == "gene_expression":
+        return (
+            f"For gene expression, `{title}` supports only a cautious spatial-expression read using `{layer}`. It does "
+            "not infer mechanisms, cell identities, or unobserved genes beyond the selected evidence.",
+            "Gene-level claims depend on gene matching and the recorded expression source.",
+            "Compare the gene panel with marker ranking and cluster-colored spatial views.",
+        )
+    if focus == "spatial_structure":
+        return (
+            f"For spatial structure, `{title}` can support comparison between spatial organization and embedding/table "
+            f"evidence ({table_text}), while keeping the selected palette and warnings visible.",
+            "Spatial/UMAP agreement is exploratory and does not establish biological annotation by itself.",
+            "Inspect linked Spatial and UMAP views side by side, then verify with marker evidence.",
+        )
+    if focus == "qc":
+        return (
+            f"For QC, `{title}` supports review of quality distributions and table summaries ({table_text}) before "
+            "downstream interpretation.",
+            "QC evidence supports data-quality review, not biological interpretation on its own.",
+            "Inspect threshold choices and outliers before trusting downstream marker or spatial patterns.",
+        )
+    return (
+        f"`{title}` is the selected evidence context. It can be used to compare figures, tables ({table_text}), and "
+        "warnings without claiming more than the run produced.",
+        "Grounded only in selected evidence, captions, table previews, and run warnings.",
+        "Ask a narrower question about a cluster, gene, caveat, or table row.",
+    )
+
+
 @dataclass
 class LLMGateway:
     client: LLMClient = field(default_factory=LLMClient.from_env)
@@ -263,10 +331,10 @@ class LLMGateway:
     def propose_repair(
         self,
         *,
-            failed_step: dict[str, Any],
-            tool_result: dict[str, Any],
-            tool_contract: dict[str, Any] | None = None,
-            dataset_profile: dict[str, Any],
+        failed_step: dict[str, Any],
+        tool_result: dict[str, Any],
+        tool_contract: dict[str, Any] | None = None,
+        dataset_profile: dict[str, Any],
     ) -> RepairDecision:
         safe_profile = _safe_for_llm(dataset_profile)
         safe_result = _safe_for_llm(tool_result)
@@ -449,17 +517,97 @@ class LLMGateway:
             )
             return None
 
-    def answer_contextual_question(self, *, context: dict[str, Any], question: str = "Explain this view") -> str:
+    def answer_contextual_question(self, *, context: dict[str, Any], question: str = "Explain this view") -> dict[str, Any]:
         title = context.get("title") or context.get("figure") or "selected evidence"
         layer = context.get("data_layer") or context.get("layer") or "selected expression layer"
         tables = context.get("selected_table_titles") or []
         warning_count = len(context.get("warnings") or [])
         table_text = ", ".join(map(str, tables[:4])) if tables else "no selected tables"
-        return (
-            f"Observation: {title} is the current evidence context.\n\n"
-            f"Evidence: The view uses {layer} and the stored run artifacts, not raw matrices.\n\n"
-            f"Linked context: {table_text}; run warnings visible to the copilot: {warning_count}.\n\n"
-            "Interpretation: Treat visible spatial or embedding patterns as exploratory signals.\n\n"
-            "Caveat: This response is grounded only in the selected evidence and run metadata.\n\n"
-            "Suggested next step: Compare against marker tables, QC status, and Dataset Card warnings."
+        evidence_ids = [str(item) for item in context.get("evidence_ids", []) if str(item)]
+        focus = _question_focus(question)
+        focus_answer, focus_caveat, focus_next_step = _focus_frame(
+            focus=focus,
+            title=str(title),
+            layer=str(layer),
+            table_text=table_text,
+            warning_count=warning_count,
         )
+        started = now_iso()
+        schema = {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string"},
+                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                "caveat": {"type": "string"},
+                "next_step": {"type": "string"},
+            },
+            "required": ["answer", "evidence_ids", "caveat"],
+        }
+        safe_context = _safe_for_llm(context)
+        if self.enabled:
+            try:
+                payload = self.client.complete_json(
+                    [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Answer the user's question about selected SpatialScope evidence as JSON. "
+                                "The answer must directly address the user's question focus and should not be a generic evidence summary. "
+                                "Use only the selected evidence context, captions, table previews, warnings, and evidence IDs. "
+                                "Do not invent biological mechanisms, cell types, raw values, p-values, or markers not present in context. "
+                                "Always cite the exact evidence_ids you used.\n"
+                                f"Schema: {json.dumps(schema, ensure_ascii=False)}\n"
+                                f"Question focus: {focus}\n"
+                                f"Question: {question}\n"
+                                f"Selected evidence context: {json.dumps(safe_context, ensure_ascii=False)[:7000]}"
+                            ),
+                        }
+                    ],
+                    temperature=0.05,
+                )
+                used_ids = [str(item) for item in payload.get("evidence_ids", []) if str(item)]
+                if not used_ids:
+                    used_ids = evidence_ids
+                answer = {
+                    "answer": (focus_answer + " " + str(payload.get("answer") or "").strip()).strip(),
+                    "evidence_ids": used_ids,
+                    "caveat": str(payload.get("caveat") or focus_caveat).strip(),
+                    "next_step": str(payload.get("next_step") or focus_next_step).strip(),
+                    "source": "llm",
+                }
+                self._record(
+                    purpose="contextual_copilot",
+                    started_at=started,
+                    success=bool(answer["answer"]),
+                    schema="ContextualCopilotAnswer",
+                    validation="passed" if answer["answer"] else "empty_answer",
+                    input_summary={"evidence_ids": evidence_ids, "question_chars": len(question)},
+                )
+                return answer
+            except Exception as exc:  # noqa: BLE001
+                self._record(
+                    purpose="contextual_copilot",
+                    started_at=started,
+                    success=False,
+                    schema="ContextualCopilotAnswer",
+                    validation="failed",
+                    input_summary={"evidence_ids": evidence_ids, "question_chars": len(question)},
+                    fallback_reason=str(exc),
+                )
+
+        self._record(
+            purpose="contextual_copilot",
+            started_at=started,
+            success=True,
+            schema="ContextualCopilotAnswer",
+            validation="fallback",
+            input_summary={"evidence_ids": evidence_ids, "question_chars": len(question)},
+            fallback_reason="" if self.enabled else "llm_disabled",
+        )
+        return {
+            "answer": focus_answer,
+            "evidence_ids": evidence_ids,
+            "caveat": focus_caveat,
+            "next_step": focus_next_step,
+            "source": "fallback",
+        }

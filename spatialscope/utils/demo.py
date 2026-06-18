@@ -5,15 +5,15 @@ from typing import Any
 
 
 DEMO_PRESET: dict[str, Any] = {
-    "data_path": "data/demo_tiny.h5ad",
-    "query": "运行标准空间转录组分析，生成 marker genes、候选 cluster 注释，并绘制 GeneA GeneB Sox17 Mesp1 空间表达图。",
+    "data_path": "data/demo_embryo.h5ad",
+    "query": "探索早期小鼠胚胎空间转录组结构，生成 cluster marker genes，并绘制 Pou5f1 Sox2 Nanog Sox17 Gata6 T Mesp1 的空间表达图。",
     "mode": "standard",
     "outdir": "outputs/runs",
     "min_genes": 20,
     "min_cells": 3,
     "max_mt_pct": 25.0,
     "resolution": 0.8,
-    "gene_text": "GeneA, GeneB, Sox17, Mesp1",
+    "gene_text": "Pou5f1, Sox2, Nanog, Sox17, Gata6, T, Mesp1",
     "annotation_top_n": 12,
 }
 

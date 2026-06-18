@@ -4,8 +4,9 @@ from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 def test_demo_preset_contains_standard_showcase_defaults():
     preset = get_demo_preset()
     assert preset["mode"] == "standard"
-    assert preset["data_path"].endswith("demo_tiny.h5ad")
-    assert "GeneA" in preset["gene_text"]
+    assert preset["data_path"].endswith("demo_embryo.h5ad")
+    assert "Pou5f1" in preset["gene_text"]
+    assert "Mesp1" in preset["gene_text"]
     assert preset["annotation_top_n"] >= 3
 
 

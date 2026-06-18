@@ -6,6 +6,7 @@ import anndata as ad
 import numpy as np
 
 from spatialscope.agent.runtime import AgentRuntime
+from spatialscope.tools.spatial_tools import plot_gene_panel
 
 
 def _write_tiny_h5ad(path: Path, *, with_leiden: bool = False) -> Path:
@@ -97,3 +98,41 @@ def test_runtime_retries_with_parameter_patch(tmp_path, monkeypatch):
     assert final["approved_plan"][0]["params"]["color"] == "leiden"
     assert Path(str(final["report_path"])).exists()
     runtime.close()
+
+
+def test_runtime_retries_misspelled_gene_with_suggestion(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPATIALSCOPE_LLM_API_KEY", "")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "")
+    data_path = _write_tiny_h5ad(tmp_path / "tiny_gene_retry.h5ad")
+    runtime = AgentRuntime(checkpoint_path=tmp_path / "checkpoint_gene_retry.sqlite")
+    paused = runtime.start_run(
+        data_path=str(data_path),
+        query="Plot GneeA in spatial view",
+        mode="quick",
+        outdir=str(tmp_path / "runs"),
+        auto_approve=False,
+    )
+    final = runtime.resume_run(
+        paused["thread_id"],
+        approved_plan=paused["task_plan"],
+        plan_source="test_approved",
+    )
+    statuses = [(item.get("node"), item.get("tool"), item.get("status")) for item in final["execution_trace"]]
+    assert ("repair_or_continue", "plot_gene_panel", "retrying") in statuses
+    assert ("execute_tool", "plot_gene_panel", "success_after_retry") in statuses
+    assert final["approved_plan"][0]["params"]["genes"] == ["GeneA"]
+    runtime.close()
+
+
+def test_gene_panel_blocks_unsafe_unknown_expression_source(tmp_path):
+    adata = ad.AnnData(np.asarray([[0.2, -1.1], [0.7, 1.4], [-0.3, 0.8]], dtype=float))
+    adata.var_names = ["GeneA", "GeneB"]
+    adata.obsm["spatial"] = np.column_stack([np.arange(adata.n_obs), np.arange(adata.n_obs)])
+    result = plot_gene_panel(
+        adata,
+        figures_dir=str(tmp_path),
+        genes=["GeneA"],
+        expression_layer="spatialscope_interpretation",
+    )
+    assert result.status == "failed"
+    assert "unsafe_expression_source" in result.errors

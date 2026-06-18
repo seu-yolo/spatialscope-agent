@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from spatialscope.domain.expression_lineage import infer_matrix_state
 from spatialscope.tools.base import ToolResult, missing_dependency
 from spatialscope.visualization.theme import EXPRESSION_CMAP, NEUTRAL_MUTED, apply_matplotlib_theme, numeric_sort_key, polish_axis, save_figure_bundle
 
@@ -14,6 +15,26 @@ def _dense_matrix(values: Any) -> np.ndarray:
     if hasattr(values, "toarray"):
         values = values.toarray()
     return np.asarray(values)
+
+
+def _safe_expression_layer(adata: Any, requested: str) -> tuple[str | None, str | None]:
+    if requested in getattr(adata, "layers", {}):
+        return requested, None
+    if requested == "raw" and getattr(adata, "raw", None) is not None:
+        return "raw", None
+    if requested == "X":
+        assessment = infer_matrix_state(adata.X)
+        if assessment.state in {"count_like", "log_normalized"}:
+            return "X", None
+    assessment = infer_matrix_state(adata.X)
+    if assessment.state in {"count_like", "log_normalized"}:
+        return "X", None
+    lineage = getattr(adata, "uns", {}).get("spatialscope_expression_lineage", {})
+    recommended = lineage.get("recommended_interpretation_layer")
+    return None, (
+        f"No safe expression source is available for marker ranking with `{requested}`. "
+        f"Recommended source recorded by expression lineage: `{recommended or 'unavailable'}`."
+    )
 
 
 def _marker_heatmap(
@@ -93,8 +114,10 @@ def rank_markers(
     except Exception as exc:
         raise missing_dependency("scanpy", "marker gene ranking") from exc
 
-    layer = expression_layer if expression_layer in getattr(adata, "layers", {}) else None
-    warnings = [] if layer else [f"Requested expression layer `{expression_layer}` not found; marker ranking used X."]
+    layer, layer_error = _safe_expression_layer(adata, expression_layer)
+    if layer_error:
+        return ToolResult(status="failed", summary=layer_error, errors=["unsafe_expression_source"])
+    warnings = []
     sc.tl.rank_genes_groups(adata, groupby=groupby, method="wilcoxon", layer=layer)
     marker_df = sc.get.rank_genes_groups_df(adata, group=None)
     table_path = Path(tables_dir) / "marker_genes.csv"
