@@ -23,6 +23,7 @@ def build_run_readme(state: dict[str, Any], *, report_path: str | Path | None = 
     trace = [item for item in state.get("execution_trace", []) if isinstance(item, dict)]
     counts = _status_counts(trace)
     quality = state.get("quality") or {}
+    agent_audit = state.get("agent_audit") or {}
     dataset = state.get("dataset_summary") or {}
     review = state.get("review_notes") or {}
     figures = state.get("generated_figures", [])
@@ -84,6 +85,7 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - Trace steps: {len(trace)}
 - Success / skipped / failed / repaired: {counts["success"]} / {counts["skipped"]} / {counts["failed"]} / {counts["repaired"]}
 - Quality: {quality.get("score", "N/A")} / {quality.get("overall_status", "unknown")}
+- Agent Audit: {agent_audit.get("score", "N/A")} / {agent_audit.get("overall_status", "unknown")}
 
 ## Human Review
 
@@ -99,7 +101,9 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - `agent_trace.json`: tool execution trace
 - `run_metadata.json`: parameters, environment, plan, quality, and review metadata
 - `parameters.yaml`: compact parameter export
+- `agent_audit.json`: behavior-level agent self-audit
 - `artifact_manifest.json`: indexed artifact list
+- `artifact_audit.json`: artifact existence, size, and bundle status audit
 - `review_notes.json`: human review and gate overrides, if saved
 - `run_bundle.zip`: complete portable bundle
 

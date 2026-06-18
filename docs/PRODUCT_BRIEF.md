@@ -27,7 +27,7 @@ control over parameters or biological interpretation.
 5. Run Quick, Standard, or Advanced mode.
 6. Inspect figures, tables, trace, warnings, and candidate annotations.
 7. Save Human Review notes with a decision, confidence level, tags, Quality Gate overrides, caveats, and rerun recommendations.
-8. Inspect Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
+8. Inspect Agent Audit and Artifact Audit, then export a handoff-ready Run README, complete ZIP reproducibility bundle, and HTML report.
 9. Revisit recent runs through Run Library, restore a historical run into the workspace, inspect artifact manifests, and compare runs side by side.
 
 ## Quality Bar
@@ -42,12 +42,16 @@ A good run should satisfy:
 - Failed steps produce structured repair diagnostics instead of silent skipping.
 - Each run has Quality Gates for dataset readiness, plan provenance, trace
   integrity, evidence outputs, error review, interpretation, and reproducibility.
+- Each run has an Agent Audit for contract-bound planning, execution coverage,
+  repair accountability, evidence-bounded interpretation, and public-state
+  privacy checks.
 - Cluster annotation is framed as candidate evidence, not final truth.
 - Missing genes trigger fuzzy matching rather than silent failure.
 - Missing optional dependencies degrade gracefully.
 - Output paths, parameters, software versions, and trace are preserved.
 - Every run writes an artifact manifest that indexes reports, figures, tables,
-  metadata, parameters, trace, repair diagnostics, Quality Gates, and public state.
+  metadata, parameters, trace, repair diagnostics, Quality Gates, Agent Audit,
+  and public state.
 - Every run includes a Markdown README that summarizes the query, evidence,
   quality state, review state, and key files for handoff.
 - Every run includes an Artifact Audit that checks file existence, sizes,
@@ -76,6 +80,7 @@ A good run should satisfy:
   next actions.
 - Quality Gates score and status for lightweight review before trusting or
   presenting a run.
+- Agent Audit panel and JSON export for behavior-level agent trust checks.
 - Human Review panel for saved reviewer decision, confidence, notes,
   limitations, tags, Quality Gate overrides, manifest indexing, and bundle
   export.

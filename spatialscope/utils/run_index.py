@@ -69,6 +69,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         file_record(root / "run_metadata.json", run_dir=root, kind="metadata", title="Run metadata"),
         file_record(root / "parameters.yaml", run_dir=root, kind="parameters", title="Parameters"),
         file_record(root / "README.md", run_dir=root, kind="readme", title="Run README"),
+        file_record(root / "agent_audit.json", run_dir=root, kind="agent_audit", title="Agent audit"),
         file_record(root / "artifact_audit.json", run_dir=root, kind="artifact_audit", title="Artifact audit"),
         file_record(root / "state_public.json", run_dir=root, kind="state", title="Public state"),
     ]
@@ -112,6 +113,7 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "figures_count": len(state.get("generated_figures", [])),
         "tables_count": len(state.get("generated_tables", [])),
         "quality": state.get("quality") or build_quality_report(state),
+        "agent_audit": state.get("agent_audit"),
         "review": state.get("review_notes"),
         "artifacts": artifacts,
     }
@@ -201,6 +203,9 @@ def load_run_state(run_dir: str | Path) -> dict[str, Any]:
     state["quality"] = _as_dict(_first_present(state.get("quality"), metadata.get("quality"), manifest.get("quality")))
     if not state["quality"]:
         state["quality"] = build_quality_report(state)
+    state["agent_audit"] = _as_dict(
+        _first_present(state.get("agent_audit"), metadata.get("agent_audit"), manifest.get("agent_audit"), _read_json(root / "agent_audit.json"))
+    )
     review_notes = _as_dict(_first_present(state.get("review_notes"), _read_json(root / "review_notes.json")))
     if review_notes:
         state["review_notes"] = review_notes
@@ -270,6 +275,7 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "status_skipped": status_counts["skipped"],
         "report_path": str(report_path) if report_path.exists() else "",
         "manifest_path": str(root / "artifact_manifest.json") if (root / "artifact_manifest.json").exists() else "",
+        "agent_audit_path": str(root / "agent_audit.json") if (root / "agent_audit.json").exists() else "",
         "audit_path": str(root / "artifact_audit.json") if (root / "artifact_audit.json").exists() else "",
         "readme_path": str(root / "README.md") if (root / "README.md").exists() else "",
         "bundle_path": str(root / "run_bundle.zip") if (root / "run_bundle.zip").exists() else "",
@@ -278,6 +284,10 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "complete": bool(manifest.get("complete")) if manifest else report_path.exists(),
         "quality_score": int((manifest.get("quality") or metadata.get("quality") or {}).get("score") or 0),
         "quality_status": str((manifest.get("quality") or metadata.get("quality") or {}).get("overall_status") or "unknown"),
+        "agent_audit_score": int((manifest.get("agent_audit") or metadata.get("agent_audit") or {}).get("score") or 0),
+        "agent_audit_status": str(
+            (manifest.get("agent_audit") or metadata.get("agent_audit") or {}).get("overall_status") or "unknown"
+        ),
         "review_decision": str(review.get("decision") or manifest_review.get("decision") or ""),
         "review_confidence": str(review.get("confidence") or manifest_review.get("confidence") or ""),
         "review_updated_at": str(review.get("updated_at") or manifest_review.get("updated_at") or ""),
@@ -315,6 +325,7 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         ("Warnings", "warnings"),
         ("Errors", "errors"),
         ("Quality score", "quality_score"),
+        ("Agent audit score", "agent_audit_score"),
     ]
     rows: list[dict[str, Any]] = [
         {"Metric": "Mode", "A": left.get("mode"), "B": right.get("mode"), "Delta A-B": ""},
@@ -322,6 +333,12 @@ def compare_run_summaries(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         {"Metric": "LLM enabled", "A": bool(left.get("llm_enabled")), "B": bool(right.get("llm_enabled")), "Delta A-B": ""},
         {"Metric": "Bundle complete", "A": bool(left.get("complete")), "B": bool(right.get("complete")), "Delta A-B": ""},
         {"Metric": "Quality status", "A": left.get("quality_status"), "B": right.get("quality_status"), "Delta A-B": ""},
+        {
+            "Metric": "Agent audit status",
+            "A": left.get("agent_audit_status"),
+            "B": right.get("agent_audit_status"),
+            "Delta A-B": "",
+        },
         {"Metric": "Review decision", "A": left.get("review_decision") or "unreviewed", "B": right.get("review_decision") or "unreviewed", "Delta A-B": ""},
     ]
     for label, key in metric_keys:

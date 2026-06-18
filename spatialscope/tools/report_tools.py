@@ -6,8 +6,9 @@ from typing import Any
 from jinja2 import Template
 
 from spatialscope.tools.base import ToolResult
-from spatialscope.utils.bundle import build_run_bundle
+from spatialscope.utils.agent_audit import write_agent_audit
 from spatialscope.utils.artifact_audit import write_artifact_audit
+from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.run_readme import write_run_readme
@@ -115,6 +116,7 @@ REPORT_TEMPLATE = """
     <div class="metric"><span>Trace steps</span><strong>{{ trace|length }}</strong></div>
     <div class="metric"><span>Repairs</span><strong>{{ repairs|length }}</strong></div>
     <div class="metric"><span>Quality</span><strong>{{ quality.score }} / {{ quality.overall_status }}</strong></div>
+    <div class="metric"><span>Agent Audit</span><strong>{{ agent_audit.score }} / {{ agent_audit.overall_status }}</strong></div>
     <div class="metric"><span>Candidate labels</span><strong>{{ annotations|length }}</strong></div>
   </div>
 
@@ -130,6 +132,24 @@ REPORT_TEMPLATE = """
         <td>{{ gate.summary }}</td>
         <td>{{ gate.evidence }}</td>
         <td>{{ gate.recommendation }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Agent Audit 行为自检</h2>
+  <p class="note">This audit evaluates whether the agent stayed contract-bound, traceable, repair-aware, and evidence-bounded.</p>
+  <table>
+    <thead><tr><th>Check</th><th>Status</th><th>Score</th><th>Summary</th><th>Evidence</th><th>Recommendation</th></tr></thead>
+    <tbody>
+    {% for check in agent_audit.checks %}
+      <tr>
+        <td>{{ check.name }}</td>
+        <td><span class="badge {{ check.status }}">{{ check.status }}</span></td>
+        <td>{{ check.score }}</td>
+        <td>{{ check.summary }}</td>
+        <td>{{ check.evidence }}</td>
+        <td>{{ check.recommendation }}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -308,6 +328,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     run_dir = Path(state["run_dir"])
     quality = build_quality_report(state)
     state["quality"] = quality
+    agent_audit = write_agent_audit(state, run_dir)
+    state["agent_audit"] = agent_audit
     write_json(run_dir / "agent_trace.json", state.get("execution_trace", []))
     write_json(
         run_dir / "run_metadata.json",
@@ -326,6 +348,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "tool_contracts": state.get("tool_contracts"),
             "repair_log": state.get("repair_log", []),
             "quality": quality,
+            "agent_audit": agent_audit,
             "review_notes": state.get("review_notes"),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
@@ -351,6 +374,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         trace=state.get("execution_trace", []),
         repairs=state.get("repair_log", []),
         quality=quality,
+        agent_audit=agent_audit,
         review=state.get("review_notes"),
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
@@ -381,6 +405,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         observations={
             "report_path": str(report_path),
             "run_readme_path": str(readme_path),
+            "agent_audit_path": str(run_dir / "agent_audit.json"),
             "artifact_audit_path": str(run_dir / "artifact_audit.json"),
             "artifact_manifest_path": str(manifest_path),
             "run_bundle_path": bundle["path"],

@@ -26,7 +26,7 @@ def _artifact_paths_from_manifest(manifest: dict[str, Any], run_dir: Path) -> li
         if not raw:
             continue
         path = Path(raw)
-        if not path.is_absolute():
+        if not path.is_absolute() and not path.exists():
             path = run_dir / path
         if path.is_file():
             paths.append(path)

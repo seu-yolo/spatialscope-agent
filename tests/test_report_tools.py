@@ -2,6 +2,7 @@ import json
 import zipfile
 
 from spatialscope.tools.report_tools import generate_report
+from spatialscope.tools.registry import list_tool_contracts
 from spatialscope.utils.run_index import discover_runs
 
 
@@ -14,10 +15,11 @@ def test_generate_report_bundle(tmp_path):
         "run_dir": str(run_dir),
         "user_query": "demo",
         "dataset_summary": {"n_obs": 1, "n_vars": 1},
-        "approved_plan": [],
+        "approved_plan": [{"tool": "run_qc", "params": {}, "rationale": "QC"}],
+        "tool_contracts": list_tool_contracts(),
         "generated_figures": [],
         "generated_tables": [],
-        "execution_trace": [],
+        "execution_trace": [{"node": "execute_tool", "tool": "run_qc", "status": "success"}],
         "parameters": {"mode": "quick"},
         "environment": {},
         "final_answer": "done",
@@ -62,6 +64,7 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "agent_trace.json").exists()
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
+    assert (run_dir / "agent_audit.json").exists()
     assert (run_dir / "artifact_audit.json").exists()
     assert (run_dir / "run_bundle.zip").exists()
     assert (run_dir / "README.md").exists()
@@ -74,24 +77,30 @@ def test_generate_report_bundle(tmp_path):
     assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gate Overrides" in (run_dir / "report.html").read_text(encoding="utf-8")
+    assert "Agent Audit" in (run_dir / "report.html").read_text(encoding="utf-8")
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
     assert metadata["repair_log"][0]["tool"] == "run_svg"
     assert metadata["review_notes"]["decision"] == "accepted_with_caveats"
     assert metadata["review_notes"]["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
     assert "quality" in metadata
+    assert "agent_audit" in metadata
     assert "quality" in manifest
+    assert "agent_audit" in manifest
     assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "readme" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "agent_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "artifact_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
     assert manifest["repairs_count"] == 1
     assert result.observations["run_bundle_path"].endswith("run_bundle.zip")
     assert result.observations["run_readme_path"].endswith("README.md")
+    assert result.observations["agent_audit_path"].endswith("agent_audit.json")
     assert result.observations["artifact_audit_path"].endswith("artifact_audit.json")
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "README.md" in archive.namelist()
+        assert "agent_audit.json" in archive.namelist()
         assert "artifact_audit.json" in archive.namelist()
 
 
@@ -105,7 +114,8 @@ def test_discover_runs_reads_manifest(tmp_path):
         "mode": "quick",
         "user_query": "demo",
         "dataset_summary": {"n_obs": 1, "n_vars": 1},
-        "approved_plan": [],
+        "approved_plan": [{"tool": "run_qc", "params": {}, "rationale": "QC"}],
+        "tool_contracts": list_tool_contracts(),
         "generated_figures": [],
         "generated_tables": [],
         "execution_trace": [{"status": "success", "node": "x", "tool": "y"}],
@@ -134,6 +144,9 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert runs[0]["status_success"] == 1
     assert "quality_score" in runs[0]
     assert "quality_status" in runs[0]
+    assert "agent_audit_score" in runs[0]
+    assert "agent_audit_status" in runs[0]
+    assert runs[0]["agent_audit_path"].endswith("agent_audit.json")
     assert runs[0]["audit_path"].endswith("artifact_audit.json")
     assert runs[0]["readme_path"].endswith("README.md")
     assert runs[0]["bundle_path"].endswith("run_bundle.zip")

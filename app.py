@@ -13,6 +13,7 @@ from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
+from spatialscope.utils.agent_audit import build_agent_audit, load_agent_audit
 from spatialscope.utils.artifact_audit import audit_artifacts
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 from spatialscope.utils.review import (
@@ -868,6 +869,75 @@ def _render_artifact_audit_panel(state: dict[str, Any]) -> None:
         st.warning("缺失产物：" + ", ".join(str(item.get("relpath")) for item in audit.get("missing", [])))
 
 
+def _agent_audit_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    audit = state.get("agent_audit")
+    if isinstance(audit, dict) and audit:
+        return audit
+    run_dir = state.get("run_dir")
+    if run_dir:
+        persisted = load_agent_audit(str(run_dir))
+        if persisted:
+            return persisted
+    return build_agent_audit(state)
+
+
+def _render_agent_audit_panel(state: dict[str, Any]) -> None:
+    audit = _agent_audit_for_state(state)
+    status = str(audit.get("overall_status") or "unknown")
+    tone = {"pass": "success", "warn": "warn", "fail": "fail"}.get(status, "neutral")
+    checks = [item for item in audit.get("checks", []) if isinstance(item, dict)]
+    counts = audit.get("status_counts", {}) if isinstance(audit.get("status_counts"), dict) else {}
+    repair_summary = audit.get("repair_summary", {}) if isinstance(audit.get("repair_summary"), dict) else {}
+    evidence_summary = audit.get("evidence_summary", {}) if isinstance(audit.get("evidence_summary"), dict) else {}
+    st.markdown('<div class="ss-section-title">Agent Audit / Agent 行为自检</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-evidence-grid">
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Status</div>
+            <div class="ss-evidence-value">{html.escape(status.upper())}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Score</div>
+            <div class="ss-evidence-value">{html.escape(str(audit.get("score", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Checks</div>
+            <div class="ss-evidence-value">{html.escape(str(len(checks)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Repairs</div>
+            <div class="ss-evidence-value">{html.escape(str(repair_summary.get("repair_records", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Evidence</div>
+            <div class="ss-evidence-value">{html.escape(str(evidence_summary.get("figures", 0)))} figs / {html.escape(str(evidence_summary.get("tables", 0)))} tables</div>
+          </div>
+        </div>
+        <div class="ss-status-row">
+          {_chip(status.upper(), tone)}
+          {_chip("pass " + str(counts.get("pass", 0)), "success")}
+          {_chip("warn " + str(counts.get("warn", 0)), "warn")}
+          {_chip("fail " + str(counts.get("fail", 0)), "fail")}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    rows = [
+        {
+            "Check": item.get("name"),
+            "Status": item.get("status"),
+            "Score": item.get("score"),
+            "Summary": item.get("summary"),
+            "Evidence": item.get("evidence"),
+            "Recommendation": item.get("recommendation"),
+        }
+        for item in checks
+    ]
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(420, 44 + len(rows) * 42))
+
+
 def _read_table_preview(path: str | None) -> pd.DataFrame | None:
     if not path:
         return None
@@ -1208,6 +1278,10 @@ def _render_run_library(outdir: str) -> None:
             <div class="ss-evidence-value">{html.escape(str(latest.get("quality_score", 0)))}</div>
           </div>
           <div class="ss-evidence-card">
+            <div class="ss-mini-label">Agent Audit</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("agent_audit_score", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
             <div class="ss-mini-label">最近状态</div>
             <div class="ss-evidence-value">{html.escape(str(latest.get("quality_status", "unknown")).upper())}</div>
           </div>
@@ -1228,6 +1302,8 @@ def _render_run_library(outdir: str) -> None:
             "Errors": item.get("errors"),
             "Quality": item.get("quality_score"),
             "Quality status": item.get("quality_status"),
+            "Agent audit": item.get("agent_audit_score"),
+            "Agent status": item.get("agent_audit_status"),
             "Review": item.get("review_decision") or "unreviewed",
             "Updated": _format_run_time(item.get("modified_time")),
         }
@@ -1235,11 +1311,12 @@ def _render_run_library(outdir: str) -> None:
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     report_path = _existing_file(latest.get("report_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
     readme_path = _existing_file(latest.get("readme_path"))
+    agent_audit_path = _existing_file(latest.get("agent_audit_path"))
     audit_path = _existing_file(latest.get("audit_path"))
     if report_path:
         c1.download_button(
@@ -1273,8 +1350,16 @@ def _render_run_library(outdir: str) -> None:
             width="stretch",
             key=f"history_readme_{latest.get('run_id')}",
         )
-    if audit_path:
+    if agent_audit_path:
         c5.download_button(
+            "下载 Agent Audit",
+            agent_audit_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_agent_audit.json",
+            width="stretch",
+            key=f"history_agent_audit_{latest.get('run_id')}",
+        )
+    if audit_path:
+        c6.download_button(
             "下载 Audit JSON",
             audit_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_artifact_audit.json",
@@ -1680,7 +1765,7 @@ with explore_tab:
         st.info("请先运行一个已批准的分析方案。")
     else:
         st.markdown('<div class="ss-section-title">运行快照</div>', unsafe_allow_html=True)
-        top = st.columns(7)
+        top = st.columns(8)
         top[0].metric("Figures", len(state.get("generated_figures", [])))
         top[1].metric("Tables", len(state.get("generated_tables", [])))
         top[2].metric("Trace steps", len(state.get("execution_trace", [])))
@@ -1688,6 +1773,7 @@ with explore_tab:
         top[4].metric("Warnings", len(state.get("warnings", [])))
         top[5].metric("Errors", len(state.get("errors", [])))
         top[6].metric("Quality", (state.get("quality") or {}).get("score", "NA"))
+        top[7].metric("Agent", _agent_audit_for_state(state).get("score", "NA"))
         _render_status_strip(state)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
@@ -1739,6 +1825,8 @@ with explore_tab:
                 for gate in quality.get("gates", [])
             ]
             st.dataframe(pd.DataFrame(quality_rows), hide_index=True, width="stretch", height=360)
+
+        _render_agent_audit_panel(state)
 
         st.markdown('<div class="ss-section-title">Figure Gallery</div>', unsafe_allow_html=True)
         figures = state.get("generated_figures", [])
@@ -1823,6 +1911,7 @@ with report_tab:
             st.error("\n".join(map(str, state.get("errors", []))))
 
         _render_review_panel(state)
+        _render_agent_audit_panel(state)
         _render_artifact_audit_panel(state)
 
         report_path = state.get("report_path")
@@ -1830,6 +1919,7 @@ with report_tab:
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
         manifest_path = Path(str(state.get("run_dir"))) / "artifact_manifest.json"
+        agent_audit_path = Path(str(state.get("run_dir"))) / "agent_audit.json"
         audit_path = Path(str(state.get("run_dir"))) / "artifact_audit.json"
         readme_path = Path(str(state.get("run_dir"))) / "README.md"
         bundle_path = Path(str(state.get("run_dir"))) / "run_bundle.zip"
@@ -1876,7 +1966,7 @@ with report_tab:
                     st.markdown('<div class="ss-card-title">Trace JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", trace_path.read_bytes(), file_name="agent_trace.json", width="stretch")
 
-        c5, c6, c7, c8 = st.columns(4)
+        c5, c6, c7, c8, c9 = st.columns(5)
         if metadata_path.exists():
             with c5:
                 with st.container(border=True):
@@ -1895,8 +1985,14 @@ with report_tab:
                     st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)
                     st.download_button("下载", manifest_path.read_bytes(), file_name="artifact_manifest.json", width="stretch")
-        if audit_path.exists():
+        if agent_audit_path.exists():
             with c8:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">行为自检</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Agent Audit</div>', unsafe_allow_html=True)
+                    st.download_button("下载", agent_audit_path.read_bytes(), file_name="agent_audit.json", width="stretch")
+        if audit_path.exists():
+            with c9:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Audit JSON</div>', unsafe_allow_html=True)
