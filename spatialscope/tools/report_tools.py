@@ -13,6 +13,7 @@ from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_s
 from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.run_readme import write_run_readme
 from spatialscope.utils.run_index import build_artifact_manifest
+from spatialscope.utils.storyboard import write_storyboard
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -119,6 +120,9 @@ REPORT_TEMPLATE = """
     <div class="metric"><span>Agent Audit</span><strong>{{ agent_audit.score }} / {{ agent_audit.overall_status }}</strong></div>
     <div class="metric"><span>Candidate labels</span><strong>{{ annotations|length }}</strong></div>
   </div>
+  {% if storyboard %}
+  <p><a href="storyboard.html">Open Spatial Storyboard</a> · {{ storyboard.n_cards }} curated visual panels</p>
+  {% endif %}
 
   <h2>Quality Gates 质量自检</h2>
   <table>
@@ -330,6 +334,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     state["quality"] = quality
     agent_audit = write_agent_audit(state, run_dir)
     state["agent_audit"] = agent_audit
+    storyboard = write_storyboard(state, run_dir)
+    state["storyboard"] = storyboard
     write_json(run_dir / "agent_trace.json", state.get("execution_trace", []))
     write_json(
         run_dir / "run_metadata.json",
@@ -349,6 +355,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "repair_log": state.get("repair_log", []),
             "quality": quality,
             "agent_audit": agent_audit,
+            "storyboard": storyboard,
             "review_notes": state.get("review_notes"),
             "figures": state.get("generated_figures", []),
             "tables": state.get("generated_tables", []),
@@ -375,6 +382,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         repairs=state.get("repair_log", []),
         quality=quality,
         agent_audit=agent_audit,
+        storyboard=storyboard,
         review=state.get("review_notes"),
         annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
         warnings=state.get("warnings", []),
@@ -406,6 +414,8 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "report_path": str(report_path),
             "run_readme_path": str(readme_path),
             "agent_audit_path": str(run_dir / "agent_audit.json"),
+            "storyboard_path": str(run_dir / "storyboard.html"),
+            "storyboard_json_path": str(run_dir / "storyboard.json"),
             "artifact_audit_path": str(run_dir / "artifact_audit.json"),
             "artifact_manifest_path": str(manifest_path),
             "run_bundle_path": bundle["path"],

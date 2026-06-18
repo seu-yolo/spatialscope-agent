@@ -22,6 +22,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Gene fuzzy matching repair and gene panel plots
 - Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon
 - Optional SVG and neighborhood enrichment when Squidpy is available
+- Spatial Storyboard (`storyboard.html`/`storyboard.json`) that turns key figures into a presentation-oriented visual narrative
 - HTML report, run-level `README.md`, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `review_notes.json`, `agent_audit.json`, `artifact_manifest.json`
 - Artifact Audit with file existence, size, kind counts, missing-artifact warnings, and bundle status
 - Complete `run_bundle.zip` export for report, trace, metadata, figures, tables, and reproducibility assets
@@ -121,7 +122,7 @@ Outputs are written to `outputs/runs/<run_id>/`.
 Each run includes a handoff-ready `README.md`, a complete `run_bundle.zip`, plus
 an `artifact_manifest.json` file that indexes the report,
 trace, metadata, parameters, figures, tables, repair diagnostics, Quality Gates,
-Agent Audit, Human Review notes, Artifact Audit, and public state bundle.
+Agent Audit, Spatial Storyboard, Human Review notes, Artifact Audit, and public state bundle.
 
 One-command demo:
 
@@ -139,8 +140,8 @@ Navigation:
 
 1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, load a historical run back into the workspace, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
-3. Explore: inspect figures, tables, trace records, Quality Gates, Agent Audit, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation, save Human Review notes, record Quality Gate overrides, inspect Agent Audit and Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
+3. Explore: inspect the Spatial Storyboard, figures, tables, trace records, Quality Gates, Agent Audit, repair diagnostics, resolved genes, and candidate cluster labels.
+4. Report: read the cautious interpretation, review the Spatial Storyboard, save Human Review notes, record Quality Gate overrides, inspect Agent Audit and Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
 
 ## Tests
 

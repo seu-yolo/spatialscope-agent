@@ -64,6 +64,8 @@ def test_generate_report_bundle(tmp_path):
     assert (run_dir / "agent_trace.json").exists()
     assert (run_dir / "run_metadata.json").exists()
     assert (run_dir / "artifact_manifest.json").exists()
+    assert (run_dir / "storyboard.html").exists()
+    assert (run_dir / "storyboard.json").exists()
     assert (run_dir / "agent_audit.json").exists()
     assert (run_dir / "artifact_audit.json").exists()
     assert (run_dir / "run_bundle.zip").exists()
@@ -78,6 +80,7 @@ def test_generate_report_bundle(tmp_path):
     assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Quality Gate Overrides" in (run_dir / "report.html").read_text(encoding="utf-8")
     assert "Agent Audit" in (run_dir / "report.html").read_text(encoding="utf-8")
+    assert "Spatial Storyboard" in (run_dir / "report.html").read_text(encoding="utf-8")
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
     assert metadata["repair_log"][0]["tool"] == "run_svg"
@@ -85,21 +88,29 @@ def test_generate_report_bundle(tmp_path):
     assert metadata["review_notes"]["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
     assert "quality" in metadata
     assert "agent_audit" in metadata
+    assert "storyboard" in metadata
     assert "quality" in manifest
     assert "agent_audit" in manifest
+    assert "storyboard" in manifest
     assert any(item["kind"] == "review" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "readme" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "storyboard" and item["exists"] for item in manifest["artifacts"])
+    assert any(item["kind"] == "storyboard_data" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "agent_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "artifact_audit" and item["exists"] for item in manifest["artifacts"])
     assert any(item["kind"] == "bundle" and item["exists"] for item in manifest["artifacts"])
     assert manifest["repairs_count"] == 1
     assert result.observations["run_bundle_path"].endswith("run_bundle.zip")
     assert result.observations["run_readme_path"].endswith("README.md")
+    assert result.observations["storyboard_path"].endswith("storyboard.html")
+    assert result.observations["storyboard_json_path"].endswith("storyboard.json")
     assert result.observations["agent_audit_path"].endswith("agent_audit.json")
     assert result.observations["artifact_audit_path"].endswith("artifact_audit.json")
     assert result.observations["artifact_manifest_path"].endswith("artifact_manifest.json")
     with zipfile.ZipFile(run_dir / "run_bundle.zip") as archive:
         assert "README.md" in archive.namelist()
+        assert "storyboard.html" in archive.namelist()
+        assert "storyboard.json" in archive.namelist()
         assert "agent_audit.json" in archive.namelist()
         assert "artifact_audit.json" in archive.namelist()
 
@@ -146,6 +157,9 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert "quality_status" in runs[0]
     assert "agent_audit_score" in runs[0]
     assert "agent_audit_status" in runs[0]
+    assert "storyboard_cards" in runs[0]
+    assert runs[0]["storyboard_path"].endswith("storyboard.html")
+    assert runs[0]["storyboard_json_path"].endswith("storyboard.json")
     assert runs[0]["agent_audit_path"].endswith("agent_audit.json")
     assert runs[0]["audit_path"].endswith("artifact_audit.json")
     assert runs[0]["readme_path"].endswith("README.md")

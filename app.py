@@ -25,6 +25,7 @@ from spatialscope.utils.review import (
     save_review_notes,
 )
 from spatialscope.utils.run_index import compare_run_summaries, discover_runs, load_run_state
+from spatialscope.utils.storyboard import build_storyboard
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -467,6 +468,27 @@ st.markdown(
         font-weight: 760;
         line-height: 1.1;
         margin-top: 4px;
+      }
+      .ss-story-shell {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(15, 118, 110, 0.06), rgba(111, 78, 143, 0.05)),
+          rgba(255, 255, 255, 0.95);
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+      .ss-story-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 12px;
+        margin-top: 10px;
+      }
+      .ss-story-card {
+        border: 1px solid var(--ss-line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 12px;
       }
       .ss-tag-wall {
         display: flex;
@@ -1245,6 +1267,91 @@ def _existing_file(path_value: Any) -> Path | None:
     return path if path.is_file() else None
 
 
+def _storyboard_for_state(state: dict[str, Any]) -> dict[str, Any]:
+    storyboard = state.get("storyboard")
+    if isinstance(storyboard, dict) and storyboard:
+        return storyboard
+    run_dir = state.get("run_dir")
+    if run_dir:
+        storyboard_path = Path(str(run_dir)) / "storyboard.json"
+        if storyboard_path.exists():
+            try:
+                payload = json.loads(storyboard_path.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    return payload
+            except Exception:
+                pass
+        return build_storyboard(state, run_dir=run_dir)
+    return {}
+
+
+def _render_storyboard_panel(state: dict[str, Any], *, key_prefix: str = "storyboard") -> None:
+    storyboard = _storyboard_for_state(state)
+    if not storyboard:
+        return
+    cards = [item for item in storyboard.get("cards", []) if isinstance(item, dict)]
+    hero = storyboard.get("hero") if isinstance(storyboard.get("hero"), dict) else (cards[0] if cards else {})
+    metrics = storyboard.get("metrics") if isinstance(storyboard.get("metrics"), dict) else {}
+    run_dir = Path(str(state.get("run_dir") or ""))
+    storyboard_html = run_dir / "storyboard.html"
+    storyboard_json = run_dir / "storyboard.json"
+    st.markdown('<div class="ss-section-title">Spatial Storyboard / 空间故事板</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-story-shell">
+          <div class="ss-mini-label">Presentation board</div>
+          <div class="ss-card-title">把关键图表连成一条可讲述的分析线索</div>
+          <div class="ss-figure-note">精选空间图、基因信号、UMAP、marker 与质量证据，适合展示、汇报和快速复核。</div>
+          <div class="ss-evidence-grid">
+            <div class="ss-evidence-card"><div class="ss-mini-label">Panels</div><div class="ss-evidence-value">{html.escape(str(storyboard.get("n_cards", len(cards))))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Figures</div><div class="ss-evidence-value">{html.escape(str(metrics.get("figures", 0)))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Quality</div><div class="ss-evidence-value">{html.escape(str(metrics.get("quality", "NA")))}</div></div>
+            <div class="ss-evidence-card"><div class="ss-mini-label">Agent</div><div class="ss-evidence-value">{html.escape(str(metrics.get("agent", "NA")))}</div></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if hero:
+        left, right = st.columns([1.05, 1.15], gap="large")
+        with left:
+            st.markdown(f'<div class="ss-mini-label">{html.escape(str(hero.get("role_label", "Story")))}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="ss-card-title">{html.escape(str(hero.get("title", "Storyboard hero")))}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="ss-figure-note">{html.escape(str(hero.get("caption", "")))}</div>', unsafe_allow_html=True)
+            d1, d2 = st.columns(2)
+            if storyboard_html.exists():
+                d1.download_button(
+                    "下载 Storyboard HTML",
+                    storyboard_html.read_bytes(),
+                    file_name=f"{state.get('run_id', 'spatialscope')}_storyboard.html",
+                    width="stretch",
+                    key=f"{key_prefix}_storyboard_html_{state.get('run_id', 'run')}",
+                )
+            if storyboard_json.exists():
+                d2.download_button(
+                    "下载 Storyboard JSON",
+                    storyboard_json.read_bytes(),
+                    file_name=f"{state.get('run_id', 'spatialscope')}_storyboard.json",
+                    width="stretch",
+                    key=f"{key_prefix}_storyboard_json_{state.get('run_id', 'run')}",
+                )
+        with right:
+            hero_path = Path(str(hero.get("path") or ""))
+            if hero_path.exists():
+                st.image(str(hero_path), width="stretch")
+    if cards:
+        cards_html = "".join(
+            '<div class="ss-story-card">'
+            f'<div class="ss-mini-label">{html.escape(str(card.get("role_label", "Evidence")))}</div>'
+            f'<div class="ss-card-title">{html.escape(str(card.get("title", "")))}</div>'
+            f'<div class="ss-figure-note">{html.escape(str(card.get("caption", "")))}</div>'
+            f'<div class="ss-run-path">{html.escape(str(card.get("relpath", "")))}</div>'
+            "</div>"
+            for card in cards[:6]
+        )
+        st.markdown(f'<div class="ss-story-grid">{cards_html}</div>', unsafe_allow_html=True)
+
+
 def _render_run_library(outdir: str) -> None:
     runs = discover_runs(outdir, limit=8)
     if not runs:
@@ -1268,6 +1375,10 @@ def _render_run_library(outdir: str) -> None:
           <div class="ss-evidence-card">
             <div class="ss-mini-label">最近图表</div>
             <div class="ss-evidence-value">{html.escape(str(latest.get("figures", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Storyboard</div>
+            <div class="ss-evidence-value">{html.escape(str(latest.get("storyboard_cards", 0)))}</div>
           </div>
           <div class="ss-evidence-card">
             <div class="ss-mini-label">修复诊断</div>
@@ -1295,6 +1406,7 @@ def _render_run_library(outdir: str) -> None:
             "Run": item.get("run_id"),
             "Mode": item.get("mode"),
             "Figures": item.get("figures"),
+            "Storyboard": item.get("storyboard_cards"),
             "Tables": item.get("tables"),
             "Trace": item.get("trace_steps"),
             "Repairs": item.get("repairs"),
@@ -1311,8 +1423,10 @@ def _render_run_library(outdir: str) -> None:
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4 = st.columns(4)
+    c5, c6, c7 = st.columns(3)
     report_path = _existing_file(latest.get("report_path"))
+    storyboard_path = _existing_file(latest.get("storyboard_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
     readme_path = _existing_file(latest.get("readme_path"))
@@ -1326,8 +1440,16 @@ def _render_run_library(outdir: str) -> None:
             width="stretch",
             key=f"history_report_{latest.get('run_id')}",
         )
-    if manifest_path:
+    if storyboard_path:
         c2.download_button(
+            "下载 Storyboard",
+            storyboard_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_storyboard.html",
+            width="stretch",
+            key=f"history_storyboard_{latest.get('run_id')}",
+        )
+    if manifest_path:
+        c3.download_button(
             "下载最近 Manifest",
             manifest_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_artifact_manifest.json",
@@ -1335,7 +1457,7 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_manifest_{latest.get('run_id')}",
         )
     if bundle_path:
-        c3.download_button(
+        c4.download_button(
             "下载完整 Bundle",
             bundle_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_bundle.zip",
@@ -1343,7 +1465,7 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_bundle_{latest.get('run_id')}",
         )
     if readme_path:
-        c4.download_button(
+        c5.download_button(
             "下载 Run README",
             readme_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_README.md",
@@ -1351,7 +1473,7 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_readme_{latest.get('run_id')}",
         )
     if agent_audit_path:
-        c5.download_button(
+        c6.download_button(
             "下载 Agent Audit",
             agent_audit_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_agent_audit.json",
@@ -1359,7 +1481,7 @@ def _render_run_library(outdir: str) -> None:
             key=f"history_agent_audit_{latest.get('run_id')}",
         )
     if audit_path:
-        c6.download_button(
+        c7.download_button(
             "下载 Audit JSON",
             audit_path.read_bytes(),
             file_name=f"{latest.get('run_id', 'run')}_artifact_audit.json",
@@ -1778,6 +1900,7 @@ with explore_tab:
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)
         _render_evidence_cards(state)
         _render_spatial_note(state)
+        _render_storyboard_panel(state, key_prefix="explore")
 
         st.markdown('<div class="ss-section-title">Execution Trace</div>', unsafe_allow_html=True)
         _render_workflow_map(state)
@@ -1901,6 +2024,7 @@ with report_tab:
         _render_workflow_map(state)
         _render_evidence_cards(state)
         _render_spatial_note(state)
+        _render_storyboard_panel(state, key_prefix="report")
         with st.container(border=True):
             st.markdown('<div class="ss-mini-label">Agent summary</div>', unsafe_allow_html=True)
             st.write(state.get("final_answer"))
@@ -1915,6 +2039,8 @@ with report_tab:
         _render_artifact_audit_panel(state)
 
         report_path = state.get("report_path")
+        storyboard_path = Path(str(state.get("run_dir"))) / "storyboard.html"
+        storyboard_json_path = Path(str(state.get("run_dir"))) / "storyboard.json"
         trace_path = Path(str(state.get("run_dir"))) / "agent_trace.json"
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
@@ -1925,7 +2051,7 @@ with report_tab:
         bundle_path = Path(str(state.get("run_dir"))) / "run_bundle.zip"
 
         st.markdown('<div class="ss-section-title">可复现输出包</div>', unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         if bundle_path.exists():
             with c1:
                 with st.container(border=True):
@@ -1948,8 +2074,19 @@ with report_tab:
                         file_name=f"{state.get('run_id', 'spatialscope')}_README.md",
                         width="stretch",
                     )
-        if report_path and Path(str(report_path)).exists():
+        if storyboard_path.exists():
             with c3:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">展示</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Storyboard</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        "下载",
+                        storyboard_path.read_bytes(),
+                        file_name="storyboard.html",
+                        width="stretch",
+                    )
+        if report_path and Path(str(report_path)).exists():
+            with c4:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">报告</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Report HTML</div>', unsafe_allow_html=True)
@@ -1960,39 +2097,45 @@ with report_tab:
                         width="stretch",
                     )
         if trace_path.exists():
-            with c4:
+            with c5:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">溯源</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Trace JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", trace_path.read_bytes(), file_name="agent_trace.json", width="stretch")
 
-        c5, c6, c7, c8, c9 = st.columns(5)
+        c6, c7, c8, c9, c10, c11 = st.columns(6)
         if metadata_path.exists():
-            with c5:
+            with c6:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">元数据</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Run JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", metadata_path.read_bytes(), file_name="run_metadata.json", width="stretch")
         if param_path.exists():
-            with c6:
+            with c7:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">参数</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">YAML</div>', unsafe_allow_html=True)
                     st.download_button("下载", param_path.read_bytes(), file_name="parameters.yaml", width="stretch")
+        if storyboard_json_path.exists():
+            with c8:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">故事板</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Storyboard JSON</div>', unsafe_allow_html=True)
+                    st.download_button("下载", storyboard_json_path.read_bytes(), file_name="storyboard.json", width="stretch")
         if manifest_path.exists():
-            with c7:
+            with c9:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)
                     st.download_button("下载", manifest_path.read_bytes(), file_name="artifact_manifest.json", width="stretch")
         if agent_audit_path.exists():
-            with c8:
+            with c10:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">行为自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Agent Audit</div>', unsafe_allow_html=True)
                     st.download_button("下载", agent_audit_path.read_bytes(), file_name="agent_audit.json", width="stretch")
         if audit_path.exists():
-            with c9:
+            with c11:
                 with st.container(border=True):
                     st.markdown('<div class="ss-mini-label">自检</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Audit JSON</div>', unsafe_allow_html=True)

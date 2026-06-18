@@ -65,6 +65,8 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
     artifacts: list[dict[str, Any]] = [
         file_record(report, run_dir=root, kind="report", title="HTML report"),
         file_record(root / "run_bundle.zip", run_dir=root, kind="bundle", title="Complete run bundle"),
+        file_record(root / "storyboard.html", run_dir=root, kind="storyboard", title="Spatial Storyboard"),
+        file_record(root / "storyboard.json", run_dir=root, kind="storyboard_data", title="Spatial Storyboard data"),
         file_record(root / "agent_trace.json", run_dir=root, kind="trace", title="Agent trace"),
         file_record(root / "run_metadata.json", run_dir=root, kind="metadata", title="Run metadata"),
         file_record(root / "parameters.yaml", run_dir=root, kind="parameters", title="Parameters"),
@@ -114,10 +116,12 @@ def build_artifact_manifest(state: dict[str, Any], *, run_dir: str | Path, repor
         "tables_count": len(state.get("generated_tables", [])),
         "quality": state.get("quality") or build_quality_report(state),
         "agent_audit": state.get("agent_audit"),
+        "storyboard": state.get("storyboard"),
         "review": state.get("review_notes"),
         "artifacts": artifacts,
     }
-    manifest["complete"] = all(item["exists"] for item in artifacts[:5])
+    essential_kinds = {"report", "bundle", "storyboard", "storyboard_data", "trace", "metadata", "parameters"}
+    manifest["complete"] = all(item["exists"] for item in artifacts if item.get("kind") in essential_kinds)
     return manifest
 
 
@@ -206,6 +210,9 @@ def load_run_state(run_dir: str | Path) -> dict[str, Any]:
     state["agent_audit"] = _as_dict(
         _first_present(state.get("agent_audit"), metadata.get("agent_audit"), manifest.get("agent_audit"), _read_json(root / "agent_audit.json"))
     )
+    state["storyboard"] = _as_dict(
+        _first_present(state.get("storyboard"), metadata.get("storyboard"), manifest.get("storyboard"), _read_json(root / "storyboard.json"))
+    )
     review_notes = _as_dict(_first_present(state.get("review_notes"), _read_json(root / "review_notes.json")))
     if review_notes:
         state["review_notes"] = review_notes
@@ -274,6 +281,8 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "status_repaired": status_counts["repaired"],
         "status_skipped": status_counts["skipped"],
         "report_path": str(report_path) if report_path.exists() else "",
+        "storyboard_path": str(root / "storyboard.html") if (root / "storyboard.html").exists() else "",
+        "storyboard_json_path": str(root / "storyboard.json") if (root / "storyboard.json").exists() else "",
         "manifest_path": str(root / "artifact_manifest.json") if (root / "artifact_manifest.json").exists() else "",
         "agent_audit_path": str(root / "agent_audit.json") if (root / "agent_audit.json").exists() else "",
         "audit_path": str(root / "artifact_audit.json") if (root / "artifact_audit.json").exists() else "",
@@ -288,6 +297,7 @@ def summarize_run(run_dir: str | Path) -> dict[str, Any]:
         "agent_audit_status": str(
             (manifest.get("agent_audit") or metadata.get("agent_audit") or {}).get("overall_status") or "unknown"
         ),
+        "storyboard_cards": int((manifest.get("storyboard") or metadata.get("storyboard") or {}).get("n_cards") or 0),
         "review_decision": str(review.get("decision") or manifest_review.get("decision") or ""),
         "review_confidence": str(review.get("confidence") or manifest_review.get("confidence") or ""),
         "review_updated_at": str(review.get("updated_at") or manifest_review.get("updated_at") or ""),

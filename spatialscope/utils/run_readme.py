@@ -86,6 +86,7 @@ This folder is a reproducible SpatialScope Agent run bundle.
 - Success / skipped / failed / repaired: {counts["success"]} / {counts["skipped"]} / {counts["failed"]} / {counts["repaired"]}
 - Quality: {quality.get("score", "N/A")} / {quality.get("overall_status", "unknown")}
 - Agent Audit: {agent_audit.get("score", "N/A")} / {agent_audit.get("overall_status", "unknown")}
+- Storyboard panels: {(state.get("storyboard") or {}).get("n_cards", "N/A")}
 
 ## Human Review
 
@@ -98,6 +99,8 @@ This folder is a reproducible SpatialScope Agent run bundle.
 ## Key Files
 
 - `report.html`: main visual report
+- `storyboard.html`: presentation-oriented visual storyboard
+- `storyboard.json`: structured storyboard card metadata
 - `agent_trace.json`: tool execution trace
 - `run_metadata.json`: parameters, environment, plan, quality, and review metadata
 - `parameters.yaml`: compact parameter export
