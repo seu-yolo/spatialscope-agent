@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from spatialscope.utils.artifact_audit import write_artifact_audit
 from spatialscope.utils.bundle import build_run_bundle
 from spatialscope.utils.paths import write_json
 from spatialscope.utils.run_readme import write_run_readme
@@ -133,6 +134,9 @@ def _upsert_manifest_review(manifest_path: Path, review_path: Path, review: dict
     readme_path = root / "README.md"
     if readme_path.exists():
         artifacts.append(file_record(readme_path, run_dir=root, kind="readme", title="Run README"))
+    audit_path = root / "artifact_audit.json"
+    if audit_path.exists() and not any(item.get("kind") == "artifact_audit" for item in artifacts):
+        artifacts.append(file_record(audit_path, run_dir=root, kind="artifact_audit", title="Artifact audit"))
     artifacts.append(file_record(review_path, run_dir=root, kind="review", title="Human review notes"))
     manifest["artifacts"] = artifacts
     manifest["review"] = {
@@ -191,6 +195,8 @@ def save_review_notes(state: dict[str, Any], payload: dict[str, Any]) -> dict[st
     _upsert_public_state_review(root / "state_public.json", review)
     write_run_readme(state, run_dir=root, report_path=root / "report.html")
     _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
+    write_artifact_audit(root)
+    _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
     bundle = build_run_bundle(root)
     state["review_bundle"] = bundle
     return review
@@ -232,6 +238,8 @@ def save_quality_gate_override(state: dict[str, Any], payload: dict[str, Any]) -
     state["review_notes"] = review
     _upsert_public_state_review(root / "state_public.json", review)
     write_run_readme(state, run_dir=root, report_path=root / "report.html")
+    _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
+    write_artifact_audit(root)
     _upsert_manifest_review(root / "artifact_manifest.json", review_path, review)
     bundle = build_run_bundle(root)
     state["review_bundle"] = bundle

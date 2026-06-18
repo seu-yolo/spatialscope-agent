@@ -13,6 +13,7 @@ from spatialscope.agent.graph import execute_agent_state, preview_agent_plan
 from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.agent.planner import validate_plan_steps
 from spatialscope.tools.registry import tool_contract_summary
+from spatialscope.utils.artifact_audit import audit_artifacts
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 from spatialscope.utils.review import (
     CONFIDENCE_LEVELS,
@@ -819,6 +820,54 @@ def _render_review_panel(state: dict[str, Any]) -> None:
         )
 
 
+def _render_artifact_audit_panel(state: dict[str, Any]) -> None:
+    run_dir = str(state.get("run_dir") or "")
+    if not run_dir:
+        return
+    audit = audit_artifacts(run_dir)
+    status_label = "完整" if audit.get("complete") else "需检查"
+    status_tone = "success" if audit.get("complete") else "warn"
+    st.markdown('<div class="ss-section-title">Artifact Audit / 产物清单自检</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="ss-evidence-grid">
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Status</div>
+            <div class="ss-evidence-value">{html.escape(status_label)}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Artifacts</div>
+            <div class="ss-evidence-value">{html.escape(str(audit.get("existing_count", 0)))} / {html.escape(str(audit.get("artifacts_count", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Missing</div>
+            <div class="ss-evidence-value">{html.escape(str(audit.get("missing_count", 0)))}</div>
+          </div>
+          <div class="ss-evidence-card">
+            <div class="ss-mini-label">Total size</div>
+            <div class="ss-evidence-value">{html.escape(str(audit.get("total_size", "0 B")))}</div>
+          </div>
+        </div>
+        <div class="ss-status-row">{_chip(status_label, status_tone)} {_chip("bundle " + str(audit.get("bundle", {}).get("size", "0 B")), "neutral")}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    rows = [
+        {
+            "Kind": item.get("kind"),
+            "Title": item.get("title"),
+            "Path": item.get("relpath"),
+            "Exists": item.get("exists"),
+            "Size": item.get("size"),
+        }
+        for item in audit.get("artifacts", [])
+    ]
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(420, 44 + len(rows) * 34))
+    if audit.get("missing"):
+        st.warning("缺失产物：" + ", ".join(str(item.get("relpath")) for item in audit.get("missing", [])))
+
+
 def _read_table_preview(path: str | None) -> pd.DataFrame | None:
     if not path:
         return None
@@ -1186,11 +1235,12 @@ def _render_run_library(outdir: str) -> None:
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(300, 44 + len(rows) * 36))
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     report_path = _existing_file(latest.get("report_path"))
     manifest_path = _existing_file(latest.get("manifest_path"))
     bundle_path = _existing_file(latest.get("bundle_path"))
     readme_path = _existing_file(latest.get("readme_path"))
+    audit_path = _existing_file(latest.get("audit_path"))
     if report_path:
         c1.download_button(
             "下载最近 Report",
@@ -1222,6 +1272,14 @@ def _render_run_library(outdir: str) -> None:
             file_name=f"{latest.get('run_id', 'run')}_README.md",
             width="stretch",
             key=f"history_readme_{latest.get('run_id')}",
+        )
+    if audit_path:
+        c5.download_button(
+            "下载 Audit JSON",
+            audit_path.read_bytes(),
+            file_name=f"{latest.get('run_id', 'run')}_artifact_audit.json",
+            width="stretch",
+            key=f"history_audit_{latest.get('run_id')}",
         )
 
     st.markdown('<div class="ss-section-title">载入历史 Run</div>', unsafe_allow_html=True)
@@ -1765,12 +1823,14 @@ with report_tab:
             st.error("\n".join(map(str, state.get("errors", []))))
 
         _render_review_panel(state)
+        _render_artifact_audit_panel(state)
 
         report_path = state.get("report_path")
         trace_path = Path(str(state.get("run_dir"))) / "agent_trace.json"
         metadata_path = Path(str(state.get("run_dir"))) / "run_metadata.json"
         param_path = Path(str(state.get("run_dir"))) / "parameters.yaml"
         manifest_path = Path(str(state.get("run_dir"))) / "artifact_manifest.json"
+        audit_path = Path(str(state.get("run_dir"))) / "artifact_audit.json"
         readme_path = Path(str(state.get("run_dir"))) / "README.md"
         bundle_path = Path(str(state.get("run_dir"))) / "run_bundle.zip"
 
@@ -1816,7 +1876,7 @@ with report_tab:
                     st.markdown('<div class="ss-card-title">Trace JSON</div>', unsafe_allow_html=True)
                     st.download_button("下载", trace_path.read_bytes(), file_name="agent_trace.json", width="stretch")
 
-        c5, c6, c7 = st.columns(3)
+        c5, c6, c7, c8 = st.columns(4)
         if metadata_path.exists():
             with c5:
                 with st.container(border=True):
@@ -1835,6 +1895,12 @@ with report_tab:
                     st.markdown('<div class="ss-mini-label">资产索引</div>', unsafe_allow_html=True)
                     st.markdown('<div class="ss-card-title">Manifest</div>', unsafe_allow_html=True)
                     st.download_button("下载", manifest_path.read_bytes(), file_name="artifact_manifest.json", width="stretch")
+        if audit_path.exists():
+            with c8:
+                with st.container(border=True):
+                    st.markdown('<div class="ss-mini-label">自检</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="ss-card-title">Audit JSON</div>', unsafe_allow_html=True)
+                    st.download_button("下载", audit_path.read_bytes(), file_name="artifact_audit.json", width="stretch")
 
         st.markdown('<div class="ss-quiet-rule"></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="ss-run-path">{state.get("run_dir")}</div>', unsafe_allow_html=True)

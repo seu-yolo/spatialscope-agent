@@ -22,6 +22,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - Candidate cluster annotation suggestions from ranked marker genes and a compact marker lexicon
 - Optional SVG and neighborhood enrichment when Squidpy is available
 - HTML report, run-level `README.md`, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `review_notes.json`, `artifact_manifest.json`
+- Artifact Audit with file existence, size, kind counts, missing-artifact warnings, and bundle status
 - Complete `run_bundle.zip` export for report, trace, metadata, figures, tables, and reproducibility assets
 - CLI and a polished Streamlit analysis workspace
 - Run Library, historical run rehydration, and Run Compare for reproducibility bundles and side-by-side audit
@@ -119,7 +120,7 @@ Outputs are written to `outputs/runs/<run_id>/`.
 Each run includes a handoff-ready `README.md`, a complete `run_bundle.zip`, plus
 an `artifact_manifest.json` file that indexes the report,
 trace, metadata, parameters, figures, tables, repair diagnostics, Quality Gates,
-Human Review notes, and public state bundle.
+Human Review notes, Artifact Audit, and public state bundle.
 
 One-command demo:
 
@@ -138,7 +139,7 @@ Navigation:
 1. Start: run the one-click Demo Launchpad, inspect LLM configuration, or upload data, enter a task, choose a run mode, tune QC/clustering/gene-panel controls, inspect recent runs in Run Library, load a historical run back into the workspace, and compare two runs side by side.
 2. Analyze: review plan cards, inspect the LangGraph workflow state, edit JSON if needed, and execute the approved plan.
 3. Explore: inspect figures, tables, trace records, Quality Gates, repair diagnostics, resolved genes, and candidate cluster labels.
-4. Report: read the cautious interpretation, save Human Review notes, record Quality Gate overrides, and download the run README, full reproducibility bundle, or individual files.
+4. Report: read the cautious interpretation, save Human Review notes, record Quality Gate overrides, inspect Artifact Audit, and download the run README, full reproducibility bundle, or individual files.
 
 ## Tests
 

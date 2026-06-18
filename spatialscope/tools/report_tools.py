@@ -7,6 +7,7 @@ from jinja2 import Template
 
 from spatialscope.tools.base import ToolResult
 from spatialscope.utils.bundle import build_run_bundle
+from spatialscope.utils.artifact_audit import write_artifact_audit
 from spatialscope.utils.paths import public_state_copy, write_json, write_yaml_simple
 from spatialscope.utils.quality import build_quality_report
 from spatialscope.utils.run_readme import write_run_readme
@@ -365,7 +366,13 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
     manifest_path = run_dir / "artifact_manifest.json"
     write_json(manifest_path, manifest)
+    audit = write_artifact_audit(run_dir)
+    state["artifact_audit"] = audit
+    manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
+    write_json(manifest_path, manifest)
     bundle = build_run_bundle(run_dir)
+    audit = write_artifact_audit(run_dir)
+    state["artifact_audit"] = audit
     manifest = build_artifact_manifest(state, run_dir=run_dir, report_path=report_path)
     write_json(manifest_path, manifest)
     return ToolResult(
@@ -374,6 +381,7 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
         observations={
             "report_path": str(report_path),
             "run_readme_path": str(readme_path),
+            "artifact_audit_path": str(run_dir / "artifact_audit.json"),
             "artifact_manifest_path": str(manifest_path),
             "run_bundle_path": bundle["path"],
         },
