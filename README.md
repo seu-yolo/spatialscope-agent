@@ -151,6 +151,36 @@ Navigation:
 5. Report: read the final summary, preview/download the report, and export the reproducibility bundle.
 6. Provenance: inspect LLM status, telemetry, tool contracts, run library, and public state JSON.
 
+## Public Web Deployment
+
+`localhost:8501` is only visible on your own computer. To share a link that anyone
+can open, deploy the Streamlit app to a Python-hosting platform.
+
+Recommended path: Streamlit Community Cloud.
+
+1. Make sure the latest `main` branch is pushed to GitHub.
+2. Open Streamlit Community Cloud and create a new app from:
+   - Repository: `seu-yolo/spatialscope-agent`
+   - Branch: `main`
+   - Main file path: `app.py`
+3. In Advanced settings, choose Python `3.11`.
+4. Add secrets in the app settings. Do not commit these values to GitHub:
+
+```toml
+SPATIALSCOPE_LLM_PROVIDER = "openai_compatible"
+SPATIALSCOPE_LLM_API_KEY = "your_glm_api_key_here"
+SPATIALSCOPE_LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+SPATIALSCOPE_LLM_MODEL = "glm-5.1"
+SPATIALSCOPE_LLM_TIMEOUT_SECONDS = "15"
+```
+
+The repository already includes `environment.yml`, which Streamlit Community Cloud
+can use to install the Python dependencies. The deployed app will get a public
+`*.streamlit.app` URL.
+
+GitHub Pages is different: it can host the static project site in `docs/`, but it
+cannot run the interactive Streamlit/LangGraph/Scanpy backend by itself.
+
 ## Tests
 
 ```bash

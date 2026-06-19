@@ -9,6 +9,7 @@ __pycache__/
 .playwright-cli/
 
 .env
+.streamlit/secrets.toml
 .venv/
 venv/
 env/
