@@ -36,19 +36,27 @@ class FakeStructuredClient:
                     }
                 ],
             }
-        if "Answer the user's question" in content:
+        if "Answer the user's current question" in content:
             if "main caveat" in content:
                 return {
-                    "answer": "The main caveat is that this is exploratory figure evidence, not a cell-type call.",
+                    "direct_answer": "The main caveat is that this is exploratory figure evidence, not a cell-type call.",
+                    "observations": ["Evidence is limited to the selected figure."],
                     "evidence_ids": ["execute_tool:plot_gene_panel:figure:0"],
-                    "caveat": "No mechanism is inferred.",
+                    "caveats": ["No mechanism is inferred."],
                     "next_step": "Compare with marker tables.",
+                    "suggested_actions": [
+                        {"action_id": "open_markers", "type": "open_marker_table", "label": "Open marker table", "payload": {}}
+                    ],
                 }
             return {
-                "answer": "The selected gene view supports cautious spatial-expression review.",
+                "direct_answer": "The selected gene view supports cautious spatial-expression review.",
+                "observations": ["The answer is grounded in the selected gene panel."],
                 "evidence_ids": ["execute_tool:plot_gene_panel:figure:0"],
-                "caveat": "Bounded to the selected evidence.",
+                "caveats": ["Bounded to the selected evidence."],
                 "next_step": "Check cluster views.",
+                "suggested_actions": [
+                    {"action_id": "focus_cluster_2", "type": "highlight_cluster", "label": "Focus cluster 2", "payload": {"cluster": "2"}}
+                ],
             }
         return {
             "summary": "The selected evidence supports cautious spatial exploration.",
@@ -61,7 +69,7 @@ def _enable_mock_llm(monkeypatch) -> None:
     monkeypatch.setenv("SPATIALSCOPE_LLM_API_KEY", "sk-test")
     monkeypatch.setenv("SPATIALSCOPE_LLM_BASE_URL", "https://llm.example.test/v1")
     monkeypatch.setenv("SPATIALSCOPE_LLM_MODEL", "mock-structured")
-    monkeypatch.setenv("SPATIALSCOPE_DIRECT_LLM_PLAN", "1")
+    monkeypatch.setenv("SPATIALSCOPE_LLM_MODE", "full")
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
 

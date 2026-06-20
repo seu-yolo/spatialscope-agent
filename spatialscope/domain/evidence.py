@@ -27,11 +27,26 @@ class EvidencePack(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     evidence_id: str
-    kind: Literal["figure", "table", "metric", "text"]
+    kind: Literal[
+        "dataset",
+        "qc",
+        "cluster",
+        "gene",
+        "selection",
+        "marker",
+        "svg",
+        "neighborhood",
+        "figure",
+        "table",
+        "metric",
+        "text",
+    ]
     title: str
     tool: str = ""
     path: str = ""
-    data_layer: str = ""
+    data_layer: str | None = ""
+    figure_ids: list[str] = Field(default_factory=list)
+    table_ids: list[str] = Field(default_factory=list)
     caption: str = ""
     summary_metrics: dict[str, Any] = Field(default_factory=dict)
     table_excerpt: list[dict[str, Any]] = Field(default_factory=list)
@@ -71,6 +86,66 @@ class ScientificFinding(BaseModel):
     confidence: float = Field(default=0.5, ge=0, le=1)
     source: Literal["llm", "fallback", "tool"] = "fallback"
     suggested_next_step: str = ""
+    review_status: Literal["unreviewed", "accepted", "edited", "rejected"] = "unreviewed"
+
+
+class UIAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: str
+    type: Literal[
+        "set_gene",
+        "highlight_cluster",
+        "set_expression_source",
+        "select_observations",
+        "clear_selection",
+        "open_marker_table",
+        "run_svg",
+        "run_neighborhood",
+        "compare_gene",
+        "add_finding_to_report",
+    ]
+    label: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class CopilotContext(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    research_question: str = ""
+    selected_gene: str | None = None
+    selected_cluster: str | None = None
+    selected_obs_ids: list[str] = Field(default_factory=list)
+    expression_source: str | None = None
+    clip_percentiles: tuple[float, float] = (1.0, 99.0)
+    active_view: str = "gene"
+    evidence_packs: list[EvidencePack] = Field(default_factory=list)
+    recent_turns: list[dict[str, str]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class CopilotAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    direct_answer: str
+    observations: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    suggested_actions: list[UIAction] = Field(default_factory=list)
+    source: Literal["llm", "fallback", "mock"] = "fallback"
+
+
+class ConversationTurn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    turn_id: str
+    role: Literal["user", "assistant", "system"]
+    stage: Literal["project", "plan", "run", "explore", "report"]
+    content: str
+    source: Literal["user", "llm", "fallback", "tool"]
+    evidence_ids: list[str] = Field(default_factory=list)
+    ui_actions: list[UIAction] = Field(default_factory=list)
+    created_at: str
 
 
 def validate_claim_evidence(claims: list[EvidenceClaim], artifacts: list[EvidenceArtifact]) -> None:
@@ -98,6 +173,10 @@ DEFINITIVE_LANGUAGE = [
     "causes",
     "causal",
     "establishes mechanism",
+    "证明",
+    "确定说明",
+    "因果导致",
+    "揭示机制",
 ]
 
 

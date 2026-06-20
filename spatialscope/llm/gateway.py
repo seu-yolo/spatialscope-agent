@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from spatialscope.agent.llm import LLMClient, llm_config_status
-from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, merge_with_mode_baseline
+from spatialscope.agent.planner import fallback_parse_query, make_analysis_plan, validate_plan_steps
 from spatialscope.domain.evidence import (
+    CopilotAnswer,
+    UIAction,
     EvidenceArtifact,
     EvidenceClaim,
     EvidencePack,
     ScientificFinding,
+    flag_unsupported_definitive_language,
     validate_claim_evidence,
     validate_finding_evidence,
 )
@@ -34,6 +36,10 @@ def _safe_config(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     return {
         "provider": status.get("provider"),
         "enabled": status.get("enabled"),
+        "requested_mode": status.get("requested_mode"),
+        "active_mode": status.get("active_mode"),
+        "mode_label": status.get("mode_label"),
+        "mode_reason": status.get("mode_reason"),
         "model": status.get("model"),
         "timeout_seconds": status.get("timeout_seconds"),
         "missing": status.get("missing", []),
@@ -60,59 +66,6 @@ def _question_focus(question: str) -> str:
     return "general"
 
 
-def _focus_frame(
-    *,
-    focus: str,
-    title: str,
-    layer: str,
-    table_text: str,
-    warning_count: int,
-) -> tuple[str, str, str]:
-    if focus == "marker_risk":
-        return (
-            "For marker interpretation, the selected evidence should be treated as a guardrail: it can show whether QC "
-            f"context is available for `{title}`, but it does not by itself validate marker ranking, cell identity, or "
-            "biological mechanism. Marker claims should remain blocked or cautious unless the run has a safe expression "
-            f"source (`{layer}`) plus linked marker tables.",
-            "QC and figure/table evidence bound marker interpretation; they do not prove cell types or mechanisms.",
-            "Open the marker table and expression-source record, then compare marker ranking with spatial and UMAP views.",
-        )
-    if focus == "caveat":
-        return (
-            f"The uncertainty is that `{title}` is selected evidence from `{layer}` rather than a definitive biological "
-            f"claim. It should be interpreted with run warnings ({warning_count}) and linked tables ({table_text}).",
-            "Grounded only in selected evidence, captions, table previews, and run warnings.",
-            "Check whether the same signal appears in an independent linked figure or table.",
-        )
-    if focus == "gene_expression":
-        return (
-            f"For gene expression, `{title}` supports only a cautious spatial-expression read using `{layer}`. It does "
-            "not infer mechanisms, cell identities, or unobserved genes beyond the selected evidence.",
-            "Gene-level claims depend on gene matching and the recorded expression source.",
-            "Compare the gene panel with marker ranking and cluster-colored spatial views.",
-        )
-    if focus == "spatial_structure":
-        return (
-            f"For spatial structure, `{title}` can support comparison between spatial organization and embedding/table "
-            f"evidence ({table_text}), while keeping the selected palette and warnings visible.",
-            "Spatial/UMAP agreement is exploratory and does not establish biological annotation by itself.",
-            "Inspect linked Spatial and UMAP views side by side, then verify with marker evidence.",
-        )
-    if focus == "qc":
-        return (
-            f"For QC, `{title}` supports review of quality distributions and table summaries ({table_text}) before "
-            "downstream interpretation.",
-            "QC evidence supports data-quality review, not biological interpretation on its own.",
-            "Inspect threshold choices and outliers before trusting downstream marker or spatial patterns.",
-        )
-    return (
-        f"`{title}` is the selected evidence context. It can be used to compare figures, tables ({table_text}), and "
-        "warnings without claiming more than the run produced.",
-        "Grounded only in selected evidence, captions, table previews, and run warnings.",
-        "Ask a narrower question about a cluster, gene, caveat, or table row.",
-    )
-
-
 def _pack_metric_lines(pack: EvidencePack, *, limit: int = 4) -> list[str]:
     lines: list[str] = []
     for key, value in pack.summary_metrics.items():
@@ -137,6 +90,166 @@ def _first_pack(packs: list[EvidencePack], *tools: str) -> EvidencePack | None:
 def _pack_ids(packs: list[EvidencePack], *tools: str) -> list[str]:
     wanted = set(tools)
     return list(dict.fromkeys(pack.evidence_id for pack in packs if pack.tool in wanted))
+
+
+def _context_packs(context: dict[str, Any]) -> list[EvidencePack]:
+    packs: list[EvidencePack] = []
+    for item in context.get("evidence_packs", []) or []:
+        try:
+            packs.append(item if isinstance(item, EvidencePack) else EvidencePack.model_validate(item))
+        except Exception:
+            continue
+    return packs
+
+
+def _first_context_pack(packs: list[EvidencePack], kind: str) -> EvidencePack | None:
+    return next((pack for pack in packs if pack.kind == kind), None)
+
+
+def _fallback_contextual_answer(
+    *,
+    context: dict[str, Any],
+    question: str,
+    evidence_ids: list[str],
+    focus: str,
+) -> dict[str, Any]:
+    packs = _context_packs(context)
+    gene_pack = _first_context_pack(packs, "gene")
+    cluster_pack = _first_context_pack(packs, "cluster")
+    selection_pack = _first_context_pack(packs, "selection")
+    q = question.lower()
+    observations: list[str] = []
+    caveats: list[str] = []
+    actions: list[UIAction] = []
+    direct = "规则解释（未调用外部 LLM）：当前回答只使用已生成的结构化证据。"
+
+    if gene_pack and any(term in q for term in ["最高", "highest", "top", "cluster", "聚类", "平均"]):
+        metrics = gene_pack.summary_metrics
+        top = (metrics.get("top_clusters_by_mean") or [None])[0]
+        by_cluster = metrics.get("by_cluster") or {}
+        resolved = metrics.get("resolved_gene") or metrics.get("requested_gene") or context.get("selected_gene") or "selected gene"
+        if top is not None and str(top) in by_cluster:
+            top_stats = by_cluster[str(top)]
+            mean_value = top_stats.get("mean")
+            nonzero = top_stats.get("nonzero_fraction")
+            direct = f"规则解释（未调用外部 LLM）：{resolved} 平均表达最高的是 cluster {top}，mean={mean_value}。"
+            observations.append(f"cluster {top}: mean={mean_value}, nonzero_fraction={nonzero}")
+            actions.append(
+                UIAction(
+                    action_id=f"focus_cluster_{top}",
+                    type="highlight_cluster",
+                    label=f"高亮 cluster {top}",
+                    payload={"cluster": str(top)},
+                )
+            )
+
+    if selection_pack and any(term in q for term in ["选择", "selected", "区域", "selection", "全局", "global", "差异"]):
+        metrics = selection_pack.summary_metrics
+        selected_count = metrics.get("selected_count")
+        selected_mean = metrics.get("selected_mean")
+        global_mean = metrics.get("global_mean")
+        delta = metrics.get("selected_minus_global_mean")
+        composition = metrics.get("cluster_composition") or {}
+        direct = (
+            "规则解释（未调用外部 LLM）：当前选择区域包含 "
+            f"{selected_count} 个 observations；selected_mean={selected_mean}, global_mean={global_mean}, 差值={delta}。"
+        )
+        observations.append(f"cluster composition: {composition}")
+        observations.append(f"selected/global mean difference: {delta}")
+        actions.append(UIAction(action_id="clear_selection", type="clear_selection", label="清除选择", payload={}))
+
+    if any(term in q for term in ["局限", "limitation", "caveat", "风险", "可靠"]):
+        relevant = gene_pack or selection_pack or cluster_pack or (packs[0] if packs else None)
+        caveats = list(relevant.caveats if relevant else [])
+        direct = (
+            "规则解释（未调用外部 LLM）：主要局限是这些观察来自当前视图和证据包，"
+            "受表达来源、基因匹配、clipping 和选择区域影响。"
+        )
+        if caveats:
+            observations.append(caveats[0])
+
+    if any(term in q for term in ["下一步", "next", "worth", "运行", "分析"]):
+        direct = "规则解释（未调用外部 LLM）：下一步最值得做的是围绕当前信号补充一个可验证的证据层。"
+        if gene_pack:
+            resolved = str(gene_pack.summary_metrics.get("resolved_gene") or context.get("selected_gene") or "")
+            observations.append(f"当前 gene evidence: {resolved}")
+            actions.append(UIAction(action_id="run_svg", type="run_svg", label="运行 SVG", payload={"gene": resolved}))
+        if cluster_pack:
+            cluster = str(cluster_pack.summary_metrics.get("cluster") or context.get("selected_cluster") or "")
+            actions.append(
+                UIAction(
+                    action_id="run_neighborhood",
+                    type="run_neighborhood",
+                    label="运行 neighborhood",
+                    payload={"cluster": cluster},
+                )
+            )
+
+    if not actions:
+        actions.append(UIAction(action_id="clear_selection", type="clear_selection", label="清除选择", payload={}))
+    actions.append(UIAction(action_id="add_to_report", type="add_finding_to_report", label="加入报告", payload={}))
+    if not caveats:
+        caveats = [
+            "解释只基于当前 EvidencePack 的数值摘要；没有使用原始矩阵、完整坐标或外部生物学事实。",
+            "空间表达趋势不能单独证明机制或细胞类型。",
+        ]
+    if not observations and packs:
+        observations = _pack_metric_lines(packs[0], limit=3)
+    return CopilotAnswer(
+        direct_answer=direct,
+        observations=observations[:4],
+        evidence_ids=evidence_ids,
+        caveats=caveats[:3],
+        suggested_actions=actions[:4],
+        source="fallback",
+    ).model_dump()
+
+
+def _policy_quantitative_override(
+    *,
+    context: dict[str, Any],
+    question: str,
+) -> dict[str, Any] | None:
+    packs = _context_packs(context)
+    gene_pack = _first_context_pack(packs, "gene")
+    selection_pack = _first_context_pack(packs, "selection")
+    q = question.lower()
+    if gene_pack and any(term in q for term in ["最高", "highest", "top", "cluster", "聚类", "平均"]):
+        metrics = gene_pack.summary_metrics
+        top = (metrics.get("top_clusters_by_mean") or [None])[0]
+        by_cluster = metrics.get("by_cluster") or {}
+        resolved = metrics.get("resolved_gene") or metrics.get("requested_gene") or context.get("selected_gene") or "selected gene"
+        if top is not None and str(top) in by_cluster:
+            stats = by_cluster[str(top)]
+            mean_value = stats.get("mean")
+            nonzero = stats.get("nonzero_fraction")
+            return {
+                "direct_answer": f"{resolved} 平均表达最高的是 cluster {top}，mean={mean_value}。",
+                "observations": [f"cluster {top}: mean={mean_value}, nonzero_fraction={nonzero}"],
+                "actions": [
+                    UIAction(
+                        action_id=f"focus_cluster_{top}",
+                        type="highlight_cluster",
+                        label=f"高亮 cluster {top}",
+                        payload={"cluster": str(top)},
+                    )
+                ],
+            }
+    if selection_pack and any(term in q for term in ["选择", "selected", "区域", "selection", "全局", "global", "差异"]):
+        metrics = selection_pack.summary_metrics
+        return {
+            "direct_answer": (
+                f"当前选择区域包含 {metrics.get('selected_count')} 个 observations；"
+                f"selected_mean={metrics.get('selected_mean')}, global_mean={metrics.get('global_mean')}, "
+                f"差值={metrics.get('selected_minus_global_mean')}。"
+            ),
+            "observations": [
+                f"cluster composition: {metrics.get('cluster_composition') or {}}",
+                f"selected/global mean difference: {metrics.get('selected_minus_global_mean')}",
+            ],
+            "actions": [UIAction(action_id="clear_selection", type="clear_selection", label="清除选择", payload={})],
+        }
+    return None
 
 
 def _compact_tool_contracts(tool_contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -357,7 +470,11 @@ class LLMGateway:
     @property
     def enabled(self) -> bool:
         status = llm_config_status()
-        return bool(status.get("enabled") and self.client.enabled)
+        return bool(status.get("active_mode") == "full" and status.get("enabled") and self.client.enabled)
+
+    @property
+    def active_mode(self) -> str:
+        return str(self.safe_status().get("active_mode") or "fallback")
 
     def safe_status(self) -> dict[str, Any]:
         return _safe_config()
@@ -441,10 +558,18 @@ class LLMGateway:
         parsed = fallback_parse_query(query, mode)  # type: ignore[arg-type]
         brief = ResearchBrief(
             normalized_question=query.strip(),
+            research_goals=parsed.get("requested_steps", []),
             requested_analyses=parsed.get("requested_steps", []),
             requested_genes=parsed.get("genes", []),
             user_constraints=parsed.get("constraints", []),
+            dataset_facts=[
+                f"observations={safe_profile.get('n_obs', 'NA')}",
+                f"genes={safe_profile.get('n_vars', 'NA')}",
+                f"spatial={safe_profile.get('has_spatial', False)}",
+                f"matrix_state={safe_profile.get('matrix_state', 'unknown')}",
+            ],
             dataset_assumptions=safe_profile.get("scientific_warnings", []),
+            clarification_required=False,
             confidence=float(parsed.get("confidence", 0.35)),
             source="fallback",
         )
@@ -476,38 +601,6 @@ class LLMGateway:
             "n_tools": len(tool_contracts),
         }
         safe_profile = _safe_for_llm(dataset_profile)
-        direct_llm_plan = os.getenv("SPATIALSCOPE_DIRECT_LLM_PLAN", "").lower() in {"1", "true", "yes"}
-        if self.enabled and not direct_llm_plan:
-            parsed = {
-                "genes": brief.requested_genes,
-                "requested_steps": brief.requested_analyses,
-                "intent": brief.normalized_question,
-            }
-            legacy_plan = make_analysis_plan(parsed, mode, dataset_summary=dataset_profile)  # type: ignore[arg-type]
-            plan = V2AnalysisPlan(
-                research_question=brief.normalized_question,
-                profile_summary=dataset_profile,
-                assumptions=brief.dataset_assumptions,
-                rationale=(
-                    "LLM parsed the research question; deterministic baseline planner produced a validated, "
-                    "mode-appropriate tool plan for latency and safety."
-                ),
-                steps=[V2PlanStep.model_validate(step.model_dump()) for step in legacy_plan.steps],
-                source="llm_brief_baseline" if brief.source == "llm" else "fallback",
-                model_metadata=self.safe_status(),
-                warnings=["Direct LLM plan generation is disabled by default; set SPATIALSCOPE_DIRECT_LLM_PLAN=1 to enable."],
-                mode=mode,  # type: ignore[arg-type]
-            )
-            self._record(
-                purpose="propose_plan",
-                started_at=started,
-                success=True,
-                schema="V2AnalysisPlan",
-                validation="llm_brief_baseline",
-                input_summary=input_summary,
-                fallback_reason="direct_llm_plan_disabled_for_latency",
-            )
-            return plan
         if self.enabled:
             try:
                 payload = self.client.complete_json(
@@ -525,17 +618,10 @@ class LLMGateway:
                     ]
                 )
                 plan = V2AnalysisPlan.model_validate({**payload, "source": "llm", "mode": mode})
-                parsed_for_baseline = {
-                    "genes": brief.requested_genes,
-                    "requested_steps": brief.requested_analyses,
-                    "intent": brief.normalized_question,
-                }
-                merged_steps = merge_with_mode_baseline(
-                    [step.model_dump() for step in plan.steps],
-                    parsed_for_baseline,
-                    mode,  # type: ignore[arg-type]
-                )
-                plan.steps = [V2PlanStep.model_validate(step) for step in merged_steps]
+                validated_steps = validate_plan_steps([step.model_dump() for step in plan.steps])
+                if not validated_steps:
+                    raise ValueError("LLM returned an empty validated plan.")
+                plan.steps = [V2PlanStep.model_validate(step) for step in validated_steps]
                 self._record(
                     purpose="propose_plan",
                     started_at=started,
@@ -659,22 +745,6 @@ class LLMGateway:
         safe_profile = _safe_for_llm(dataset_profile or {})
         safe_packs = [_compact_pack_for_llm(pack) for pack in packs[:18]]
         input_summary = {"packs": len(packs), "warnings": len(warnings or []), "query_chars": len(query)}
-        direct_llm_findings = os.getenv("SPATIALSCOPE_DIRECT_LLM_FINDINGS", "").lower() in {"1", "true", "yes"}
-        if self.enabled and not direct_llm_findings:
-            findings = _fallback_findings(evidence_packs=packs, dataset_profile=dataset_profile, warnings=warnings)
-            for finding in findings:
-                finding.source = "tool"
-            self._record(
-                purpose="synthesize_findings",
-                started_at=started,
-                success=True,
-                schema="ScientificFinding[]",
-                validation="tool_evidence_synthesis",
-                input_summary=input_summary,
-                fallback_reason="direct_llm_findings_disabled_for_latency",
-            )
-            validate_finding_evidence(findings, packs)
-            return findings
         if self.enabled:
             try:
                 payload = self.client.complete_json(
@@ -884,30 +954,25 @@ class LLMGateway:
         question: str = "Explain this view",
         conversation_memory: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        title = context.get("title") or context.get("figure") or "selected evidence"
-        layer = context.get("data_layer") or context.get("layer") or "selected expression layer"
-        tables = context.get("selected_table_titles") or []
-        warning_count = len(context.get("warnings") or [])
-        table_text = ", ".join(map(str, tables[:4])) if tables else "no selected tables"
         evidence_ids = [str(item) for item in context.get("evidence_ids", []) if str(item)]
         focus = _question_focus(question)
-        focus_answer, focus_caveat, focus_next_step = _focus_frame(
-            focus=focus,
-            title=str(title),
-            layer=str(layer),
-            table_text=table_text,
-            warning_count=warning_count,
-        )
         started = now_iso()
         schema = {
             "type": "object",
             "properties": {
+                "direct_answer": {"type": "string"},
                 "answer": {"type": "string"},
+                "observations": {"type": "array", "items": {"type": "string"}},
                 "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                "caveats": {"type": "array", "items": {"type": "string"}},
                 "caveat": {"type": "string"},
                 "next_step": {"type": "string"},
+                "suggested_actions": {
+                    "type": "array",
+                    "items": UIAction.model_json_schema(),
+                },
             },
-            "required": ["answer", "evidence_ids", "caveat"],
+            "required": ["evidence_ids"],
         }
         safe_context = _safe_for_llm(context)
         if self.enabled:
@@ -933,13 +998,55 @@ class LLMGateway:
                 used_ids = [evidence_id for evidence_id in used_ids if evidence_id in selected_set]
                 if not used_ids and evidence_ids:
                     used_ids = evidence_ids
-                answer = {
-                    "answer": str(payload.get("answer") or "").strip(),
+                direct = str(payload.get("direct_answer") or payload.get("answer") or "").strip()
+                caveats = [str(item).strip() for item in payload.get("caveats", []) if str(item).strip()]
+                if not caveats and payload.get("caveat"):
+                    caveats = [str(payload.get("caveat"))]
+                flagged = flag_unsupported_definitive_language(direct)
+                if flagged:
+                    caveats.append(
+                        "回答包含可能过度确定的措辞，界面已将其标记为需要谨慎复核："
+                        + ", ".join(flagged[:4])
+                    )
+                actions: list[UIAction] = []
+                for item in payload.get("suggested_actions", []) or []:
+                    try:
+                        actions.append(UIAction.model_validate(item))
+                    except Exception:
+                        continue
+                policy = _policy_quantitative_override(context=context, question=question)
+                if policy and (
+                    not direct
+                    or any(term in direct for term in ["无法确定", "不能确定", "无法判断", "not determine", "cannot determine"])
+                ):
+                    direct = str(policy["direct_answer"])
+                    actions = [*policy.get("actions", []), *actions]
+                    payload["observations"] = [*policy.get("observations", []), *payload.get("observations", [])]
+                    caveats.append("直接数值结论由 deterministic EvidencePack policy 校正，LLM 只负责解释语境。")
+                if not any(action.type == "add_finding_to_report" for action in actions):
+                    actions.append(
+                        UIAction(
+                            action_id="add_to_report",
+                            type="add_finding_to_report",
+                            label="加入报告",
+                            payload={},
+                        )
+                    )
+                answer = CopilotAnswer(
+                    direct_answer=direct,
+                    observations=[str(item).strip() for item in payload.get("observations", []) if str(item).strip()],
+                    evidence_ids=used_ids,
+                    caveats=caveats
+                    or ["回答只使用当前选择的 EvidencePack；没有访问原始矩阵、完整坐标或未提供的外部事实。"],
+                    suggested_actions=actions,
+                    source="llm",
+                ).model_dump()
+                answer.update({
+                    "answer": direct,
                     "evidence_ids": used_ids,
-                    "caveat": str(payload.get("caveat") or focus_caveat).strip(),
-                    "next_step": str(payload.get("next_step") or focus_next_step).strip(),
-                    "source": "llm",
-                }
+                    "caveat": (caveats[0] if caveats else "回答只使用当前证据上下文。"),
+                    "next_step": str(payload.get("next_step") or "").strip(),
+                })
                 if not answer["answer"]:
                     raise ValueError("LLM returned an empty copilot answer.")
                 self._record(
@@ -971,10 +1078,12 @@ class LLMGateway:
             input_summary={"evidence_ids": evidence_ids, "question_chars": len(question)},
             fallback_reason="" if self.enabled else "llm_disabled",
         )
-        return {
-            "answer": focus_answer,
-            "evidence_ids": evidence_ids,
-            "caveat": focus_caveat,
-            "next_step": focus_next_step,
-            "source": "fallback",
-        }
+        answer = _fallback_contextual_answer(context=context, question=question, evidence_ids=evidence_ids, focus=focus)
+        answer.update(
+            {
+                "answer": answer.get("direct_answer", ""),
+                "caveat": (answer.get("caveats") or ["规则解释只使用当前证据。"])[0],
+                "next_step": "切换 gene、cluster 或选择区域后重新提问。",
+            }
+        )
+        return answer

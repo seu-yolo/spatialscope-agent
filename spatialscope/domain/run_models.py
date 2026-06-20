@@ -11,17 +11,31 @@ class ResearchBrief(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     normalized_question: str
+    research_goals: list[str] = Field(default_factory=list)
     requested_analyses: list[str] = Field(default_factory=list)
     requested_genes: list[str] = Field(default_factory=list)
     requested_comparisons: list[str] = Field(default_factory=list)
     user_constraints: list[str] = Field(default_factory=list)
+    dataset_facts: list[str] = Field(default_factory=list)
     dataset_assumptions: list[str] = Field(default_factory=list)
     ambiguities: list[str] = Field(default_factory=list)
     unsupported_requests: list[str] = Field(default_factory=list)
+    clarification_required: bool = False
     confidence: float = Field(default=0.5, ge=0, le=1)
     source: Literal["llm", "fallback", "mock"] = "fallback"
 
-    @field_validator("requested_analyses", "requested_genes", "requested_comparisons", "user_constraints", "dataset_assumptions", "ambiguities", "unsupported_requests", mode="before")
+    @field_validator(
+        "research_goals",
+        "requested_analyses",
+        "requested_genes",
+        "requested_comparisons",
+        "user_constraints",
+        "dataset_facts",
+        "dataset_assumptions",
+        "ambiguities",
+        "unsupported_requests",
+        mode="before",
+    )
     @classmethod
     def _listify(cls, value: Any) -> list[str]:
         if value is None:
@@ -33,10 +47,38 @@ class ResearchBrief(BaseModel):
         return []
 
 
+class ClarificationChoice(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    value: str
+    label: str
+    evidence: str = ""
+
+
+class ClarificationRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    clarification_id: str
+    type: Literal[
+        "gene_resolution",
+        "expression_source",
+        "missing_spatial",
+        "ambiguous_parameter",
+        "unsafe_repair",
+        "unsupported_request",
+    ]
+    question: str
+    reason: str
+    choices: list[ClarificationChoice] = Field(default_factory=list)
+    recommended_value: str | None = None
+    blocking: bool = True
+
+
 class V2PlanStep(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: str
+    user_visible_title: str = ""
     tool: str
     scientific_purpose: str = ""
     dependencies: list[str] = Field(default_factory=list)
@@ -52,6 +94,8 @@ class V2PlanStep(BaseModel):
     def _fill_rationale(self) -> "V2PlanStep":
         if not self.rationale:
             self.rationale = self.scientific_purpose
+        if not self.user_visible_title:
+            self.user_visible_title = self.tool
         return self
 
 

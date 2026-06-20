@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -14,6 +16,14 @@ import streamlit as st
 from spatialscope.agent.llm import llm_config_status, smoke_test_llm
 from spatialscope.domain.dataset_store import DEFAULT_DATASET_STORE
 from spatialscope.domain.expression_lineage import infer_matrix_state
+from spatialscope.domain.exploration_evidence import (
+    expression_vector,
+    resolve_gene,
+    safe_expression_sources,
+    summarize_cluster,
+    summarize_gene,
+    summarize_selection,
+)
 from spatialscope.llm.context import context_for_copilot
 from spatialscope.llm.gateway import LLMGateway
 from spatialscope.tools.registry import tool_contract_summary
@@ -23,6 +33,7 @@ from spatialscope.utils.dataset_card import build_dataset_card
 from spatialscope.utils.gene_matching import match_gene_name
 from spatialscope.utils.run_index import discover_runs
 from spatialscope.visualization.theme import CLUSTER_PALETTE, numeric_sort_key
+from spatialscope.ui.actions import apply_ui_action, ensure_explore_state
 
 from .helpers import read_table_preview, safe_json_download_payload
 
@@ -33,6 +44,22 @@ ACKNOWLEDGEMENTS = [
     "We also thank Teaching Assistant Binyu Gao for guidance and support throughout the course project.",
     "This agent was built as an open, reproducible spatial transcriptomics analysis system.",
 ]
+
+GENE_TOKEN_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]{0,20}\b")
+QUESTION_STOPWORDS = {
+    "cluster",
+    "clusters",
+    "mean",
+    "average",
+    "expression",
+    "spatial",
+    "umap",
+    "gene",
+    "genes",
+    "highest",
+    "global",
+    "selected",
+}
 
 
 def chip(label: str, tone: str = "neutral") -> str:
@@ -449,20 +476,32 @@ def _cluster_scatter(
     title: str,
     palette: dict[str, str],
     point_size: int,
+    obs_ids: list[str],
+    selected_cluster: str = "",
+    selected_obs_ids: list[str] | None = None,
     spatial: bool = False,
 ) -> go.Figure:
     fig = go.Figure()
     categories = sorted(labels.astype(str).unique(), key=numeric_sort_key)
+    selected_obs = set(map(str, selected_obs_ids or []))
     for category in categories:
         mask = np.asarray(labels.astype(str) == category)
+        trace_obs = np.asarray(obs_ids)[mask]
+        selectedpoints = [i for i, obs in enumerate(trace_obs) if str(obs) in selected_obs]
+        focus_active = bool(selected_cluster)
+        opacity = 0.92 if not focus_active or str(category) == str(selected_cluster) else 0.14
         fig.add_trace(
             go.Scattergl(
                 x=coords[mask, 0],
                 y=coords[mask, 1],
                 mode="markers",
                 name=str(category),
-                marker={"size": point_size, "color": palette[str(category)], "opacity": 0.86, "line": {"width": 0}},
-                hovertemplate="group=%{fullData.name}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
+                customdata=trace_obs,
+                selectedpoints=selectedpoints if selectedpoints else None,
+                selected={"marker": {"opacity": 1.0, "size": point_size + 3}},
+                unselected={"marker": {"opacity": opacity}},
+                marker={"size": point_size, "color": palette[str(category)], "opacity": opacity, "line": {"width": 0}},
+                hovertemplate="obs=%{customdata}<br>group=%{fullData.name}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
             )
         )
     fig.update_layout(
@@ -487,17 +526,26 @@ def _expression_scatter(
     values: np.ndarray,
     title: str,
     point_size: int,
+    obs_ids: list[str],
+    selected_obs_ids: list[str] | None = None,
+    clip_percentiles: tuple[float, float] = (1.0, 99.0),
     spatial: bool = False,
 ) -> go.Figure:
     finite = values[np.isfinite(values)]
     if len(finite):
-        lo, hi = np.percentile(finite, [1, 99])
+        lo, hi = np.percentile(finite, clip_percentiles)
         values = np.clip(values, lo, hi)
+    selected_obs = set(map(str, selected_obs_ids or []))
+    selectedpoints = [i for i, obs in enumerate(obs_ids) if str(obs) in selected_obs]
     fig = go.Figure(
         go.Scattergl(
             x=coords[:, 0],
             y=coords[:, 1],
             mode="markers",
+            customdata=obs_ids,
+            selectedpoints=selectedpoints if selectedpoints else None,
+            selected={"marker": {"opacity": 1.0, "size": point_size + 3}},
+            unselected={"marker": {"opacity": 0.9 if not selectedpoints else 0.16}},
             marker={
                 "size": point_size,
                 "color": values,
@@ -507,7 +555,7 @@ def _expression_scatter(
                 "opacity": 0.9,
                 "line": {"width": 0},
             },
-            hovertemplate="expr=%{marker.color:.3g}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
+            hovertemplate="obs=%{customdata}<br>expr=%{marker.color:.3g}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -525,7 +573,197 @@ def _expression_scatter(
     return fig
 
 
+def _format_metric(value: Any) -> str:
+    if value is None:
+        return "NA"
+    if isinstance(value, float):
+        if abs(value) < 1:
+            return f"{value:.3f}"
+        return f"{value:.2f}"
+    return str(value)
+
+
+def _plotly_selection_event(fig: go.Figure, *, key: str) -> Any:
+    try:
+        return st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=key,
+            on_select="rerun",
+            selection_mode=("points", "box", "lasso"),
+        )
+    except TypeError:
+        st.plotly_chart(fig, use_container_width=True, key=key)
+        return None
+
+
+def _selected_obs_from_event(event: Any) -> list[str]:
+    if not event:
+        return []
+    payload = event
+    if hasattr(payload, "selection"):
+        payload = payload.selection
+    if isinstance(payload, dict) and "selection" in payload:
+        payload = payload.get("selection")
+    points: Any = []
+    if isinstance(payload, dict):
+        points = payload.get("points") or []
+    elif hasattr(payload, "points"):
+        points = getattr(payload, "points")
+    obs_ids: list[str] = []
+    for point in points or []:
+        custom = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+        if isinstance(custom, (list, tuple, np.ndarray)):
+            custom = custom[0] if len(custom) else None
+        if custom is not None and str(custom):
+            obs_ids.append(str(custom))
+    return list(dict.fromkeys(obs_ids))
+
+
+def _runtime_gateway() -> LLMGateway:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except Exception:
+        pass
+    runtime = st.session_state.get("agent_runtime")
+    gateway = getattr(runtime, "llm_gateway", None)
+    status = llm_config_status()
+    if isinstance(gateway, LLMGateway) and (gateway.client.enabled or not status.get("enabled")):
+        return gateway
+    gateway = LLMGateway.from_env()
+    if runtime is not None:
+        try:
+            runtime.llm_gateway = gateway
+        except Exception:
+            pass
+    return gateway
+
+
+def _metric_strip_html(items: list[tuple[str, Any]]) -> str:
+    cards = "".join(
+        "<div class='ss-strip-item'>"
+        f"<span>{html.escape(label)}</span>"
+        f"<strong>{html.escape(_format_metric(value))}</strong>"
+        "</div>"
+        for label, value in items
+    )
+    return f"<div class='ss-evidence-strip'>{cards}</div>"
+
+
+def _gene_metric_items(gene_pack: Any, selection_pack: Any | None) -> list[tuple[str, Any]]:
+    metrics = getattr(gene_pack, "summary_metrics", {}) or {}
+    global_stats = metrics.get("global") or {}
+    top = (metrics.get("top_clusters_by_mean") or ["NA"])[0]
+    by_cluster = metrics.get("by_cluster") or {}
+    top_stats = by_cluster.get(str(top), {}) if top != "NA" else {}
+    items: list[tuple[str, Any]] = [
+        ("Gene mean", global_stats.get("mean")),
+        ("Top cluster", top),
+        ("Top mean", top_stats.get("mean")),
+        ("Non-zero", global_stats.get("nonzero_fraction")),
+    ]
+    if selection_pack is not None:
+        selection_metrics = getattr(selection_pack, "summary_metrics", {}) or {}
+        items.extend(
+            [
+                ("Selected spots", selection_metrics.get("selected_count")),
+                ("Selected/global", selection_metrics.get("selected_minus_global_mean")),
+            ]
+        )
+    return items[:6]
+
+
+def _cluster_metric_items(cluster_pack: Any | None, selection_pack: Any | None) -> list[tuple[str, Any]]:
+    if cluster_pack is None:
+        return [("Cluster", "all"), ("Selected spots", len(st.session_state.get("selected_obs_ids", [])))]
+    metrics = getattr(cluster_pack, "summary_metrics", {}) or {}
+    items: list[tuple[str, Any]] = [
+        ("Cluster", metrics.get("cluster")),
+        ("Cluster size", metrics.get("cluster_size")),
+        ("Cluster fraction", metrics.get("cluster_fraction")),
+        ("Selected in cluster", metrics.get("selected_count")),
+    ]
+    if selection_pack is not None:
+        selection_metrics = getattr(selection_pack, "summary_metrics", {}) or {}
+        items.append(("Selected spots", selection_metrics.get("selected_count")))
+    return items[:6]
+
+
+def _marker_excerpt(state: dict[str, Any], cluster: str) -> list[dict[str, Any]]:
+    if not cluster:
+        return []
+    for table in state.get("generated_tables", []):
+        title = str(table.get("title") or table.get("path") or "").lower()
+        if "marker" not in title:
+            continue
+        preview = read_table_preview(str(table.get("path") or ""), n=80)
+        if preview is None or preview.empty:
+            continue
+        columns = {str(column).lower(): column for column in preview.columns}
+        cluster_col = columns.get("cluster") or columns.get("group") or columns.get("leiden")
+        if cluster_col is not None:
+            preview = preview[preview[cluster_col].astype(str) == str(cluster)]
+        if preview.empty:
+            continue
+        return preview.head(5).to_dict(orient="records")
+    return []
+
+
+def _gene_mentioned_in_question(question: str, adata: Any) -> str:
+    var_names = list(map(str, adata.var_names))
+    for token in GENE_TOKEN_RE.findall(question):
+        if token.lower() in QUESTION_STOPWORDS:
+            continue
+        match = match_gene_name(token, var_names)
+        score = float(match.get("score") or 0)
+        matched = str(match.get("match") or "")
+        if matched and (matched.lower() == token.lower() or score >= 90):
+            return matched
+    return ""
+
+
+def _local_region_obs_ids(coords: np.ndarray, obs_ids: list[str]) -> list[str]:
+    if len(coords) == 0:
+        return []
+    x = coords[:, 0]
+    y = coords[:, 1]
+    x_cut = np.percentile(x, 38)
+    y_low, y_high = np.percentile(y, [28, 72])
+    mask = (x <= x_cut) & (y >= y_low) & (y <= y_high)
+    selected = [obs for obs, keep in zip(obs_ids, mask) if bool(keep)]
+    return selected[:180]
+
+
+def _render_pack_summary(pack: Any) -> None:
+    if pack is None:
+        return
+    metrics = getattr(pack, "summary_metrics", {}) or {}
+    caveats = getattr(pack, "caveats", []) or []
+    st.markdown(
+        (
+            "<div class='ss-evidence-note'>"
+            f"<div class='ss-mini-label'>Evidence ID</div>"
+            f"<div class='ss-run-path'>{html.escape(str(getattr(pack, 'evidence_id', '')))}</div>"
+            f"<div class='ss-muted'>{html.escape('; '.join(map(str, caveats[:2])) or 'Evidence is generated from deterministic summaries.')}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    top = metrics.get("top_clusters_by_mean")
+    if top:
+        st.caption(f"Top clusters by mean expression: {', '.join(map(str, top[:3]))}")
+
+
 def render_linked_explore(state: dict[str, Any]) -> None:
+    ensure_explore_state()
+    pending_view = st.session_state.pop("pending_explore_view_mode", None)
+    if pending_view:
+        st.session_state.explore_view_mode = pending_view
+    pending_gene = st.session_state.pop("pending_selected_gene", None)
+    if pending_gene:
+        st.session_state.selected_gene = pending_gene
     adata = _load_explore_adata(state)
     if adata is None:
         st.info("无法载入本次 run 的 working AnnData；请先完成一次运行。")
@@ -541,53 +779,149 @@ def render_linked_explore(state: dict[str, Any]) -> None:
         st.warning("没有找到可用于联动视图的 cluster/category 列。")
         return
 
-    control_col, spatial_col, umap_col = st.columns([0.82, 1.12, 1.12], gap="large")
-    with control_col:
-        st.markdown("<div class='ss-panel compact'><div class='ss-mini-label'>Explore Controls</div><div class='ss-card-title'>联动证据工作台</div>", unsafe_allow_html=True)
-        cluster_key = st.selectbox("Cluster key", cluster_options, index=0)
-        color_mode = st.segmented_control("颜色模式", ["Cluster", "Gene expression"], default="Cluster")
-        genes = _gene_choices(state, adata)
-        selected_gene = st.selectbox("Gene", genes, index=0, disabled=color_mode != "Gene expression")
-        layers = _safe_expression_layers(adata)
-        layer = st.selectbox("Expression layer", layers or ["no safe layer"], index=0, disabled=color_mode != "Gene expression" or not layers)
-        point_size = st.slider("Point size", min_value=4, max_value=18, value=8, step=1)
-        st.markdown("</div>", unsafe_allow_html=True)
-        if color_mode == "Gene expression" and not layers:
-            st.warning("没有安全 raw/normalized expression source；gene/marker 解释已被阻断。")
-        st.markdown("<div class='ss-section-title'>Evidence-linked Findings</div>", unsafe_allow_html=True)
-        for finding in state.get("scientific_findings", [])[:3]:
-            evidence = ", ".join(map(str, finding.get("evidence_ids", [])))
-            st.markdown(
-                (
-                    "<div class='ss-story compact'>"
-                    f"<div class='ss-card-title'>{html.escape(str(finding.get('title', 'Finding')))}</div>"
-                    f"<p>{html.escape(str(finding.get('statement', '')))}</p>"
-                    f"<p class='ss-run-path'>{html.escape(evidence)}</p>"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
-            )
-
+    obs_ids = list(map(str, adata.obs_names))
+    safe_sources = safe_expression_sources(adata)
+    cluster_key = str(st.session_state.get("cluster_key") or cluster_options[0])
+    if cluster_key not in cluster_options:
+        cluster_key = cluster_options[0]
     labels = adata.obs[cluster_key].astype(str)
     categories = sorted(labels.unique(), key=numeric_sort_key)
     palette = _palette_for(adata, cluster_key, categories)
     spatial_coords = np.asarray(adata.obsm["spatial"])
     umap_coords = np.asarray(adata.obsm["X_umap"])
-    use_expression = color_mode == "Gene expression" and bool(layers) and selected_gene in list(map(str, adata.var_names))
+
+    genes = _gene_choices(state, adata)
+    selected_gene = str(st.session_state.get("selected_gene") or (genes[0] if genes else "")).strip()
+    if not selected_gene and genes:
+        selected_gene = genes[0]
+    resolved = resolve_gene(adata, selected_gene) if selected_gene else {"resolved_gene": ""}
+    resolved_gene = str(resolved.get("resolved_gene") or "")
+    if resolved_gene and resolved_gene not in genes:
+        genes = [resolved_gene, *genes]
+    st.session_state.resolved_gene = resolved_gene
+
+    expression_source = str(st.session_state.get("expression_source") or (safe_sources[0] if safe_sources else "unavailable"))
+    if safe_sources and expression_source not in safe_sources:
+        expression_source = safe_sources[0]
+    st.session_state.expression_source = expression_source
+    clip_low = float(st.session_state.get("clip_low", 1.0))
+    clip_high = float(st.session_state.get("clip_high", 99.0))
+    if clip_low >= clip_high:
+        clip_low, clip_high = 1.0, 99.0
+    selected_cluster = str(st.session_state.get("selected_cluster") or "")
+    if selected_cluster and selected_cluster not in categories:
+        selected_cluster = ""
+    selected_obs_ids = [obs for obs in st.session_state.get("selected_obs_ids", []) if obs in set(obs_ids)]
+
+    can_interpret_gene = bool(resolved_gene and expression_source in safe_sources)
+    gene_pack = (
+        summarize_gene(
+            adata,
+            selected_gene,
+            expression_source,
+            cluster_key,
+            selected_obs_ids=selected_obs_ids,
+            clip_percentiles=(clip_low, clip_high),
+        )
+        if selected_gene
+        else None
+    )
+    cluster_pack = summarize_cluster(adata, selected_cluster, cluster_key, selected_obs_ids) if selected_cluster else None
+    selection_pack = (
+        summarize_selection(adata, selected_obs_ids, selected_gene, expression_source, cluster_key)
+        if selected_obs_ids
+        else None
+    )
+    active_packs = [pack for pack in [gene_pack, cluster_pack, selection_pack] if pack is not None]
+    active_evidence_ids = [pack.evidence_id for pack in active_packs]
+    st.session_state.active_evidence_ids = active_evidence_ids
+
+    control_col, canvas_col, copilot_col = st.columns([0.72, 2.18, 1.02], gap="large")
+    with control_col:
+        st.markdown("<div class='ss-control-heading'>视图控制</div>", unsafe_allow_html=True)
+        cluster_key = st.selectbox("Cluster key", cluster_options, index=cluster_options.index(cluster_key), key="cluster_key")
+        view_mode = st.segmented_control(
+            "View",
+            ["Gene expression", "Cluster"],
+            default=str(st.session_state.get("explore_view_mode") or "Gene expression"),
+            key="explore_view_mode",
+        )
+        gene_input = st.text_input("Gene", value=selected_gene, key="selected_gene")
+        if gene_input != selected_gene:
+            st.session_state.selected_gene = gene_input.strip()
+            st.rerun()
+        gene_choice = ""
+        if genes:
+            gene_choice = st.selectbox(
+                "Gene panel",
+                list(dict.fromkeys([selected_gene, *genes])),
+                index=0,
+                disabled=view_mode != "Gene expression",
+                key="gene_panel_choice",
+            )
+        if gene_choice and gene_choice != selected_gene:
+            st.session_state.pending_selected_gene = gene_choice
+            st.session_state.pending_explore_view_mode = "Gene expression"
+            st.rerun()
+        cluster_options_ui = [""] + categories
+        cluster_index = cluster_options_ui.index(selected_cluster) if selected_cluster in cluster_options_ui else 0
+        cluster_choice = st.selectbox("高亮 cluster", cluster_options_ui, index=cluster_index, format_func=lambda x: "全部" if not x else f"cluster {x}")
+        if cluster_choice != selected_cluster:
+            st.session_state.selected_cluster = cluster_choice
+            if cluster_choice:
+                st.session_state.pending_explore_view_mode = "Cluster"
+            st.rerun()
+        source_choice = st.selectbox(
+            "Expression source",
+            safe_sources or ["unavailable"],
+            index=(safe_sources.index(expression_source) if expression_source in safe_sources else 0),
+            disabled=not safe_sources,
+        )
+        if source_choice != expression_source:
+            st.session_state.expression_source = source_choice
+            st.rerun()
+        clip = st.slider("Clip percentiles", 0.0, 100.0, (clip_low, clip_high), step=0.5)
+        st.session_state.clip_low, st.session_state.clip_high = float(clip[0]), float(clip[1])
+        st.session_state.point_size = st.slider("Point size", min_value=4, max_value=18, value=int(st.session_state.point_size), step=1)
+        if st.button("选择局部区域", width="stretch"):
+            st.session_state.selected_obs_ids = _local_region_obs_ids(spatial_coords, obs_ids)
+            st.rerun()
+        if st.button("清除选择", width="stretch"):
+            st.session_state.selected_obs_ids = []
+            st.rerun()
+        if not safe_sources:
+            st.warning("没有安全 raw/normalized expression source；gene/marker 解释已阻断。")
+        if selected_gene and not resolved_gene:
+            st.warning(f"`{selected_gene}` 无法安全匹配到数据集基因。")
+        elif selected_gene and resolved_gene != selected_gene:
+            st.info(f"基因名已安全修复：`{selected_gene}` → `{resolved_gene}`")
+            if st.button(f"使用 {resolved_gene}", width="stretch"):
+                st.session_state.pending_selected_gene = resolved_gene
+                st.session_state.pending_explore_view_mode = "Gene expression"
+                st.rerun()
+
+    point_size = int(st.session_state.point_size)
+    use_expression = view_mode == "Gene expression" and can_interpret_gene
     if use_expression:
-        values = _gene_vector(adata, selected_gene, layer)
+        values = expression_vector(adata, resolved_gene, expression_source)
         spatial_fig = _expression_scatter(
             coords=spatial_coords,
             values=values,
-            title=f"Spatial expression · {selected_gene}",
+            title=f"Spatial expression · {resolved_gene}",
             point_size=point_size,
+            obs_ids=obs_ids,
+            selected_obs_ids=selected_obs_ids,
+            clip_percentiles=(clip_low, clip_high),
             spatial=True,
         )
         umap_fig = _expression_scatter(
             coords=umap_coords,
             values=values,
-            title=f"UMAP expression · {selected_gene}",
+            title=f"UMAP expression · {resolved_gene}",
             point_size=point_size,
+            obs_ids=obs_ids,
+            selected_obs_ids=selected_obs_ids,
+            clip_percentiles=(clip_low, clip_high),
         )
     else:
         spatial_fig = _cluster_scatter(
@@ -596,6 +930,9 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             title=f"Spatial clusters · {cluster_key}",
             palette=palette,
             point_size=point_size,
+            obs_ids=obs_ids,
+            selected_cluster=selected_cluster,
+            selected_obs_ids=selected_obs_ids,
             spatial=True,
         )
         umap_fig = _cluster_scatter(
@@ -604,13 +941,155 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             title=f"UMAP clusters · {cluster_key}",
             palette=palette,
             point_size=point_size,
+            obs_ids=obs_ids,
+            selected_cluster=selected_cluster,
+            selected_obs_ids=selected_obs_ids,
         )
-    with spatial_col:
-        st.plotly_chart(spatial_fig, use_container_width=True, key="linked_spatial_plot")
-        st.caption("Gene expression 模式下两张图共享同一顺序色标。" if use_expression else "Spatial 与 UMAP 在 cluster 模式下共享同一套颜色。")
-    with umap_col:
-        st.plotly_chart(umap_fig, use_container_width=True, key="linked_umap_plot")
-        st.caption("当前使用安全表达层；表达模式仍需结合 evidence 与 caveat 解读。" if use_expression else "Gene expression 模式只使用安全表达层；否则保持 cluster 视图。")
+
+    with canvas_col:
+        st.markdown("<div class='ss-canvas-heading'>科研证据画布</div>", unsafe_allow_html=True)
+        c_spatial, c_umap = st.columns(2, gap="medium")
+        with c_spatial:
+            spatial_event = _plotly_selection_event(spatial_fig, key="linked_spatial_plot")
+        with c_umap:
+            umap_event = _plotly_selection_event(umap_fig, key="linked_umap_plot")
+        selected_from_plot = _selected_obs_from_event(spatial_event) or _selected_obs_from_event(umap_event)
+        if selected_from_plot and selected_from_plot != selected_obs_ids:
+            st.session_state.selected_obs_ids = selected_from_plot[:500]
+            st.rerun()
+        metric_items = _gene_metric_items(gene_pack, selection_pack) if use_expression and gene_pack else _cluster_metric_items(cluster_pack, selection_pack)
+        st.markdown(_metric_strip_html(metric_items), unsafe_allow_html=True)
+        st.caption(
+            f"Evidence IDs: {', '.join(active_evidence_ids) if active_evidence_ids else '暂无'} · "
+            f"Layer: {expression_source} · Clip: {clip_low:g}-{clip_high:g}% · Selected: {len(selected_obs_ids)}"
+        )
+        marker_rows = _marker_excerpt(state, selected_cluster)
+        if marker_rows:
+            st.markdown("<div class='ss-support-title'>相关 marker evidence</div>", unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(marker_rows), hide_index=True, width="stretch", height=210)
+        elif gene_pack is not None:
+            _render_pack_summary(gene_pack)
+
+    with copilot_col:
+        st.markdown("<div class='ss-copilot-rail'>", unsafe_allow_html=True)
+        status = llm_config_status()
+        source_label = (
+            "LLM full mode · schema-validated"
+            if status.get("active_mode") == "full" and status.get("enabled")
+            else "规则模式：未调用外部 LLM"
+        )
+        if (
+            source_label.startswith("LLM")
+            and st.session_state.get("copilot_conversation")
+            and str(st.session_state.copilot_conversation[-1].get("source")) == "fallback"
+        ):
+            source_label = "LLM full mode · 当前回答已安全回退"
+        st.markdown(
+            (
+                "<div class='ss-mini-label'>Research Copilot</div>"
+                f"<div class='ss-copilot-source'>{html.escape(source_label)}</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        context_rows = [
+            ("Gene", resolved_gene or selected_gene or "NA"),
+            ("Cluster", selected_cluster or "全部"),
+            ("Selection", f"{len(selected_obs_ids)} spots"),
+            ("Layer", expression_source),
+        ]
+        st.markdown(_metric_strip_html(context_rows), unsafe_allow_html=True)
+        prompt_options = [
+            "哪个 cluster 的 Sox17 平均表达最高？",
+            "我当前选择的空间区域和全局相比有什么差异？",
+            "这张图最主要的局限是什么？",
+            "下一步最值得运行什么分析？",
+        ]
+        selected_prompt = st.selectbox("快捷问题", prompt_options, index=0, key="copilot_prompt_choice")
+        if st.session_state.get("_copilot_prompt_choice_seen") != selected_prompt:
+            st.session_state.copilot_question = selected_prompt
+            st.session_state._copilot_prompt_choice_seen = selected_prompt
+        question = st.text_area("向当前证据提问", value=selected_prompt, height=86, key="copilot_question")
+        if st.button("询问 Copilot", type="primary", width="stretch"):
+            gateway = _runtime_gateway()
+            history = list(st.session_state.get("copilot_conversation", []))[-6:]
+            copilot_packs = list(active_packs)
+            question_gene = _gene_mentioned_in_question(question, adata)
+            if question_gene and question_gene != resolved_gene and expression_source in safe_sources:
+                question_gene_pack = summarize_gene(
+                    adata,
+                    question_gene,
+                    expression_source,
+                    cluster_key,
+                    selected_obs_ids=selected_obs_ids,
+                    clip_percentiles=(clip_low, clip_high),
+                )
+                copilot_packs = [question_gene_pack, *copilot_packs]
+            copilot_evidence_ids = list(dict.fromkeys(pack.evidence_id for pack in copilot_packs))
+            context = {
+                "research_question": state.get("user_query", ""),
+                "selected_gene": question_gene or resolved_gene or selected_gene,
+                "selected_cluster": selected_cluster or None,
+                "selected_obs_ids": selected_obs_ids[:80],
+                "expression_source": expression_source,
+                "clip_percentiles": (clip_low, clip_high),
+                "active_view": str(view_mode),
+                "evidence_ids": copilot_evidence_ids,
+                "evidence_packs": [pack.model_dump() for pack in copilot_packs],
+                "warnings": list(map(str, state.get("warnings", [])[:8])),
+                "available_genes": list(map(str, adata.var_names[:80])),
+            }
+            answer = gateway.answer_contextual_question(context=context, question=question, conversation_memory=history)
+            state.setdefault("llm_calls", []).extend(gateway.telemetry)
+            gateway.telemetry.clear()
+            turn_id = f"copilot_{uuid4().hex[:8]}"
+            for action in answer.get("suggested_actions", []) or []:
+                if action.get("type") == "add_finding_to_report":
+                    action.setdefault("payload", {})["finding_id"] = turn_id
+            turn = {
+                "turn_id": turn_id,
+                "role": "assistant",
+                "stage": "explore",
+                "question": question,
+                "content": answer.get("direct_answer") or answer.get("answer") or "",
+                "source": answer.get("source", "fallback"),
+                "observations": answer.get("observations", []),
+                "evidence_ids": answer.get("evidence_ids", []),
+                "caveats": answer.get("caveats", []),
+                "ui_actions": answer.get("suggested_actions", []),
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            st.session_state.copilot_conversation = [*history, turn]
+            st.session_state.run_state = state
+        history = list(st.session_state.get("copilot_conversation", []))[-4:]
+        for turn in reversed(history):
+            evidence = ", ".join(map(str, turn.get("evidence_ids", []))) or "none"
+            source = str(turn.get("source") or "fallback")
+            st.markdown(
+                (
+                    "<div class='ss-copilot-answer'>"
+                    f"<div class='ss-mini-label'>Copilot · {html.escape('LLM' if source == 'llm' else '规则解释')}</div>"
+                    f"<div class='ss-card-title'>{html.escape(str(turn.get('question', '')))}</div>"
+                    f"<p>{html.escape(str(turn.get('content', '')))}</p>"
+                    f"<p><strong>Evidence IDs used:</strong> {html.escape(evidence)}</p>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
+            for observation in turn.get("observations", [])[:3]:
+                st.caption(f"Observation: {observation}")
+            for caveat in turn.get("caveats", [])[:2]:
+                st.caption(f"Caveat: {caveat}")
+            action_cols = st.columns(min(2, max(1, len(turn.get("ui_actions", []) or []))))
+            for index, action in enumerate(turn.get("ui_actions", []) or []):
+                col = action_cols[index % len(action_cols)]
+                if col.button(str(action.get("label") or action.get("type")), key=f"action_{turn.get('turn_id')}_{index}", width="stretch"):
+                    try:
+                        message = apply_ui_action(action)
+                        st.toast(message)
+                        st.rerun()
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(str(exc))
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_tables(state: dict[str, Any]) -> None:
@@ -693,8 +1172,6 @@ def render_dataset_profile(state: dict[str, Any]) -> None:
     warnings = profile.get("scientific_warnings") or summary.get("scientific_warnings") or []
     if warnings:
         st.warning("\n".join(map(str, warnings)))
-    with st.expander("Dataset profile JSON", expanded=False):
-        st.json(profile or summary)
 
 
 def render_llm_status(*, key_prefix: str = "llm") -> None:

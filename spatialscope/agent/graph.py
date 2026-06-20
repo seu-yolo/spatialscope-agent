@@ -262,7 +262,7 @@ def _record_clarifications(state: SpatialAgentState, *, result: ToolResult, tool
         )
 
 
-def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
+def parse_request_node(state: SpatialAgentState, *, llm_gateway: LLMGateway | None = None) -> SpatialAgentState:
     try:
         from dotenv import load_dotenv
 
@@ -270,7 +270,7 @@ def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
     except Exception:
         pass
 
-    gateway = LLMGateway.from_env()
+    gateway = llm_gateway or LLMGateway.from_env()
     brief = gateway.parse_research_brief(
         state.get("user_query", ""),
         mode=state.get("mode", "quick"),
@@ -287,6 +287,8 @@ def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
         "confidence": brief.confidence,
     }
     state["llm_enabled"] = gateway.enabled
+    state["llm_mode"] = gateway.active_mode
+    state["llm_status"] = gateway.safe_status()
     _extend_llm_telemetry(state, gateway)
     return state
 
@@ -321,10 +323,10 @@ def inspect_dataset_node(state: SpatialAgentState) -> SpatialAgentState:
     return state
 
 
-def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
+def plan_analysis_node(state: SpatialAgentState, *, llm_gateway: LLMGateway | None = None) -> SpatialAgentState:
     tool_contracts = list_tool_contracts()
     state["tool_contracts"] = tool_contracts
-    gateway = LLMGateway.from_env()
+    gateway = llm_gateway or LLMGateway.from_env()
     plan = gateway.propose_plan(
         state.get("research_brief", {}) or fallback_parse_query(state.get("user_query", ""), state.get("mode", "quick")),
         mode=state.get("mode", "quick"),
@@ -335,6 +337,8 @@ def plan_analysis_node(state: SpatialAgentState) -> SpatialAgentState:
     state["plan_source"] = plan.source
     state["plan_rationale"] = plan.rationale
     state["llm_enabled"] = state.get("llm_enabled", False) or gateway.enabled
+    state["llm_mode"] = gateway.active_mode
+    state["llm_status"] = gateway.safe_status()
     state["current_step_index"] = 0
     state["needs_repair"] = False
     _extend_llm_telemetry(state, gateway)
@@ -531,7 +535,7 @@ def _repair_patch_for_step(
     return None
 
 
-def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
+def repair_or_continue_node(state: SpatialAgentState, *, llm_gateway: LLMGateway | None = None) -> SpatialAgentState:
     state["repair_attempts"] = int(state.get("repair_attempts", 0)) + 1
     plan = list(state.get("approved_plan", []))
     index = int(state.get("current_step_index", 0))
@@ -549,7 +553,7 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
     except Exception:
         contract_payload = {}
 
-    gateway = LLMGateway.from_env()
+    gateway = llm_gateway or LLMGateway.from_env()
     repair_decision = gateway.propose_repair(
         failed_step=failed_step,
         tool_result=result,
@@ -557,6 +561,8 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
         dataset_profile=state.get("dataset_profile") or state.get("dataset_summary", {}),
     )
     state["llm_enabled"] = state.get("llm_enabled", False) or gateway.enabled
+    state["llm_mode"] = gateway.active_mode
+    state["llm_status"] = gateway.safe_status()
     _extend_llm_telemetry(state, gateway)
     diagnosis = diagnose_tool_failure(
         failed_step,
@@ -629,8 +635,8 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
     return state
 
 
-def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
-    gateway = LLMGateway.from_env()
+def interpret_node(state: SpatialAgentState, *, llm_gateway: LLMGateway | None = None) -> SpatialAgentState:
+    gateway = llm_gateway or LLMGateway.from_env()
     findings = gateway.synthesize_findings(
         query=state.get("user_query", ""),
         dataset_profile=state.get("dataset_profile") or state.get("dataset_summary", {}),
@@ -646,6 +652,8 @@ def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
     )
     state["evidence_claims"] = [claim.model_dump() for claim in claims]
     state["llm_enabled"] = state.get("llm_enabled", False) or gateway.enabled
+    state["llm_mode"] = gateway.active_mode
+    state["llm_status"] = gateway.safe_status()
     _extend_llm_telemetry(state, gateway)
     llm_interpretation = gateway.synthesize_interpretation(
         query=state.get("user_query", ""),
@@ -708,18 +716,18 @@ def _route_after_repair(state: SpatialAgentState) -> str:
     return "interpret"
 
 
-def build_langgraph(checkpointer: Any | None = None):
+def build_langgraph(checkpointer: Any | None = None, *, llm_gateway: LLMGateway | None = None):
     from langgraph.graph import END, START, StateGraph
 
     graph = StateGraph(SpatialAgentState)
-    graph.add_node("parse_request", parse_request_node)
+    graph.add_node("parse_request", lambda state: parse_request_node(state, llm_gateway=llm_gateway))
     graph.add_node("inspect_dataset", inspect_dataset_node)
-    graph.add_node("plan_analysis", plan_analysis_node)
+    graph.add_node("plan_analysis", lambda state: plan_analysis_node(state, llm_gateway=llm_gateway))
     graph.add_node("review_plan", review_plan_node)
     graph.add_node("execute_tool", execute_tool_node)
     graph.add_node("validate_result", validate_result_node)
-    graph.add_node("repair_or_continue", repair_or_continue_node)
-    graph.add_node("interpret", interpret_node)
+    graph.add_node("repair_or_continue", lambda state: repair_or_continue_node(state, llm_gateway=llm_gateway))
+    graph.add_node("interpret", lambda state: interpret_node(state, llm_gateway=llm_gateway))
     graph.add_node("report", report_node)
     graph.add_edge(START, "inspect_dataset")
     graph.add_edge("inspect_dataset", "parse_request")

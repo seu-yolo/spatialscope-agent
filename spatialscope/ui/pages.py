@@ -11,11 +11,10 @@ from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 from spatialscope.utils.run_index import load_run_state
 
 from .components import (
-    ACKNOWLEDGEMENTS,
     PROJECT_SIGNATURE,
     render_audits,
+    render_acknowledgements,
     render_clarifications,
-    render_contextual_copilot,
     render_dataset_profile,
     render_evidence_metrics,
     render_figures,
@@ -126,9 +125,9 @@ def render_workspace_page() -> None:
         st.markdown(
             """
             <div class="ss-panel">
-              <div class="ss-mini-label">Demo Launchpad</div>
-              <div class="ss-card-title">一键生成适合展示的标准分析</div>
-              <div class="ss-muted">使用内置 synthetic spatial AnnData，展示 plan review、trace、figures、report 和 reproducibility bundle。</div>
+              <div class="ss-mini-label">Project</div>
+              <div class="ss-card-title">从研究问题开始，让 Agent 先检查数据，再提出证据约束的分析方案。</div>
+              <div class="ss-muted">可以上传自己的 .h5ad，也可以先用早期小鼠胚胎 demo 体验完整工作流。</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -235,9 +234,24 @@ def render_workspace_page() -> None:
                 st.error(str(exc))
 
     with right:
-        render_workflow(active_state())
-        with st.expander("LLM status", expanded=False):
-            render_llm_status(key_prefix="workspace_llm")
+        current = active_state()
+        if current:
+            render_research_brief(current)
+            render_dataset_profile(current)
+        else:
+            st.markdown(
+                """
+                <div class="ss-panel ss-conversation-card">
+                  <div class="ss-mini-label">Agent conversation</div>
+                  <div class="ss-card-title">对话是入口，计划是契约，证据是约束。</div>
+                  <p class="ss-muted">SpatialScope 会先读取 AnnData 的空间坐标、表达来源、基因可用性和已有元数据，再把问题改写成可执行、可审阅的研究方案。</p>
+                  <div class="ss-prompt-suggestion">检查早期小鼠胚胎空间数据的质量，并比较 Sox17 与 Mesp1 的空间表达。</div>
+                  <div class="ss-prompt-suggestion">只查看 Sox17 的空间表达，并指出最主要的解释局限。</div>
+                  <div class="ss-prompt-suggestion">完成 QC、Leiden、UMAP、marker genes，并生成 evidence-linked report。</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def render_plan_page() -> None:
@@ -270,7 +284,7 @@ def render_run_page() -> None:
     if st.session_state.draft_state and not st.session_state.run_state:
         state = st.session_state.draft_state
         st.markdown("<div class='ss-section-title'>Run</div>", unsafe_allow_html=True)
-        st.info("Plan 已生成并等待批准。点击下面按钮后，LangGraph 事件会在本页实时更新。")
+        st.info("方案已生成并等待批准。点击下面按钮后，LangGraph 事件会在本页实时更新。")
         render_workflow(state)
         if st.button("运行已批准方案", type="primary", width="stretch", key="run_page_stream_approved"):
             try:
@@ -285,13 +299,14 @@ def render_run_page() -> None:
         st.info("请先运行一个已批准方案。")
         return
     st.markdown("<div class='ss-section-title'>Run</div>", unsafe_allow_html=True)
-    render_evidence_metrics(state)
     if state.get("warnings"):
         st.warning("\n".join(map(str, state.get("warnings", [])[:5])))
     if state.get("errors"):
         st.error("\n".join(map(str, state.get("errors", [])[:5])))
     render_workflow(state)
     render_clarifications(state)
+    with st.expander("运行证据摘要", expanded=False):
+        render_evidence_metrics(state)
     with st.expander("Execution events", expanded=False):
         render_trace(state)
     if state.get("repair_log"):
@@ -306,7 +321,6 @@ def render_explore_page() -> None:
         return
     st.markdown("<div class='ss-section-title'>Explore</div>", unsafe_allow_html=True)
     render_linked_explore(state)
-    render_contextual_copilot(state)
 
 
 def render_report_page() -> None:
@@ -327,6 +341,27 @@ def render_report_page() -> None:
         unsafe_allow_html=True,
     )
     render_report_findings(state)
+    draft_ids = set(map(str, st.session_state.get("report_draft_finding_ids", [])))
+    draft_turns = [
+        turn
+        for turn in st.session_state.get("copilot_conversation", [])
+        if str(turn.get("turn_id")) in draft_ids
+    ]
+    if draft_turns:
+        st.markdown("<div class='ss-section-title'>Copilot additions</div>", unsafe_allow_html=True)
+        for turn in draft_turns:
+            st.markdown(
+                (
+                    "<div class='ss-story'>"
+                    "<div class='ss-mini-label'>Added from Explore Copilot</div>"
+                    f"<div class='ss-card-title'>{html.escape(str(turn.get('question', '')))}</div>"
+                    f"<p>{html.escape(str(turn.get('content', '')))}</p>"
+                    f"<p><strong>Evidence:</strong> {html.escape(', '.join(map(str, turn.get('evidence_ids', []))) or 'none')}</p>"
+                    f"<p><strong>Caveat:</strong> {html.escape('; '.join(map(str, turn.get('caveats', [])[:2])) or 'Review before final use.')}</p>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
     with st.container(border=True):
         st.markdown("<div class='ss-mini-label'>Agent summary</div>", unsafe_allow_html=True)
         st.write(state.get("final_answer") or "No interpretation generated.")
@@ -334,7 +369,8 @@ def render_report_page() -> None:
         st.warning("\n".join(map(str, state.get("warnings", []))))
     if state.get("errors"):
         st.error("\n".join(map(str, state.get("errors", []))))
-    render_evidence_metrics(state)
+    with st.expander("运行证据摘要", expanded=False):
+        render_evidence_metrics(state)
     render_report_assets(state, primary=True)
     report_path = Path(str(state.get("report_path") or ""))
     if report_path.exists():
@@ -348,6 +384,7 @@ def render_provenance_page() -> None:
     left, right = st.columns([1.05, 0.95], gap="large")
     with left:
         render_llm_status(key_prefix="provenance_llm")
+        render_acknowledgements()
         st.markdown("<div class='ss-section-title'>Tool Registry</div>", unsafe_allow_html=True)
         render_tool_registry()
         if state:
@@ -390,22 +427,25 @@ def render_app() -> None:
         st.success(st.session_state.loaded_run_notice)
         st.session_state.loaded_run_notice = ""
 
-    tabs = st.tabs(["项目 Project", "运行 Run", "探索 Explore", "报告 Report", "高级 Advanced"])
-    with tabs[0]:
+    pages = ["项目 Project", "运行 Run", "探索 Explore", "报告 Report", "高级 Advanced"]
+    if "main_nav" not in st.session_state or st.session_state.main_nav not in pages:
+        st.session_state.main_nav = "探索 Explore" if active and active.get("report_path") else "项目 Project"
+    nav = st.segmented_control("Navigation", pages, key="main_nav", label_visibility="collapsed")
+    st.markdown("<div class='ss-nav-divider'></div>", unsafe_allow_html=True)
+    if nav == "项目 Project":
         render_project_page()
-    with tabs[1]:
+    elif nav == "运行 Run":
         render_run_page()
-    with tabs[2]:
+    elif nav == "探索 Explore":
         render_explore_page()
-    with tabs[3]:
+    elif nav == "报告 Report":
         render_report_page()
-    with tabs[4]:
+    else:
         render_provenance_page()
     st.markdown(
         (
             f"<footer class='ss-footer'><span>{PROJECT_SIGNATURE}</span>"
-            "<span>SpatialScope Agent · reproducible spatial transcriptomics workspace</span>"
-            f"<span>{' '.join(ACKNOWLEDGEMENTS[:2])}</span></footer>"
+            "<span>SpatialScope Agent · evidence-grounded spatial transcriptomics workspace</span></footer>"
         ),
         unsafe_allow_html=True,
     )

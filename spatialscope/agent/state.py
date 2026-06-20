@@ -10,6 +10,8 @@ class SpatialAgentState(TypedDict, total=False):
     run_id: str
     user_query: str
     llm_enabled: bool
+    llm_mode: str
+    llm_status: dict[str, Any]
     data_path: str | None
     dataset_ref: str | None
     working_dataset_ref: str | None
@@ -74,6 +76,8 @@ def initial_state(
         "run_id": run_id,
         "user_query": query,
         "llm_enabled": False,
+        "llm_mode": "fallback",
+        "llm_status": {},
         "data_path": data_path,
         "dataset_ref": data_path,
         "working_dataset_ref": None,

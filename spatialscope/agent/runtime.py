@@ -8,6 +8,7 @@ from langgraph.types import Command
 
 from spatialscope.agent.graph import build_langgraph, create_agent_state
 from spatialscope.agent.state import RunMode, SpatialAgentState
+from spatialscope.llm.gateway import LLMGateway
 
 
 def _checkpoint_path(path: str | Path | None = None) -> Path:
@@ -24,13 +25,19 @@ class AgentRuntime:
     tracing, and output generation on one code path.
     """
 
-    def __init__(self, *, checkpoint_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        checkpoint_path: str | Path | None = None,
+        llm_gateway: LLMGateway | None = None,
+    ) -> None:
         from langgraph.checkpoint.sqlite import SqliteSaver
 
         self.checkpoint_path = _checkpoint_path(checkpoint_path)
         self._conn = sqlite3.connect(str(self.checkpoint_path), check_same_thread=False)
         self.checkpointer = SqliteSaver(self._conn)
-        self.graph = build_langgraph(checkpointer=self.checkpointer)
+        self.llm_gateway = llm_gateway or LLMGateway.from_env()
+        self.graph = build_langgraph(checkpointer=self.checkpointer, llm_gateway=self.llm_gateway)
 
     def config(self, thread_id: str) -> dict[str, Any]:
         return {"configurable": {"thread_id": thread_id}}

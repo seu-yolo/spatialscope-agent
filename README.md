@@ -11,7 +11,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
 - Safe LLM Control Center with masked key display, provider/model status, fallback explanation, and optional smoke test
 - LangGraph workflow with SQLite checkpoints, stable thread IDs, and a deterministic fallback path
-- LLM research-brief parsing, evidence-grounded interpretation, contextual Copilot, and deterministic LLM-informed baseline planning
+- LLM/full-mode research brief, plan proposal, findings synthesis, contextual Copilot, and transparent rule-based fallback
 - EvidencePack and ScientificFinding contracts that keep every report finding tied to exact evidence IDs, metrics, excerpts, and caveats
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
@@ -59,19 +59,17 @@ SPATIALSCOPE_LLM_API_KEY=...
 SPATIALSCOPE_LLM_BASE_URL=...
 SPATIALSCOPE_LLM_MODEL=glm-5.1
 SPATIALSCOPE_LLM_TIMEOUT_SECONDS=45
-SPATIALSCOPE_DIRECT_LLM_PLAN=0
-SPATIALSCOPE_DIRECT_LLM_FINDINGS=0
+SPATIALSCOPE_LLM_MODE=auto
 ```
 
 Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`
 file is ignored by Git. If no API key is configured, SpatialScope still runs a
 rule-based demo planner for smoke tests.
 
-By default, the LLM parses the research question, powers Copilot, and writes the
-final evidence-grounded interpretation. Planning and finding assembly use
-validated local contracts for latency and reproducibility; set
-`SPATIALSCOPE_DIRECT_LLM_PLAN=1` or `SPATIALSCOPE_DIRECT_LLM_FINDINGS=1` when you
-want to experiment with direct LLM generation for those stages.
+`SPATIALSCOPE_LLM_MODE=auto` uses the full LLM path when a provider is configured
+and falls back to deterministic rules when it is not. Use `full` to require the
+LLM path for research brief, plan proposal, findings, Copilot, and report
+narrative; use `fallback` for rule-based demo and smoke-test runs.
 
 Check LLM configuration without exposing secrets:
 
@@ -180,8 +178,7 @@ SPATIALSCOPE_LLM_API_KEY = "your_glm_api_key_here"
 SPATIALSCOPE_LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 SPATIALSCOPE_LLM_MODEL = "glm-5.1"
 SPATIALSCOPE_LLM_TIMEOUT_SECONDS = "45"
-SPATIALSCOPE_DIRECT_LLM_PLAN = "0"
-SPATIALSCOPE_DIRECT_LLM_FINDINGS = "0"
+SPATIALSCOPE_LLM_MODE = "auto"
 ```
 
 The repository already includes `environment.yml`, which Streamlit Community Cloud

@@ -5,6 +5,7 @@ from typing import Any
 import streamlit as st
 
 from spatialscope.agent.runtime import AgentRuntime
+from spatialscope.ui.actions import ensure_explore_state
 
 
 def init_session_state() -> None:
@@ -14,10 +15,12 @@ def init_session_state() -> None:
         "plan_text": "",
         "last_plan_error": "",
         "loaded_run_notice": "",
+        "main_nav": "项目 Project",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    ensure_explore_state()
     if "agent_runtime" not in st.session_state:
         st.session_state.agent_runtime = AgentRuntime()
 

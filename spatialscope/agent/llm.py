@@ -13,6 +13,7 @@ from spatialscope.agent.schemas import (
     parsed_request_json_schema,
 )
 from spatialscope.agent.state import RunMode
+from spatialscope.llm.mode import resolve_llm_mode
 from spatialscope.llm.prompts import SYSTEM_PROMPT
 from spatialscope.tools.registry import available_tool_names
 from spatialscope.utils.json_utils import extract_json_object
@@ -128,6 +129,13 @@ def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     except ValueError:
         timeout_seconds = 45.0
     enabled = bool(api_key and base_url and model)
+    requested_mode = _env_value(env, "SPATIALSCOPE_LLM_MODE", "auto")
+    mode = resolve_llm_mode(
+        requested=requested_mode,
+        has_api_key=bool(api_key),
+        has_base_url=bool(base_url),
+        has_model=bool(model),
+    )
     missing: list[str] = []
     if not api_key:
         missing.append("API key")
@@ -137,7 +145,12 @@ def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         missing.append("model")
     return {
         "provider": provider,
-        "enabled": enabled,
+        "enabled": enabled and mode.enabled,
+        "configured": enabled,
+        "requested_mode": mode.requested_mode,
+        "active_mode": mode.active_mode,
+        "mode_label": mode.label,
+        "mode_reason": mode.reason,
         "api_key_present": bool(api_key),
         "api_key_preview": _mask_secret(api_key),
         "base_url": base_url or "not configured",
