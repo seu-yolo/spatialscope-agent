@@ -61,6 +61,7 @@ def _enable_mock_llm(monkeypatch) -> None:
     monkeypatch.setenv("SPATIALSCOPE_LLM_API_KEY", "sk-test")
     monkeypatch.setenv("SPATIALSCOPE_LLM_BASE_URL", "https://llm.example.test/v1")
     monkeypatch.setenv("SPATIALSCOPE_LLM_MODEL", "mock-structured")
+    monkeypatch.setenv("SPATIALSCOPE_DIRECT_LLM_PLAN", "1")
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
 

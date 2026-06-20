@@ -6,14 +6,14 @@ from typing import Any
 
 DEMO_PRESET: dict[str, Any] = {
     "data_path": "data/demo_embryo.h5ad",
-    "query": "探索早期小鼠胚胎空间转录组结构，生成 cluster marker genes，并绘制 Pou5f1 Sox2 Nanog Sox17 Gata6 T Mesp1 的空间表达图。",
+    "query": "检查这个早期小鼠胚胎空间数据的质量，比较空间结构与 UMAP 聚类，并查看 Pou5f1、Sox17、T 和 Mesp1 的空间表达。总结主要观察和局限。",
     "mode": "standard",
     "outdir": "outputs/runs",
     "min_genes": 20,
     "min_cells": 3,
     "max_mt_pct": 25.0,
     "resolution": 0.8,
-    "gene_text": "Pou5f1, Sox2, Nanog, Sox17, Gata6, T, Mesp1",
+    "gene_text": "Pou5f1, Sox17, T, Mesp1",
     "annotation_top_n": 12,
 }
 

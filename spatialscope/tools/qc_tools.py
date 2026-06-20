@@ -47,6 +47,18 @@ def run_qc(
     if "pct_counts_mt" in adata.obs:
         adata._inplace_subset_obs(np.asarray(adata.obs["pct_counts_mt"]) <= max_mt_pct)
     after = {"n_obs": int(adata.n_obs), "n_vars": int(adata.n_vars)}
+    quantiles: dict[str, dict[str, float]] = {}
+    for column in ["total_counts", "n_genes_by_counts", "pct_counts_mt"]:
+        if column not in adata.obs:
+            continue
+        values = np.asarray(adata.obs[column])
+        finite = values[np.isfinite(values)]
+        if len(finite):
+            quantiles[column] = {
+                "p05": round(float(np.percentile(finite, 5)), 3),
+                "median": round(float(np.median(finite)), 3),
+                "p95": round(float(np.percentile(finite, 95)), 3),
+            }
 
     summary_df = pd.DataFrame([{"stage": "before", **before}, {"stage": "after", **after}])
     table_path = Path(tables_dir) / "qc_summary.csv"
@@ -98,6 +110,12 @@ def run_qc(
             }
         ],
         tables=[{"path": str(table_path), "title": "QC summary"}],
-        observations={"qc_before": before, "qc_after": after},
+        observations={
+            "qc_before": before,
+            "qc_after": after,
+            "qc_quantiles": quantiles,
+            "retention_fraction": round(float(retained), 4),
+            "qc_thresholds": {"min_genes": min_genes, "min_cells": min_cells, "max_mt_pct": max_mt_pct},
+        },
         warnings=[] if after["n_obs"] > 0 else ["QC removed all observations; relax thresholds."],
     )

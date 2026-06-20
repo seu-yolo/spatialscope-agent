@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Template
-
+from spatialscope.reporting import render_report_html
 from spatialscope.tools.base import ToolResult
 from spatialscope.utils.agent_audit import write_agent_audit
 from spatialscope.utils.artifact_audit import write_artifact_audit
@@ -368,7 +367,11 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
             "tool_contracts": state.get("tool_contracts"),
             "llm_calls": state.get("llm_calls", []),
             "evidence_artifacts": state.get("evidence_artifacts", []),
+            "evidence_packs": state.get("evidence_packs", []),
             "evidence_claims": state.get("evidence_claims", []),
+            "scientific_findings": state.get("scientific_findings", []),
+            "clarification_items": state.get("clarification_items", []),
+            "copilot_history": state.get("copilot_history", []),
             "repair_log": state.get("repair_log", []),
             "quality": quality,
             "dataset_card": dataset_card,
@@ -384,30 +387,9 @@ def generate_report(state: dict[str, Any]) -> ToolResult:
     if state.get("review_notes"):
         write_json(run_dir / "review_notes.json", state.get("review_notes", {}))
 
-    template = Template(REPORT_TEMPLATE)
-    html = template.render(
-        run_id=state.get("run_id"),
-        mode=state.get("mode"),
-        query=state.get("user_query"),
-        llm_enabled=state.get("llm_enabled"),
-        plan_source=state.get("plan_source"),
-        plan_rationale=state.get("plan_rationale"),
-        final_answer=state.get("final_answer") or "No interpretation was generated.",
-        dataset_summary=state.get("dataset_summary"),
-        plan=state.get("approved_plan", []),
-        figures=_with_relpaths(state.get("generated_figures", []), run_dir),
-        tables=_with_relpaths(state.get("generated_tables", []), run_dir),
-        trace=state.get("execution_trace", []),
-        repairs=state.get("repair_log", []),
-        quality=quality,
-        dataset_card=dataset_card,
-        agent_audit=agent_audit,
-        storyboard=storyboard,
-        rerun_recipe=rerun_recipe,
-        review=state.get("review_notes"),
-        annotations=state.get("observations", {}).get("cluster_annotation_suggestions", []),
-        warnings=state.get("warnings", []),
-        errors=state.get("errors", []),
+    html = render_report_html(
+        state,
+        run_dir=run_dir,
         project_signature=PROJECT_SIGNATURE,
         acknowledgements=ACKNOWLEDGEMENTS,
     )

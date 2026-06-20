@@ -6,16 +6,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from spatialscope.agent.llm import llm_config_status, smoke_test_llm
+from spatialscope.domain.dataset_store import DEFAULT_DATASET_STORE
+from spatialscope.domain.expression_lineage import infer_matrix_state
+from spatialscope.llm.context import context_for_copilot
 from spatialscope.llm.gateway import LLMGateway
 from spatialscope.tools.registry import tool_contract_summary
 from spatialscope.utils.agent_audit import build_agent_audit, load_agent_audit
 from spatialscope.utils.artifact_audit import audit_artifacts
 from spatialscope.utils.dataset_card import build_dataset_card
+from spatialscope.utils.gene_matching import match_gene_name
 from spatialscope.utils.run_index import discover_runs
+from spatialscope.visualization.theme import CLUSTER_PALETTE, numeric_sort_key
 
 from .helpers import read_table_preview, safe_json_download_payload
 
@@ -81,6 +88,26 @@ def render_header(active: dict[str, Any] | None) -> None:
     llm = "LLM enabled" if active and active.get("llm_enabled") else "rule fallback"
     health_tone = "fail" if active and active.get("errors") else "warn" if active and active.get("warnings") else "success" if active and active.get("report_path") else "neutral"
     health = "完成" if active and active.get("report_path") else "准备中"
+    if active:
+        st.markdown(
+            f"""
+            <section class="ss-topbar">
+              <div>
+                <div class="ss-kicker">SpatialScope Agent</div>
+                <div class="ss-topbar-title">证据驱动的空间转录组分析工作台</div>
+              </div>
+              <div class="ss-topbar-tags">
+                {chip("run: " + run_id, "neutral")}
+                {chip("mode: " + mode, "info")}
+                {chip("plan: " + source, "neutral")}
+                {chip(llm, "success" if active.get("llm_enabled") else "warn")}
+                {chip(health, health_tone)}
+              </div>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
     st.markdown(
         f"""
         <section class="ss-hero">
@@ -88,7 +115,7 @@ def render_header(active: dict[str, Any] | None) -> None:
             <div class="ss-kicker">SpatialScope Agent</div>
             <div class="ss-title">空间转录组分析工作台</div>
             <div class="ss-subtitle">
-              一个真正可审阅的 Agent：自然语言理解、可编辑计划、LangGraph checkpoint、工具执行、修复诊断、证据边界解释和可复现报告。
+              自然语言问题进入工作流，数据检查先于计划生成；每一条观察都回到 figures、tables、trace 和 evidence IDs。
               当前运行 <span class="ss-run-path">{html.escape(run_id)}</span>
             </div>
             <div>
@@ -231,33 +258,53 @@ def render_evidence_metrics(state: dict[str, Any]) -> None:
     st.html(f"<div class='ss-grid'>{cards}</div>")
 
 
+def render_clarifications(state: dict[str, Any]) -> None:
+    items = state.get("clarification_items", [])
+    if not items:
+        return
+    st.markdown("<div class='ss-section-title'>Clarification & Repair</div>", unsafe_allow_html=True)
+    for item in items[:5]:
+        suggestions = item.get("suggestions", {})
+        suggestion_text = json.dumps(suggestions, ensure_ascii=False) if suggestions else ""
+        st.markdown(
+            (
+                "<div class='ss-story compact'>"
+                f"<div class='ss-mini-label'>{html.escape(str(item.get('kind', 'clarification')))}</div>"
+                f"<div class='ss-card-title'>{html.escape(str(item.get('message', 'Needs clarification')))}</div>"
+                f"<p class='ss-run-path'>{html.escape(suggestion_text)}</p>"
+                f"{chip(str(item.get('status', 'recorded')), 'warn')}"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+
+
 def render_plan_cards(plan: list[dict[str, Any]]) -> None:
     if not plan:
         st.info("还没有生成分析方案。")
         return
-    cards: list[str] = []
+    rows: list[str] = []
     for index, step in enumerate(plan, start=1):
-        params = html.escape(json.dumps(step.get("params", {}), ensure_ascii=False))
-        origins = html.escape(json.dumps(step.get("parameter_origins", {}), ensure_ascii=False))
         dependencies = ", ".join(map(str, step.get("dependencies", []) or [])) or "none"
-        preconditions = ", ".join(map(str, step.get("preconditions", []) or [])) or "none"
         optional = chip("optional", "warn") if step.get("optional") else ""
         expected = ", ".join(map(str, step.get("expected_evidence", []) or []))
-        cards.append(
+        purpose = str(step.get("rationale") or step.get("scientific_purpose") or "")
+        rows.append(
             f"""
-            <div class="ss-plan-card">
-              <div class="ss-mini-label">Step {index:02d} {optional}</div>
-              <div class="ss-plan-tool">{html.escape(str(step.get("tool")))}</div>
-              <div class="ss-muted">{html.escape(str(step.get("rationale") or step.get("scientific_purpose") or ""))}</div>
-              <div class="ss-plan-meta"><span>Params</span><code>{params}</code></div>
-              <div class="ss-plan-meta"><span>Origins</span><code>{origins or "{}"}</code></div>
-              <div class="ss-plan-meta"><span>Depends</span><em>{html.escape(dependencies)}</em></div>
-              <div class="ss-plan-meta"><span>Checks</span><em>{html.escape(preconditions)}</em></div>
-              <div class="ss-muted">Evidence: {html.escape(expected or "trace record")}</div>
+            <div class="ss-stepper-row">
+              <div class="ss-stepper-index">{index:02d}</div>
+              <div>
+                <div class="ss-plan-tool">{html.escape(str(step.get("tool")))} {optional}</div>
+                <div class="ss-muted">{html.escape(purpose)}</div>
+                <div class="ss-stepper-meta">
+                  <span>依赖：{html.escape(dependencies)}</span>
+                  <span>预期证据：{html.escape(expected or "trace record")}</span>
+                </div>
+              </div>
             </div>
             """
         )
-    st.html(f"<div class='ss-plan-grid'>{''.join(cards)}</div>")
+    st.html(f"<div class='ss-stepper'>{''.join(rows)}</div>")
 
 
 def trace_dataframe(state: dict[str, Any]) -> pd.DataFrame:
@@ -316,31 +363,254 @@ def _find_figure(state: dict[str, Any], *needles: str) -> dict[str, Any] | None:
     return None
 
 
+def _load_explore_adata(state: dict[str, Any]) -> Any | None:
+    ref = str(state.get("working_dataset_ref") or state.get("adata_path") or state.get("data_path") or "")
+    if not ref:
+        return None
+    try:
+        return DEFAULT_DATASET_STORE.load(ref)
+    except Exception:
+        return None
+
+
+def _dense_vector(values: Any) -> np.ndarray:
+    if hasattr(values, "toarray"):
+        values = values.toarray()
+    return np.ravel(np.asarray(values))
+
+
+def _safe_expression_layers(adata: Any) -> list[str]:
+    layers = getattr(adata, "layers", {})
+    safe: list[str] = []
+    if "spatialscope_interpretation" in layers:
+        safe.append("spatialscope_interpretation")
+    if "counts" in layers:
+        safe.append("counts")
+    if getattr(adata, "raw", None) is not None:
+        safe.append("raw")
+    try:
+        state = infer_matrix_state(adata.X).state
+        if state in {"count_like", "log_normalized"}:
+            safe.append("X")
+    except Exception:
+        pass
+    return list(dict.fromkeys(safe))
+
+
+def _gene_vector(adata: Any, gene: str, layer: str) -> np.ndarray:
+    if layer == "raw" and getattr(adata, "raw", None) is not None:
+        return _dense_vector(adata.raw[:, gene].X)
+    idx = list(map(str, adata.var_names)).index(gene)
+    if layer != "X" and layer in getattr(adata, "layers", {}):
+        return _dense_vector(adata.layers[layer][:, idx])
+    return _dense_vector(adata.X[:, idx])
+
+
+def _cluster_options(adata: Any) -> list[str]:
+    options: list[str] = []
+    for column in adata.obs.columns:
+        values = adata.obs[column]
+        unique = values.astype(str).nunique(dropna=True)
+        if 1 < unique <= 40:
+            options.append(str(column))
+    preferred = [item for item in ["leiden", "cluster", "clusters", "demo_region", "embryo_zone"] if item in options]
+    return list(dict.fromkeys([*preferred, *options]))[:12]
+
+
+def _gene_choices(state: dict[str, Any], adata: Any) -> list[str]:
+    var_names = list(map(str, adata.var_names))
+    requested = []
+    observations = state.get("observations", {})
+    for key in ["resolved_genes", "requested_genes"]:
+        requested.extend(list(map(str, observations.get(key, []) or [])))
+    brief = state.get("research_brief") if isinstance(state.get("research_brief"), dict) else {}
+    requested.extend(list(map(str, brief.get("requested_genes", []) or [])))
+    resolved: list[str] = []
+    for gene in requested:
+        match = match_gene_name(gene, var_names)
+        if match.get("match"):
+            resolved.append(str(match["match"]))
+    if not resolved:
+        resolved = var_names[: min(12, len(var_names))]
+    return list(dict.fromkeys(resolved))
+
+
+def _palette_for(adata: Any, key: str, categories: list[str]) -> dict[str, str]:
+    stored = getattr(adata, "uns", {}).get("spatialscope_cluster_palette", {}).get(key, {})
+    if isinstance(stored, dict) and all(cat in stored for cat in categories):
+        return {cat: str(stored[cat]) for cat in categories}
+    return {cat: CLUSTER_PALETTE[i % len(CLUSTER_PALETTE)] for i, cat in enumerate(categories)}
+
+
+def _cluster_scatter(
+    *,
+    coords: np.ndarray,
+    labels: pd.Series,
+    title: str,
+    palette: dict[str, str],
+    point_size: int,
+    spatial: bool = False,
+) -> go.Figure:
+    fig = go.Figure()
+    categories = sorted(labels.astype(str).unique(), key=numeric_sort_key)
+    for category in categories:
+        mask = np.asarray(labels.astype(str) == category)
+        fig.add_trace(
+            go.Scattergl(
+                x=coords[mask, 0],
+                y=coords[mask, 1],
+                mode="markers",
+                name=str(category),
+                marker={"size": point_size, "color": palette[str(category)], "opacity": 0.86, "line": {"width": 0}},
+                hovertemplate="group=%{fullData.name}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
+            )
+        )
+    fig.update_layout(
+        title={"text": title, "x": 0.02, "xanchor": "left"},
+        margin={"l": 8, "r": 8, "t": 46, "b": 8},
+        height=470,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        legend={"orientation": "h", "y": -0.08, "x": 0},
+        font={"family": "Inter, PingFang SC, sans-serif", "size": 13, "color": "#172026"},
+    )
+    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=not spatial)
+    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=not spatial)
+    if spatial:
+        fig.update_yaxes(scaleanchor="x")
+    return fig
+
+
+def _expression_scatter(
+    *,
+    coords: np.ndarray,
+    values: np.ndarray,
+    title: str,
+    point_size: int,
+    spatial: bool = False,
+) -> go.Figure:
+    finite = values[np.isfinite(values)]
+    if len(finite):
+        lo, hi = np.percentile(finite, [1, 99])
+        values = np.clip(values, lo, hi)
+    fig = go.Figure(
+        go.Scattergl(
+            x=coords[:, 0],
+            y=coords[:, 1],
+            mode="markers",
+            marker={
+                "size": point_size,
+                "color": values,
+                "colorscale": [[0, "#f7faf9"], [0.35, "#dcefed"], [0.7, "#3d9a91"], [1, "#075a54"]],
+                "showscale": True,
+                "colorbar": {"title": "expr"},
+                "opacity": 0.9,
+                "line": {"width": 0},
+            },
+            hovertemplate="expr=%{marker.color:.3g}<br>x=%{x:.2f}<br>y=%{y:.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title={"text": title, "x": 0.02, "xanchor": "left"},
+        margin={"l": 8, "r": 8, "t": 46, "b": 8},
+        height=470,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font={"family": "Inter, PingFang SC, sans-serif", "size": 13, "color": "#172026"},
+    )
+    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=not spatial)
+    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=not spatial)
+    if spatial:
+        fig.update_yaxes(scaleanchor="x")
+    return fig
+
+
 def render_linked_explore(state: dict[str, Any]) -> None:
-    umap = _find_figure(state, "umap") or _find_figure(state, "embedding")
-    spatial = _find_figure(state, "spatial_", "leiden") or _find_figure(state, "spatial view")
-    genes = state.get("observations", {}).get("resolved_genes") or state.get("observations", {}).get("requested_genes") or []
-    cluster_key = state.get("observations", {}).get("groupby") or "leiden"
-    c1, c2, c3 = st.columns([1, 1, 1], gap="large")
-    selected_cluster = c1.selectbox("Cluster key", [str(cluster_key)], index=0)
-    selected_gene = c2.selectbox("Gene focus", list(map(str, genes)) or ["no resolved gene"], index=0)
-    layer = state.get("observations", {}).get("expression_layer") or "recorded expression layer"
-    c3.text_input("Expression source", value=str(layer), disabled=True)
-    st.caption(f"Spatial and UMAP cluster views use the same cluster palette for `{selected_cluster}`. Gene focus: `{selected_gene}`.")
-    left, right = st.columns(2, gap="large")
-    for col, fig, label in [(left, spatial, "Spatial evidence"), (right, umap, "UMAP evidence")]:
-        with col:
-            with st.container(border=True):
-                st.markdown(f"<div class='ss-mini-label'>{label}</div>", unsafe_allow_html=True)
-                if not fig:
-                    st.info("This paired view is not available for the current run.")
-                    continue
-                path = Path(str(fig.get("path") or ""))
-                st.markdown(f"**{fig.get('title') or path.name}**")
-                st.caption(f"Evidence ID: `{fig.get('evidence_id', 'not recorded')}`")
-                st.caption(str(fig.get("caption") or ""))
-                if path.exists():
-                    st.image(str(path), width="stretch")
+    adata = _load_explore_adata(state)
+    if adata is None:
+        st.info("无法载入本次 run 的 working AnnData；请先完成一次运行。")
+        return
+    cluster_options = _cluster_options(adata)
+    if "spatial" not in adata.obsm:
+        st.warning("当前数据没有 `adata.obsm['spatial']`，Spatial view 无法渲染。")
+        return
+    if "X_umap" not in adata.obsm:
+        st.warning("当前 run 还没有 UMAP 坐标；请运行包含 clustering 的分析方案。")
+        return
+    if not cluster_options:
+        st.warning("没有找到可用于联动视图的 cluster/category 列。")
+        return
+
+    control_col, spatial_col, umap_col = st.columns([0.82, 1.12, 1.12], gap="large")
+    with control_col:
+        st.markdown("<div class='ss-panel compact'><div class='ss-mini-label'>Explore Controls</div><div class='ss-card-title'>联动证据工作台</div>", unsafe_allow_html=True)
+        cluster_key = st.selectbox("Cluster key", cluster_options, index=0)
+        color_mode = st.segmented_control("颜色模式", ["Cluster", "Gene expression"], default="Cluster")
+        genes = _gene_choices(state, adata)
+        selected_gene = st.selectbox("Gene", genes, index=0, disabled=color_mode != "Gene expression")
+        layers = _safe_expression_layers(adata)
+        layer = st.selectbox("Expression layer", layers or ["no safe layer"], index=0, disabled=color_mode != "Gene expression" or not layers)
+        point_size = st.slider("Point size", min_value=4, max_value=18, value=8, step=1)
+        st.markdown("</div>", unsafe_allow_html=True)
+        if color_mode == "Gene expression" and not layers:
+            st.warning("没有安全 raw/normalized expression source；gene/marker 解释已被阻断。")
+        st.markdown("<div class='ss-section-title'>Evidence-linked Findings</div>", unsafe_allow_html=True)
+        for finding in state.get("scientific_findings", [])[:3]:
+            evidence = ", ".join(map(str, finding.get("evidence_ids", [])))
+            st.markdown(
+                (
+                    "<div class='ss-story compact'>"
+                    f"<div class='ss-card-title'>{html.escape(str(finding.get('title', 'Finding')))}</div>"
+                    f"<p>{html.escape(str(finding.get('statement', '')))}</p>"
+                    f"<p class='ss-run-path'>{html.escape(evidence)}</p>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
+
+    labels = adata.obs[cluster_key].astype(str)
+    categories = sorted(labels.unique(), key=numeric_sort_key)
+    palette = _palette_for(adata, cluster_key, categories)
+    spatial_coords = np.asarray(adata.obsm["spatial"])
+    umap_coords = np.asarray(adata.obsm["X_umap"])
+    use_expression = color_mode == "Gene expression" and bool(layers) and selected_gene in list(map(str, adata.var_names))
+    if use_expression:
+        values = _gene_vector(adata, selected_gene, layer)
+        spatial_fig = _expression_scatter(
+            coords=spatial_coords,
+            values=values,
+            title=f"Spatial expression · {selected_gene}",
+            point_size=point_size,
+            spatial=True,
+        )
+        umap_fig = _expression_scatter(
+            coords=umap_coords,
+            values=values,
+            title=f"UMAP expression · {selected_gene}",
+            point_size=point_size,
+        )
+    else:
+        spatial_fig = _cluster_scatter(
+            coords=spatial_coords,
+            labels=labels,
+            title=f"Spatial clusters · {cluster_key}",
+            palette=palette,
+            point_size=point_size,
+            spatial=True,
+        )
+        umap_fig = _cluster_scatter(
+            coords=umap_coords,
+            labels=labels,
+            title=f"UMAP clusters · {cluster_key}",
+            palette=palette,
+            point_size=point_size,
+        )
+    with spatial_col:
+        st.plotly_chart(spatial_fig, use_container_width=True, key="linked_spatial_plot")
+        st.caption("Gene expression 模式下两张图共享同一顺序色标。" if use_expression else "Spatial 与 UMAP 在 cluster 模式下共享同一套颜色。")
+    with umap_col:
+        st.plotly_chart(umap_fig, use_container_width=True, key="linked_umap_plot")
+        st.caption("当前使用安全表达层；表达模式仍需结合 evidence 与 caveat 解读。" if use_expression else "Gene expression 模式只使用安全表达层；否则保持 cluster 视图。")
 
 
 def render_tables(state: dict[str, Any]) -> None:
@@ -380,52 +650,23 @@ def _evidence_ids_for_tools(state: dict[str, Any], *tools: str) -> list[str]:
 
 
 def render_report_findings(state: dict[str, Any]) -> None:
-    warnings = list(map(str, state.get("warnings", [])))
-    findings = [
-        {
-            "title": "Dataset is suitable for spatial exploration",
-            "text": f"{state.get('dataset_summary', {}).get('n_obs', 'NA')} observations and {state.get('dataset_summary', {}).get('n_vars', 'NA')} genes were inspected before planning.",
-            "evidence": ["trace:inspect_dataset"],
-            "caveat": "Dataset profile is heuristic and depends on AnnData metadata quality.",
-        },
-        {
-            "title": "Cluster structure is available for linked spatial and embedding review",
-            "text": "Spatial and UMAP cluster views can be compared with shared cluster colors when clustering succeeds.",
-            "evidence": _evidence_ids_for_tools(state, "plot_spatial", "plot_umap"),
-            "caveat": "Cluster separation is exploratory; it is not a confirmed biological annotation.",
-        },
-        {
-            "title": "Requested genes have spatial evidence when matched safely",
-            "text": "Gene-panel evidence is generated only after gene matching and expression-source checks.",
-            "evidence": _evidence_ids_for_tools(state, "plot_gene_panel") or _evidence_ids_matching(state, "gene panel"),
-            "caveat": "Expression patterns depend on the recorded expression source and clipping parameters.",
-        },
-        {
-            "title": "Marker ranking is bounded by expression lineage",
-            "text": "Marker tables and heatmaps are included only when a safe expression source is available.",
-            "evidence": _evidence_ids_for_tools(state, "rank_markers"),
-            "caveat": "Marker genes suggest cluster differences but do not assign definitive cell identities.",
-        },
-    ]
-    if warnings:
-        findings.append(
-            {
-                "title": "Warnings define the interpretation boundary",
-                "text": warnings[0],
-                "evidence": ["run:warnings"],
-                "caveat": "Warnings should be resolved before making strong biological claims.",
-            }
-        )
     st.markdown("<div class='ss-section-title'>Findings</div>", unsafe_allow_html=True)
+    findings = state.get("scientific_findings", [])
+    if not findings:
+        st.info("还没有 evidence-linked findings。")
+        return
     for finding in findings[:5]:
-        evidence = ", ".join(finding["evidence"] or ["not available"])
+        evidence = ", ".join(map(str, finding.get("evidence_ids", []))) or "not available"
+        support = "; ".join(map(str, finding.get("quantitative_support", [])[:3]))
+        caveat = " ".join(map(str, finding.get("caveats", [])[:2]))
         st.markdown(
             (
                 "<div class='ss-story'>"
-                f"<div class='ss-card-title'>{html.escape(finding['title'])}</div>"
-                f"<p>{html.escape(finding['text'])}</p>"
+                f"<div class='ss-card-title'>{html.escape(str(finding.get('title', 'Finding')))}</div>"
+                f"<p>{html.escape(str(finding.get('statement', '')))}</p>"
+                f"<p><strong>Quantitative support:</strong> {html.escape(support or 'not available')}</p>"
                 f"<p><strong>Evidence:</strong> {html.escape(evidence)}</p>"
-                f"<p><strong>Caveat:</strong> {html.escape(finding['caveat'])}</p>"
+                f"<p><strong>Caveat:</strong> {html.escape(caveat or 'Interpret cautiously within the recorded evidence.')}</p>"
                 "</div>"
             ),
             unsafe_allow_html=True,
@@ -549,38 +790,53 @@ def render_report_assets(state: dict[str, Any], *, primary: bool = False) -> Non
 
 
 def render_contextual_copilot(state: dict[str, Any]) -> None:
-    evidence = state.get("evidence_artifacts", [])
+    evidence = state.get("evidence_packs") or state.get("evidence_artifacts", [])
     if not evidence:
         return
-    labels = [
-        f"{item.get('evidence_id')} · {item.get('title') or Path(str(item.get('path', ''))).name}"
+    st.markdown("<div class='ss-section-title'>Contextual Copilot</div>", unsafe_allow_html=True)
+    labels = {
+        f"{item.get('evidence_id')} · {item.get('title') or Path(str(item.get('path', ''))).name}": item
         for item in evidence
-    ]
-    selected_labels = st.multiselect("选择证据上下文", labels, default=labels[: min(2, len(labels))])
-    selected_items = [evidence[labels.index(label)] for label in selected_labels] if selected_labels else [evidence[0]]
-    question = st.text_input("Ask the evidence copilot", value="What does this evidence support, and what is the main caveat?")
-    if st.button("生成证据边界解释", width="stretch"):
+    }
+    selected_labels = st.multiselect("选择证据上下文", list(labels), default=list(labels)[: min(8, len(labels))])
+    selected_items = [labels[label] for label in selected_labels] if selected_labels else [evidence[0]]
+    history = list(state.get("copilot_history", []))[-8:]
+    question = st.text_input("向证据提问", value="这组证据最支持什么？主要局限是什么？")
+    if st.button("询问 Copilot", width="stretch"):
         table_titles = [str(table.get("title") or table.get("path")) for table in state.get("generated_tables", [])[:4]]
-        context = {
-            "title": "; ".join(str(item.get("title") or item.get("path")) for item in selected_items),
-            "evidence_ids": [str(item.get("evidence_id")) for item in selected_items],
-            "selected_evidence": selected_items,
-            "selected_table_titles": table_titles,
-            "warnings": list(map(str, state.get("warnings", [])[:6])),
-        }
+        context = context_for_copilot(
+            selected_evidence=selected_items,
+            warnings=list(map(str, state.get("warnings", [])[:8])),
+            table_titles=table_titles,
+            conversation_memory=history,
+        )
+        context["title"] = "; ".join(str(item.get("title") or item.get("path")) for item in selected_items)
         gateway = LLMGateway.from_env()
-        answer = gateway.answer_contextual_question(context=context, question=question)
+        answer = gateway.answer_contextual_question(context=context, question=question, conversation_memory=history)
         state.setdefault("llm_calls", []).extend(gateway.telemetry)
+        state.setdefault("copilot_history", []).append(
+            {
+                "question": question,
+                "answer": answer.get("answer", ""),
+                "evidence_ids": answer.get("evidence_ids", []),
+                "caveat": answer.get("caveat", ""),
+                "next_step": answer.get("next_step", ""),
+                "source": answer.get("source", "unknown"),
+            }
+        )
         st.session_state.run_state = state
-        used_ids = answer.get("evidence_ids", [])
+        history = list(state.get("copilot_history", []))[-8:]
+    for item in reversed(history[-3:]):
+        used_ids = item.get("evidence_ids", [])
         st.markdown(
             (
                 "<div class='ss-story'>"
-                f"<div class='ss-mini-label'>Copilot answer · {html.escape(str(answer.get('source', 'llm')))}</div>"
-                f"<p>{html.escape(str(answer.get('answer', '')))}</p>"
+                f"<div class='ss-mini-label'>Copilot · {html.escape(str(item.get('source', 'llm')))}</div>"
+                f"<div class='ss-card-title'>{html.escape(str(item.get('question', '')))}</div>"
+                f"<p>{html.escape(str(item.get('answer', '')))}</p>"
                 f"<p><strong>Evidence IDs used:</strong> {html.escape(', '.join(map(str, used_ids)) or 'none')}</p>"
-                f"<p><strong>Caveat:</strong> {html.escape(str(answer.get('caveat', '')))}</p>"
-                f"<p><strong>Next step:</strong> {html.escape(str(answer.get('next_step', '')))}</p>"
+                f"<p><strong>Caveat:</strong> {html.escape(str(item.get('caveat', '')))}</p>"
+                f"<p><strong>Next step:</strong> {html.escape(str(item.get('next_step', '')))}</p>"
                 "</div>"
             ),
             unsafe_allow_html=True,

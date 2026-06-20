@@ -11,11 +11,11 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
 - Safe LLM Control Center with masked key display, provider/model status, fallback explanation, and optional smoke test
 - LangGraph workflow with SQLite checkpoints, stable thread IDs, and a deterministic fallback path
-- Structured LLM parsing/planning with Pydantic validation and rule-based fallback
+- LLM research-brief parsing, evidence-grounded interpretation, contextual Copilot, and deterministic LLM-informed baseline planning
+- EvidencePack and ScientificFinding contracts that keep every report finding tied to exact evidence IDs, metrics, excerpts, and caveats
 - Open tool registry with tool contracts, preconditions, common failures, and repair strategies
 - Structured repair diagnostics for failed or skipped steps, visible in trace, report, and manifest
-- Quality Gates self-audit for dataset readiness, trace integrity, evidence outputs, interpretation, and reproducibility metadata
-- Agent Audit for contract-bound planning, execution coverage, repair accountability, evidence-bounded interpretation, and public-state privacy checks
+- Quality Gates and Agent Audit remain available in the Advanced provenance area and output bundle, not in the main research workflow
 - Dataset Card (`dataset_card.html`/`dataset_card.json`/`DATASET_CARD.md`) for data suitability, schema preview, spatial-coordinate status, recommended run depth, and privacy boundary
 - Human Review notes with decision, confidence, tags, Quality Gate overrides, reviewer comments, and bundle integration
 - `.h5ad` dataset inspection, QC, preprocessing, UMAP, Leiden clustering, marker genes
@@ -28,7 +28,7 @@ Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 - HTML report, run-level `README.md`, `dataset_card.html`, `DATASET_CARD.md`, `agent_trace.json`, `run_metadata.json`, `parameters.yaml`, `review_notes.json`, `agent_audit.json`, `artifact_manifest.json`
 - Artifact Audit with file existence, size, kind counts, missing-artifact warnings, and bundle status
 - Complete `run_bundle.zip` export for report, trace, metadata, figures, tables, and reproducibility assets
-- CLI and a polished Streamlit analysis workspace
+- CLI and a polished Streamlit analysis workspace with Project, Run, Explore, Report, and Advanced pages
 - Run Library, historical run rehydration, and Run Compare for reproducibility bundles and side-by-side audit
 - Streamlit Demo Launchpad for one-click standard showcase runs on bundled synthetic spatial data
 
@@ -58,12 +58,20 @@ Edit `.env`:
 SPATIALSCOPE_LLM_API_KEY=...
 SPATIALSCOPE_LLM_BASE_URL=...
 SPATIALSCOPE_LLM_MODEL=glm-5.1
-SPATIALSCOPE_LLM_TIMEOUT_SECONDS=15
+SPATIALSCOPE_LLM_TIMEOUT_SECONDS=45
+SPATIALSCOPE_DIRECT_LLM_PLAN=0
+SPATIALSCOPE_DIRECT_LLM_FINDINGS=0
 ```
 
 Use the base URL from your GLM/OpenAI-compatible provider console. The local `.env`
 file is ignored by Git. If no API key is configured, SpatialScope still runs a
 rule-based demo planner for smoke tests.
+
+By default, the LLM parses the research question, powers Copilot, and writes the
+final evidence-grounded interpretation. Planning and finding assembly use
+validated local contracts for latency and reproducibility; set
+`SPATIALSCOPE_DIRECT_LLM_PLAN=1` or `SPATIALSCOPE_DIRECT_LLM_FINDINGS=1` when you
+want to experiment with direct LLM generation for those stages.
 
 Check LLM configuration without exposing secrets:
 
@@ -81,7 +89,7 @@ python cli.py llm-check --live
 SpatialScope uses a LangGraph state machine:
 
 ```text
-parse_request -> inspect_dataset -> plan_analysis -> review_plan
+inspect_dataset -> parse_request -> plan_analysis -> review_plan
 -> execute_tool -> validate_result -> repair_or_continue
 -> interpret -> report
 ```
@@ -92,8 +100,9 @@ user can inspect and edit the plan before execution.
 
 The tool layer is registry-driven. Each analysis tool exposes a contract with
 preconditions, postconditions, common failures, and repair strategies. The configured
-LLM can use these contracts to generate structured analysis plans, while the
-deterministic planner keeps demos reproducible when no API key is available.
+LLM parses the user question into a dataset-aware ResearchBrief; a deterministic
+baseline planner turns that brief into a reproducible tool plan unless direct LLM
+planning is explicitly enabled.
 When a step fails, SpatialScope writes a repair diagnosis with failure category,
 likely cause, action taken, and recommended next actions instead of silently
 continuing.
@@ -119,9 +128,9 @@ python scripts/create_demo_data.py --output data/demo_tiny.h5ad
 
 ```bash
 python cli.py run \
-  --data data/demo_tiny.h5ad \
-  --query "Run quick spatial analysis and plot GeneA, GeneB" \
-  --mode quick
+  --data data/demo_embryo.h5ad \
+  --query "检查这个早期小鼠胚胎空间数据的质量，比较空间结构与 UMAP 聚类，并查看 Pou5f1、Sox17、T 和 Mesp1 的空间表达。总结主要观察和局限。" \
+  --mode standard
 ```
 
 Outputs are written to `outputs/runs/<run_id>/`.
@@ -144,12 +153,11 @@ scripts/run_app.sh
 
 Navigation:
 
-1. Workspace: run the Demo Launchpad, upload/select data, write the research request, tune QC/clustering/gene controls, and generate or directly run a plan.
-2. Plan: review the interrupted LangGraph plan, inspect dataset profile fields, edit JSON, validate it, and resume execution.
-3. Run: inspect workflow status, execution trace, repair diagnostics, Quality Gates, Agent Audit, and Artifact Audit.
-4. Explore: browse figures/tables and use the evidence-bounded contextual copilot for cautious figure explanation.
-5. Report: read the final summary, preview/download the report, and export the reproducibility bundle.
-6. Provenance: inspect LLM status, telemetry, tool contracts, run library, and public state JSON.
+1. Project: run the Demo Launchpad, upload/select data, write the research question, tune analysis controls, and generate or directly run a plan.
+2. Run: inspect the live LangGraph workflow, execution events, repair/clarification notices, warnings, and run-level evidence metrics.
+3. Explore: use linked interactive Spatial and UMAP Plotly views with shared cluster colors, gene/layer controls, evidence-linked findings, and contextual Copilot.
+4. Report: read the research question, 3-5 evidence-linked findings, caveats, final interpretation, and download the report/bundle.
+5. Advanced: inspect LLM status, telemetry, tool registry, audits, run library, and public state JSON.
 
 ## Public Web Deployment
 
@@ -171,7 +179,9 @@ SPATIALSCOPE_LLM_PROVIDER = "openai_compatible"
 SPATIALSCOPE_LLM_API_KEY = "your_glm_api_key_here"
 SPATIALSCOPE_LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 SPATIALSCOPE_LLM_MODEL = "glm-5.1"
-SPATIALSCOPE_LLM_TIMEOUT_SECONDS = "15"
+SPATIALSCOPE_LLM_TIMEOUT_SECONDS = "45"
+SPATIALSCOPE_DIRECT_LLM_PLAN = "0"
+SPATIALSCOPE_DIRECT_LLM_FINDINGS = "0"
 ```
 
 The repository already includes `environment.yml`, which Streamlit Community Cloud

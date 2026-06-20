@@ -6,6 +6,7 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Callable
 
+import pandas as pd
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import interrupt
 
@@ -13,7 +14,7 @@ from spatialscope.agent.planner import fallback_parse_query, validate_plan_steps
 from spatialscope.agent.repair import diagnose_tool_failure
 from spatialscope.agent.state import RunMode, SpatialAgentState, initial_state
 from spatialscope.domain.dataset_store import DEFAULT_DATASET_STORE
-from spatialscope.domain.evidence import EvidenceArtifact
+from spatialscope.domain.evidence import EvidenceArtifact, EvidencePack
 from spatialscope.llm.gateway import LLMGateway
 from spatialscope.tools.base import ToolResult, safe_tool_call
 from spatialscope.tools.io_tools import load_h5ad
@@ -29,6 +30,7 @@ def _extend_llm_telemetry(state: SpatialAgentState, gateway: LLMGateway) -> None
     records = [record.model_dump() if hasattr(record, "model_dump") else dict(record) for record in gateway.telemetry]
     if records:
         state.setdefault("llm_calls", []).extend(records)
+        gateway.telemetry.clear()
 
 
 def _record_trace(
@@ -43,6 +45,7 @@ def _record_trace(
     extra: dict[str, Any] | None = None,
 ) -> None:
     evidence_artifacts = _evidence_from_result(result, tool=tool, node=node)
+    evidence_packs = _evidence_packs_from_result(result, tool=tool, node=node, params=params, artifacts=evidence_artifacts)
     figures = [dict(item) for item in result.figures]
     tables = [dict(item) for item in result.tables]
     figure_ids = [item["evidence_id"] for item in evidence_artifacts if item.get("kind") == "figure"]
@@ -71,6 +74,8 @@ def _record_trace(
     state.setdefault("generated_tables", []).extend(tables)
     state.setdefault("observations", {}).update(result.observations)
     state.setdefault("evidence_artifacts", []).extend(evidence_artifacts)
+    state.setdefault("evidence_packs", []).extend(evidence_packs)
+    _record_clarifications(state, result=result, tool=tool, params=params)
     state["last_result"] = result.to_dict()
     state["needs_repair"] = result.status == "failed"
 
@@ -101,6 +106,160 @@ def _evidence_from_result(result: ToolResult, *, tool: str, node: str) -> list[d
             ).model_dump()
         )
     return artifacts
+
+
+def _compact_value(value: Any, *, depth: int = 0) -> Any:
+    if depth > 2:
+        return str(value)[:140]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for key, item in list(value.items())[:16]:
+            normalized = str(key).lower()
+            if normalized in {"x", "raw_x", "matrix", "coordinates", "spatial_coordinates"} or normalized.endswith("_matrix"):
+                out[str(key)] = "[redacted matrix-like payload]"
+            else:
+                out[str(key)] = _compact_value(item, depth=depth + 1)
+        return out
+    if isinstance(value, (list, tuple)):
+        values = list(value)
+        if len(values) > 20 and any(isinstance(item, (list, tuple, dict)) for item in values):
+            return f"[{len(values)} structured records redacted]"
+        return [_compact_value(item, depth=depth + 1) for item in values[:20]]
+    try:
+        return value.item()
+    except Exception:
+        return str(value)[:140]
+
+
+def _summary_metrics_from_result(result: ToolResult) -> dict[str, Any]:
+    keys = [
+        "dataset_summary",
+        "qc_before",
+        "qc_after",
+        "qc_quantiles",
+        "qc_thresholds",
+        "retention_fraction",
+        "n_clusters",
+        "cluster_sizes",
+        "cluster_fractions",
+        "cluster_palette",
+        "resolution",
+        "requested_genes",
+        "resolved_genes",
+        "gene_expression_summary",
+        "expression_layer",
+        "clip_percentiles",
+        "marker_rows",
+        "top_marker_summary",
+        "groupby",
+        "expression_lineage",
+    ]
+    metrics: dict[str, Any] = {}
+    observations = result.observations or {}
+    for key in keys:
+        if key in observations:
+            metrics[key] = _compact_value(observations[key])
+    if "dataset_summary" in metrics and isinstance(metrics["dataset_summary"], dict):
+        summary = metrics.pop("dataset_summary")
+        for key in ["n_obs", "n_vars", "has_spatial", "matrix_state", "recommended_run_depth"]:
+            if key in summary:
+                metrics[key] = summary[key]
+    return metrics
+
+
+def _table_excerpt(path: str, *, rows: int = 6, columns: int = 8) -> list[dict[str, Any]]:
+    table_path = Path(path)
+    if not table_path.exists():
+        return []
+    try:
+        if table_path.suffix.lower() == ".csv":
+            frame = pd.read_csv(table_path, nrows=rows)
+        else:
+            frame = pd.read_table(table_path, nrows=rows)
+    except Exception:
+        return []
+    if frame.empty:
+        return []
+    frame = frame.iloc[:, :columns].copy()
+    return [
+        {str(key): _compact_value(value) for key, value in row.items()}
+        for row in frame.to_dict(orient="records")
+    ]
+
+
+def _evidence_packs_from_result(
+    result: ToolResult,
+    *,
+    tool: str,
+    node: str,
+    params: dict[str, Any],
+    artifacts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    metrics = _summary_metrics_from_result(result)
+    caveats = list(dict.fromkeys([*map(str, result.warnings), *map(str, result.errors)]))
+    packs: list[dict[str, Any]] = []
+    if not artifacts and metrics:
+        packs.append(
+            EvidencePack(
+                evidence_id=f"{node}:{tool}:metric:0",
+                kind="metric",
+                title=f"{tool} metrics",
+                tool=tool,
+                caption=result.summary,
+                summary_metrics=metrics,
+                parameters=_compact_value(params),
+                caveats=caveats,
+            ).model_dump()
+        )
+        return packs
+    for artifact in artifacts:
+        path = str(artifact.get("path") or "")
+        kind = str(artifact.get("kind") or "text")
+        packs.append(
+            EvidencePack(
+                evidence_id=str(artifact.get("evidence_id")),
+                kind=kind,  # type: ignore[arg-type]
+                title=str(artifact.get("title") or tool),
+                tool=tool,
+                path=path,
+                data_layer=str(artifact.get("data_layer") or ""),
+                caption=str(artifact.get("caption") or result.summary),
+                summary_metrics=metrics,
+                table_excerpt=_table_excerpt(path) if kind == "table" else [],
+                parameters=_compact_value(params),
+                caveats=caveats,
+            ).model_dump()
+        )
+    return packs
+
+
+def _record_clarifications(state: SpatialAgentState, *, result: ToolResult, tool: str, params: dict[str, Any]) -> None:
+    if result.status != "failed":
+        return
+    observations = result.observations or {}
+    if "gene_suggestions" in observations:
+        state.setdefault("clarification_items", []).append(
+            {
+                "kind": "gene_resolution",
+                "tool": tool,
+                "params": params,
+                "message": "One or more genes need confirmation before expression plotting.",
+                "suggestions": observations.get("gene_suggestions", {}),
+                "status": "repaired_or_waiting",
+            }
+        )
+    if "unsafe_expression_source" in set(map(str, result.errors)):
+        state.setdefault("clarification_items", []).append(
+            {
+                "kind": "unsafe_expression_layer",
+                "tool": tool,
+                "params": params,
+                "message": result.summary,
+                "status": "blocked",
+            }
+        )
 
 
 def parse_request_node(state: SpatialAgentState) -> SpatialAgentState:
@@ -472,6 +631,13 @@ def repair_or_continue_node(state: SpatialAgentState) -> SpatialAgentState:
 
 def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
     gateway = LLMGateway.from_env()
+    findings = gateway.synthesize_findings(
+        query=state.get("user_query", ""),
+        dataset_profile=state.get("dataset_profile") or state.get("dataset_summary", {}),
+        evidence_packs=state.get("evidence_packs", []),
+        warnings=state.get("warnings", []),
+    )
+    state["scientific_findings"] = [finding.model_dump() for finding in findings]
     claims = gateway.synthesize_evidence_claims(
         query=state.get("user_query", ""),
         dataset_profile=state.get("dataset_profile") or state.get("dataset_summary", {}),
@@ -485,6 +651,7 @@ def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
         query=state.get("user_query", ""),
         dataset_profile=state.get("dataset_profile") or state.get("dataset_summary", {}),
         evidence_artifacts=state.get("evidence_artifacts", []),
+        findings=state.get("scientific_findings", []),
         execution_trace=state.get("execution_trace", []),
         warnings=state.get("warnings", []),
     )
@@ -492,17 +659,24 @@ def interpret_node(state: SpatialAgentState) -> SpatialAgentState:
     if llm_interpretation:
         state["final_answer"] = llm_interpretation
         return state
-    success_count = sum(1 for item in state.get("execution_trace", []) if item.get("node") == "execute_tool" and str(item.get("status", "")).startswith("success"))
-    artifact_count = len(state.get("evidence_artifacts", []))
-    warnings_count = len(state.get("warnings", []))
-    layer = (
-        state.get("observations", {}).get("expression_layer")
-        or state.get("dataset_profile", {}).get("expression_lineage", {}).get("selected_interpretation_layer")
-        or "recorded expression layer"
+    if findings:
+        bullets = " ".join(
+            f"{index}. {finding.statement} Evidence: {', '.join(finding.evidence_ids)}."
+            for index, finding in enumerate(findings[:4], start=1)
+        )
+        caveats = " ".join(caveat for finding in findings[:4] for caveat in finding.caveats[:1])
+        state["final_answer"] = f"Research brief: {bullets} Caveats: {caveats}".strip()
+        return state
+    success_count = sum(
+        1
+        for item in state.get("execution_trace", [])
+        if item.get("node") == "execute_tool" and str(item.get("status", "")).startswith("success")
     )
+    pack_count = len(state.get("evidence_packs", []))
+    warnings_count = len(state.get("warnings", []))
     state["final_answer"] = (
         f"SpatialScope completed {success_count} successful analysis tool steps in {state.get('mode')} mode and produced "
-        f"{artifact_count} evidence artifacts. Gene-level figures and marker ranking use `{layer}` when available; "
+        f"{pack_count} compact evidence packs. Gene-level figures and marker ranking use a safe expression source when available; "
         f"all biological interpretations are exploratory and bounded by the recorded figures, tables, and trace. "
         f"Warnings recorded: {warnings_count}."
     )

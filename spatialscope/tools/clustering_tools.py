@@ -47,13 +47,28 @@ def run_clustering(
         sc.tl.leiden(adata, resolution=resolution, key_added="leiden", random_state=random_state)
 
     counts = adata.obs["leiden"].value_counts().sort_index()
+    total = max(int(counts.sum()), 1)
+    cluster_sizes = {str(cluster): int(count) for cluster, count in counts.items()}
+    cluster_fractions = {str(cluster): round(float(count) / total, 4) for cluster, count in counts.items()}
     table_path = Path(tables_dir) / "cluster_summary.csv"
-    pd.DataFrame({"cluster": counts.index.astype(str), "n_obs": counts.values}).to_csv(table_path, index=False)
+    pd.DataFrame(
+        {
+            "cluster": counts.index.astype(str),
+            "n_obs": counts.values,
+            "fraction": [cluster_fractions[str(cluster)] for cluster in counts.index.astype(str)],
+        }
+    ).to_csv(table_path, index=False)
 
     return ToolResult(
         status="success",
         summary=f"Computed PCA, UMAP, and Leiden clustering with {len(counts)} clusters at resolution {resolution}.",
         tables=[{"path": str(table_path), "title": "Cluster summary"}],
-        observations={"n_clusters": int(len(counts)), "resolution": resolution},
+        observations={
+            "n_clusters": int(len(counts)),
+            "resolution": resolution,
+            "random_state": random_state,
+            "cluster_sizes": cluster_sizes,
+            "cluster_fractions": cluster_fractions,
+        },
         warnings=[] if 2 <= len(counts) <= 30 else [f"Leiden produced {len(counts)} clusters; resolution may need adjustment."],
     )

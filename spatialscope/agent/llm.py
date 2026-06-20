@@ -13,19 +13,9 @@ from spatialscope.agent.schemas import (
     parsed_request_json_schema,
 )
 from spatialscope.agent.state import RunMode
+from spatialscope.llm.prompts import SYSTEM_PROMPT
 from spatialscope.tools.registry import available_tool_names
 from spatialscope.utils.json_utils import extract_json_object
-
-
-SYSTEM_PROMPT = """You are SpatialScope Agent, a spatial transcriptomics analysis assistant.
-You plan and explain reproducible AnnData/Scanpy/Squidpy workflows.
-Rules:
-1. Never fabricate biological conclusions, gene markers, figures, tables, or statistics.
-2. Use only tool summaries, table excerpts, and figure captions when writing interpretations.
-3. Do not request full expression matrices or raw coordinate matrices.
-4. Treat cluster interpretation as marker-based candidate suggestion, not confirmed annotation.
-5. Return valid JSON when JSON is requested.
-"""
 
 
 @dataclass
@@ -43,13 +33,13 @@ class LLMClient:
                 api_key=generic_api_key,
                 base_url=os.getenv("SPATIALSCOPE_LLM_BASE_URL", ""),
                 model=os.getenv("SPATIALSCOPE_LLM_MODEL", "glm-5.1"),
-                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")),
+                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
             )
         return cls(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             model=os.getenv("SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash"),
-            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")),
+            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
         )
 
     @property
@@ -132,11 +122,11 @@ def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         api_key = ""
         base_url = _env_value(env, "SPATIALSCOPE_LLM_BASE_URL") or _env_value(env, "DEEPSEEK_BASE_URL", "")
         model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "glm-5.1")
-    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "15")
+    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")
     try:
         timeout_seconds = float(timeout_raw)
     except ValueError:
-        timeout_seconds = 15.0
+        timeout_seconds = 45.0
     enabled = bool(api_key and base_url and model)
     missing: list[str] = []
     if not api_key:

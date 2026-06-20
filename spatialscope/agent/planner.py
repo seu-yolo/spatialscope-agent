@@ -8,7 +8,7 @@ from spatialscope.agent.state import RunMode
 from spatialscope.tools.registry import available_tool_names
 
 
-GENE_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]{1,20}\b")
+GENE_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]{0,20}\b")
 STOPWORDS = {
     "run",
     "plot",
@@ -79,16 +79,18 @@ def fallback_parse_query(query: str, mode: RunMode) -> dict[str, Any]:
     lowered = query.lower()
     genes = []
     for token in GENE_PATTERN.findall(query):
+        if len(token) == 1 and token != "T":
+            continue
         if token.lower() not in STOPWORDS:
             genes.append(token)
     seen: set[str] = set()
     genes = [gene for gene in genes if not (gene in seen or seen.add(gene))]
     requested_steps: list[str] = []
-    if any(term in lowered for term in ["analysis", "analyze", "analyse", "overview", "explore"]):
+    if any(term in lowered for term in ["analysis", "analyze", "analyse", "overview", "explore", "探索", "检查", "比较"]):
         requested_steps.append("overview")
-    if any(term in lowered for term in ["complete", "de novo", "full", "standard", "quality", "qc", "cluster", "clustering"]):
+    if any(term in lowered for term in ["complete", "de novo", "full", "standard", "quality", "qc", "cluster", "clustering", "质量", "聚类"]):
         requested_steps.append("full_analysis")
-    if any(term in lowered for term in ["plot", "show", "view", "expression", "gene panel"]) and genes:
+    if any(term in lowered for term in ["plot", "show", "view", "expression", "gene panel", "表达", "查看"]) and genes:
         requested_steps.append("gene_panel")
     if any(term in lowered for term in ["svg", "spatially variable", "variable gene"]):
         requested_steps.append("svg")

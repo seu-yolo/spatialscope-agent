@@ -124,6 +124,16 @@ def rank_markers(
     marker_df.to_csv(table_path, index=False)
 
     top = marker_df.groupby("group", observed=False).head(top_n)
+    top_marker_summary = [
+        {
+            "group": str(row.get("group")),
+            "gene": str(row.get("names")),
+            "score": round(float(row.get("scores")), 4) if pd.notna(row.get("scores")) else None,
+            "logfoldchanges": round(float(row.get("logfoldchanges")), 4) if pd.notna(row.get("logfoldchanges")) else None,
+            "pvals_adj": float(row.get("pvals_adj")) if pd.notna(row.get("pvals_adj")) else None,
+        }
+        for row in top.head(18).to_dict(orient="records")
+    ]
     top_path = Path(tables_dir) / "marker_genes_top5.csv"
     top.to_csv(top_path, index=False)
     figures = []
@@ -145,6 +155,12 @@ def rank_markers(
             {"path": str(table_path), "title": "Marker genes"},
             {"path": str(top_path), "title": "Top 5 marker genes per cluster"},
         ],
-        observations={"marker_rows": int(len(marker_df)), "groupby": groupby, "marker_heatmap_genes": heatmap is not None, "expression_layer": layer or "X"},
+        observations={
+            "marker_rows": int(len(marker_df)),
+            "groupby": groupby,
+            "marker_heatmap_genes": heatmap is not None,
+            "expression_layer": layer or "X",
+            "top_marker_summary": top_marker_summary,
+        },
         warnings=warnings,
     )

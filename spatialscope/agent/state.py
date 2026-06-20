@@ -35,7 +35,10 @@ class SpatialAgentState(TypedDict, total=False):
     errors: list[str]
     llm_calls: list[dict[str, Any]]
     evidence_artifacts: list[dict[str, Any]]
+    evidence_packs: list[dict[str, Any]]
     evidence_claims: list[dict[str, Any]]
+    scientific_findings: list[dict[str, Any]]
+    clarification_items: list[dict[str, Any]]
     step_attempts: dict[str, int]
     aborted: bool
     repair_attempts: int
@@ -96,7 +99,10 @@ def initial_state(
         "errors": [],
         "llm_calls": [],
         "evidence_artifacts": [],
+        "evidence_packs": [],
         "evidence_claims": [],
+        "scientific_findings": [],
+        "clarification_items": [],
         "step_attempts": {},
         "aborted": False,
         "repair_attempts": 0,

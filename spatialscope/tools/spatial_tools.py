@@ -70,6 +70,7 @@ def plot_umap(adata: Any, *, figures_dir: str, color: str = "leiden") -> ToolRes
     labels = adata.obs[color].astype(str)
     categories = sorted(labels.unique(), key=numeric_sort_key)
     color_map = {cat: CLUSTER_PALETTE[i % len(CLUSTER_PALETTE)] for i, cat in enumerate(categories)}
+    adata.uns.setdefault("spatialscope_cluster_palette", {})[color] = color_map
 
     fig = plt.figure(figsize=(6.7, 4.1), constrained_layout=True)
     gs = fig.add_gridspec(1, 2, width_ratios=[4.7, 1.2])
@@ -100,6 +101,7 @@ def plot_umap(adata: Any, *, figures_dir: str, color: str = "leiden") -> ToolRes
                 "caption": f"UMAP embedding colored by `{color}`. Cluster colors are reused in spatial views.",
             }
         ],
+        observations={"groupby": color, "cluster_palette": color_map, "n_clusters": int(len(categories))},
     )
 
 
@@ -138,6 +140,7 @@ def plot_spatial(
         labels = adata.obs[color].astype(str)
         categories = sorted(labels.unique(), key=numeric_sort_key)
         color_map = {cat: CLUSTER_PALETTE[i % len(CLUSTER_PALETTE)] for i, cat in enumerate(categories)}
+        adata.uns.setdefault("spatialscope_cluster_palette", {})[color] = color_map
         for cat in categories:
             mask = labels == cat
             ax.scatter(coords[mask, 0], coords[mask, 1], s=point_size, color=color_map[cat], label=cat, alpha=0.9, linewidths=0)
@@ -174,7 +177,12 @@ def plot_spatial(
         status="success",
         summary=f"Generated spatial plot for {color}.",
         figures=[{**saved, "title": f"Spatial view: {color}", "caption": caption, "data_layer": expression_layer}],
-        observations={"expression_layer": expression_layer, "clip_percentiles": list(clip_percentiles)},
+        observations={
+            "expression_layer": expression_layer,
+            "clip_percentiles": list(clip_percentiles),
+            "groupby": color if color in adata.obs else "",
+            "cluster_palette": color_map if color in adata.obs else {},
+        },
     )
 
 
@@ -234,10 +242,30 @@ def plot_gene_panel(
     nrows = int(np.ceil(n / ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.35 * nrows), squeeze=False, constrained_layout=True)
     point_size = max(3, min(22, 12000 / max(adata.n_obs, 1)))
+    labels = adata.obs["leiden"].astype(str) if "leiden" in adata.obs else None
+    gene_summaries: list[dict[str, Any]] = []
     for ax, gene in zip(axes.ravel(), resolved):
         values = _gene_vector(adata, gene, expression_layer=layer)
         lo, hi = np.nanpercentile(values, clip_percentiles)
         clipped = np.clip(values, lo, hi)
+        finite = values[np.isfinite(values)]
+        summary: dict[str, Any] = {
+            "gene": gene,
+            "mean": round(float(np.mean(finite)), 4) if len(finite) else None,
+            "median": round(float(np.median(finite)), 4) if len(finite) else None,
+            "nonzero_fraction": round(float(np.mean(values > 0)), 4) if len(values) else None,
+            "p95": round(float(np.percentile(finite, 95)), 4) if len(finite) else None,
+        }
+        if labels is not None:
+            cluster_means = {
+                str(cluster): round(float(np.mean(values[np.asarray(labels == cluster)])), 4)
+                for cluster in sorted(labels.unique(), key=numeric_sort_key)
+                if np.asarray(labels == cluster).sum() > 0
+            }
+            if cluster_means:
+                summary["top_cluster_by_mean"] = max(cluster_means, key=cluster_means.get)
+                summary["cluster_means"] = cluster_means
+        gene_summaries.append(summary)
         sc = ax.scatter(coords[:, 0], coords[:, 1], c=clipped, cmap=EXPRESSION_CMAP, s=point_size, alpha=0.92, linewidths=0)
         polish_axis(ax, title=gene, subtitle=f"{layer}; {lo:.2g}-{hi:.2g} clipped")
         ax.set_aspect("equal")
@@ -265,6 +293,12 @@ def plot_gene_panel(
                 "data_layer": layer,
             }
         ],
-        observations={"requested_genes": genes, "resolved_genes": resolved, "expression_layer": layer, "clip_percentiles": list(clip_percentiles)},
+        observations={
+            "requested_genes": genes,
+            "resolved_genes": resolved,
+            "expression_layer": layer,
+            "clip_percentiles": list(clip_percentiles),
+            "gene_expression_summary": gene_summaries,
+        },
         warnings=warnings,
     )

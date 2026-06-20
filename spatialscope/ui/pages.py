@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import html
 import pandas as pd
 import streamlit as st
 
@@ -13,6 +14,7 @@ from .components import (
     ACKNOWLEDGEMENTS,
     PROJECT_SIGNATURE,
     render_audits,
+    render_clarifications,
     render_contextual_copilot,
     render_dataset_profile,
     render_evidence_metrics,
@@ -89,13 +91,23 @@ def _stream_approved(state: dict[str, Any], *, plan_source: str = "user_edited")
     workflow_slot = st.empty()
     trace_slot = st.empty()
     final_state = dict(state)
+    node_labels = {
+        "review_plan": "已批准分析方案",
+        "execute_tool": "正在执行分析工具",
+        "validate_result": "正在验证工具结果",
+        "repair_or_continue": "正在执行澄清/修复策略",
+        "interpret": "正在合成 evidence-linked findings",
+        "report": "正在生成可复现报告",
+        "generate_report": "正在写出 HTML report",
+    }
     for update in runtime().stream_resume(thread_id, approved_plan=plan, plan_source=plan_source):
         snapshot = runtime().state_snapshot(thread_id)
         values = dict(getattr(snapshot, "values", {}) or {})
         if values:
             final_state = values
-        node_names = ", ".join(update.keys()) if isinstance(update, dict) else "graph event"
-        status_slot.info(f"LangGraph event: {node_names}")
+        node_names = list(update.keys()) if isinstance(update, dict) else ["graph_event"]
+        friendly = " / ".join(node_labels.get(name, name) for name in node_names)
+        status_slot.markdown(f"<div class='ss-run-event'>{friendly}</div>", unsafe_allow_html=True)
         with workflow_slot.container():
             render_workflow(final_state)
         if final_state.get("execution_trace"):
@@ -169,7 +181,7 @@ def render_workspace_page() -> None:
         uploaded = st.file_uploader("上传空间 AnnData 文件 (.h5ad)", type=["h5ad"])
         query = st.text_area(
             "分析任务",
-            value="探索早期小鼠胚胎空间转录组结构，生成 marker genes，并绘制 Pou5f1 Sox2 Nanog Sox17 Gata6 T Mesp1 空间表达图。",
+            value=str(preset["query"]),
             height=118,
         )
         mode_label = st.segmented_control("运行模式", ["快速", "标准", "高阶"], default="标准") or "标准"
@@ -183,7 +195,7 @@ def render_workspace_page() -> None:
             max_mt_pct = q3.number_input("线粒体比例上限", min_value=0.0, max_value=100.0, value=25.0, step=1.0)
             r1, r2, r3 = st.columns([0.8, 1.3, 0.8])
             resolution = r1.slider("Leiden resolution", min_value=0.1, max_value=2.0, value=0.8, step=0.1)
-            gene_text = r2.text_input("Gene panel override", value="", placeholder="留空则使用自然语言中的基因")
+            gene_text = r2.text_input("Gene panel override", value=str(preset["gene_text"]), placeholder="留空则使用自然语言中的基因")
             annotation_top_n = r3.number_input("Annotation top N", min_value=3, max_value=30, value=12, step=1)
         upload_path = save_upload(uploaded)
         data_path = upload_path or default_data
@@ -279,12 +291,12 @@ def render_run_page() -> None:
     if state.get("errors"):
         st.error("\n".join(map(str, state.get("errors", [])[:5])))
     render_workflow(state)
-    render_trace(state)
+    render_clarifications(state)
+    with st.expander("Execution events", expanded=False):
+        render_trace(state)
     if state.get("repair_log"):
-        st.markdown("<div class='ss-section-title'>Repair Log</div>", unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame(state["repair_log"]), hide_index=True, width="stretch", height=280)
-    with st.expander("Advanced provenance checks", expanded=False):
-        render_audits(state)
+        with st.expander("Repair details", expanded=False):
+            st.dataframe(pd.DataFrame(state["repair_log"]), hide_index=True, width="stretch", height=280)
 
 
 def render_explore_page() -> None:
@@ -295,9 +307,6 @@ def render_explore_page() -> None:
     st.markdown("<div class='ss-section-title'>Explore</div>", unsafe_allow_html=True)
     render_linked_explore(state)
     render_contextual_copilot(state)
-    with st.expander("All generated figures and tables", expanded=False):
-        render_figures(state)
-        render_tables(state)
 
 
 def render_report_page() -> None:
@@ -306,7 +315,18 @@ def render_report_page() -> None:
         st.info("请先运行一个已批准方案。")
         return
     st.markdown("<div class='ss-section-title'>Report</div>", unsafe_allow_html=True)
-    render_evidence_metrics(state)
+    brief = state.get("research_brief") if isinstance(state.get("research_brief"), dict) else {}
+    question = brief.get("normalized_question") or state.get("user_query") or ""
+    st.markdown(
+        (
+            "<div class='ss-story'>"
+            "<div class='ss-mini-label'>Research Question</div>"
+            f"<div class='ss-card-title'>{html.escape(str(question))}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    render_report_findings(state)
     with st.container(border=True):
         st.markdown("<div class='ss-mini-label'>Agent summary</div>", unsafe_allow_html=True)
         st.write(state.get("final_answer") or "No interpretation generated.")
@@ -314,7 +334,7 @@ def render_report_page() -> None:
         st.warning("\n".join(map(str, state.get("warnings", []))))
     if state.get("errors"):
         st.error("\n".join(map(str, state.get("errors", []))))
-    render_report_findings(state)
+    render_evidence_metrics(state)
     render_report_assets(state, primary=True)
     report_path = Path(str(state.get("report_path") or ""))
     if report_path.exists():
@@ -370,7 +390,7 @@ def render_app() -> None:
         st.success(st.session_state.loaded_run_notice)
         st.session_state.loaded_run_notice = ""
 
-    tabs = st.tabs(["Project", "Run", "Explore", "Report", "Advanced"])
+    tabs = st.tabs(["项目 Project", "运行 Run", "探索 Explore", "报告 Report", "高级 Advanced"])
     with tabs[0]:
         render_project_page()
     with tabs[1]:

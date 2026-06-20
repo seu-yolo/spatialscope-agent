@@ -36,7 +36,7 @@ def apply_matplotlib_theme() -> None:
     if EXPRESSION_CMAP not in plt.colormaps():
         cmap = LinearSegmentedColormap.from_list(
             EXPRESSION_CMAP,
-            ["#f4f6f8", "#9fc8bf", SIGNAL_TEAL, SIGNAL_PLUM, SIGNAL_CORAL],
+            ["#f7faf9", "#dcefed", "#9fcfca", "#3d9a91", "#075a54"],
         )
         mpl.colormaps.register(cmap, name=EXPRESSION_CMAP, force=True)
 
@@ -48,7 +48,7 @@ def apply_matplotlib_theme() -> None:
             "savefig.edgecolor": "white",
             "font.family": "sans-serif",
             "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans", "sans-serif"],
-            "font.size": 8.5,
+            "font.size": 9.2,
             "svg.fonttype": "none",
             "pdf.fonttype": 42,
             "axes.spines.top": False,
@@ -56,16 +56,16 @@ def apply_matplotlib_theme() -> None:
             "axes.grid": False,
             "axes.linewidth": 0.8,
             "axes.titleweight": "bold",
-            "axes.titlesize": 10,
-            "axes.labelsize": 8.5,
+            "axes.titlesize": 11,
+            "axes.labelsize": 9.2,
             "axes.labelcolor": NEUTRAL_INK,
             "xtick.color": NEUTRAL_MUTED,
             "ytick.color": NEUTRAL_MUTED,
-            "xtick.labelsize": 7.5,
-            "ytick.labelsize": 7.5,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
             "legend.frameon": False,
-            "legend.fontsize": 7.5,
-            "legend.title_fontsize": 7.5,
+            "legend.fontsize": 8,
+            "legend.title_fontsize": 8,
         }
     )
 
@@ -90,7 +90,7 @@ def polish_axis(ax: Any, *, title: str | None = None, subtitle: str | None = Non
             transform=ax.transAxes,
             ha="left",
             va="bottom",
-            fontsize=7.2,
+            fontsize=8,
             color=NEUTRAL_MUTED,
         )
     for spine in ["left", "bottom"]:

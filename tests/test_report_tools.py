@@ -84,16 +84,18 @@ def test_generate_report_bundle(tmp_path):
     assert "Quality Gates" in readme_text
     assert "Dataset Card" in readme_text
     assert "Rerun recipe" in readme_text
-    assert "Repair Diagnostics" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Quality Gates" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Human Review" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Quality Gate Overrides" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Agent Audit" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Open Dataset Card" in (run_dir / "report.html").read_text(encoding="utf-8")
-    assert "Spatial Storyboard" in (run_dir / "report.html").read_text(encoding="utf-8")
+    report_text = (run_dir / "report.html").read_text(encoding="utf-8")
+    assert "SpatialScope Agent Research Brief" in report_text
+    assert "Key Findings" in report_text
+    assert "Evidence Packs" in report_text
+    assert "Repair Diagnostics" in report_text
+    assert "Quality Gates" not in report_text
+    assert "Agent Audit" not in report_text
     metadata = json.loads((run_dir / "run_metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
     assert metadata["repair_log"][0]["tool"] == "run_svg"
+    assert "evidence_packs" in metadata
+    assert "scientific_findings" in metadata
     assert metadata["review_notes"]["decision"] == "accepted_with_caveats"
     assert metadata["review_notes"]["quality_gate_overrides"][0]["gate_name"] == "Evidence outputs"
     assert "quality" in metadata
