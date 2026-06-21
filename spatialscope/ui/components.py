@@ -66,100 +66,6 @@ def chip(label: str, tone: str = "neutral") -> str:
     return f'<span class="ss-pill ss-{tone}">{html.escape(str(label))}</span>'
 
 
-def atlas_svg() -> str:
-    return """
-    <svg viewBox="0 0 220 178" role="img" aria-label="Spatial transcriptomics atlas illustration">
-      <defs>
-        <linearGradient id="ssTissue" x1="38" y1="30" x2="188" y2="148" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#d9efed"/>
-          <stop offset="0.52" stop-color="#eee7f4"/>
-          <stop offset="1" stop-color="#f7ead3"/>
-        </linearGradient>
-        <radialGradient id="ssGlow" cx="50%" cy="42%" r="70%">
-          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
-          <stop offset="1" stop-color="#ffffff" stop-opacity="0.18"/>
-        </radialGradient>
-      </defs>
-      <rect x="8" y="8" width="204" height="162" rx="14" fill="#fff" stroke="#d8e0e7"/>
-      <path d="M34 18V160M66 18V160M98 18V160M130 18V160M162 18V160M194 18V160M18 38H202M18 70H202M18 102H202M18 134H202"
-        stroke="rgba(102,115,127,.14)" stroke-width="1"/>
-      <path fill="url(#ssTissue)" stroke="rgba(23,32,38,.16)" stroke-width="1.1"
-        d="M43 118C29 92 38 58 64 42C89 26 119 33 139 49C160 66 190 72 194 98C199 128 171 150 139 148C106 146 62 153 43 118Z"/>
-      <path fill="url(#ssGlow)"
-        d="M55 112C46 90 53 62 74 50C98 36 124 45 143 60C160 73 183 80 184 100C185 121 163 134 137 133C106 132 67 138 55 112Z"/>
-      <path d="M48 120C38 96 45 64 69 47C94 30 124 38 146 55C166 71 188 80 190 101C193 126 166 143 138 142C104 141 64 148 48 120Z"
-        fill="none" stroke="rgba(23,32,38,.22)" stroke-dasharray="4 5" stroke-linecap="round"/>
-      <path d="M58 105C75 82 92 96 108 69C123 45 143 67 161 57C176 49 184 66 183 84"
-        fill="none" stroke="rgba(15,118,110,.72)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M69 123C87 111 99 124 119 111C139 99 151 113 170 98"
-        fill="none" stroke="rgba(15,118,110,.38)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <g fill="#fff" stroke-width="2.4">
-        <circle cx="58" cy="105" r="5.1" stroke="#0f766e"/>
-        <circle cx="108" cy="69" r="5.3" stroke="#6f4e8f"/>
-        <circle cx="161" cy="57" r="4.8" stroke="#c75f4a"/>
-        <circle cx="183" cy="84" r="4.4" stroke="#b7791f"/>
-        <circle cx="69" cy="123" r="4.5" stroke="#0f766e" opacity=".62"/>
-        <circle cx="119" cy="111" r="4.8" stroke="#c75f4a" opacity=".62"/>
-        <circle cx="170" cy="98" r="4.5" stroke="#6f4e8f" opacity=".62"/>
-      </g>
-      <text x="24" y="154" fill="#8a97a3" font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700">SPOTS</text>
-      <text x="154" y="154" fill="#8a97a3" font-family="ui-monospace, Menlo, monospace" font-size="8" font-weight="700">TRACE</text>
-    </svg>
-    """
-
-
-def render_header(active: dict[str, Any] | None) -> None:
-    run_id = str(active.get("run_id") or "暂无运行") if active else "暂无运行"
-    mode = str(active.get("mode") or "pending") if active else "pending"
-    source = str(active.get("plan_source") or "waiting") if active else "waiting"
-    llm = "LLM enabled" if active and active.get("llm_enabled") else "rule fallback"
-    health_tone = "fail" if active and active.get("errors") else "warn" if active and active.get("warnings") else "success" if active and active.get("report_path") else "neutral"
-    health = "完成" if active and active.get("report_path") else "准备中"
-    if active:
-        st.markdown(
-            f"""
-            <section class="ss-topbar">
-              <div>
-                <div class="ss-kicker">SpatialScope Agent</div>
-                <div class="ss-topbar-title">证据驱动的空间转录组分析工作台</div>
-              </div>
-              <div class="ss-topbar-tags">
-                {chip("run: " + run_id, "neutral")}
-                {chip("mode: " + mode, "info")}
-                {chip("plan: " + source, "neutral")}
-                {chip(llm, "success" if active.get("llm_enabled") else "warn")}
-                {chip(health, health_tone)}
-              </div>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
-    st.markdown(
-        f"""
-        <section class="ss-hero">
-          <div>
-            <div class="ss-kicker">SpatialScope Agent</div>
-            <div class="ss-title">空间转录组分析工作台</div>
-            <div class="ss-subtitle">
-              自然语言问题进入工作流，数据检查先于计划生成；每一条观察都回到 figures、tables、trace 和 evidence IDs。
-              当前运行 <span class="ss-run-path">{html.escape(run_id)}</span>
-            </div>
-            <div>
-              {chip("mode: " + mode, "info")}
-              {chip("plan: " + source, "neutral")}
-              {chip(llm, "success" if active and active.get("llm_enabled") else "warn")}
-              {chip(health, health_tone)}
-            </div>
-            <div class="ss-signature">{html.escape(PROJECT_SIGNATURE)}</div>
-          </div>
-          <div class="ss-atlas">{atlas_svg()}</div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_acknowledgements() -> None:
     rows = "".join(f"<div class='ss-muted'>{html.escape(line)}</div>" for line in ACKNOWLEDGEMENTS)
     st.markdown(
@@ -591,9 +497,10 @@ def _plotly_selection_event(fig: go.Figure, *, key: str) -> Any:
             key=key,
             on_select="rerun",
             selection_mode=("points", "box", "lasso"),
+            config={"displayModeBar": False},
         )
     except TypeError:
-        st.plotly_chart(fig, use_container_width=True, key=key)
+        st.plotly_chart(fig, use_container_width=True, key=key, config={"displayModeBar": False})
         return None
 
 
@@ -754,6 +661,38 @@ def _render_pack_summary(pack: Any) -> None:
     top = metrics.get("top_clusters_by_mean")
     if top:
         st.caption(f"Top clusters by mean expression: {', '.join(map(str, top[:3]))}")
+
+
+def _render_copilot_history() -> None:
+    history = list(st.session_state.get("copilot_conversation", []))[-4:]
+    for turn in reversed(history):
+        evidence = ", ".join(map(str, turn.get("evidence_ids", []))) or "none"
+        source = str(turn.get("source") or "fallback")
+        st.markdown(
+            (
+                "<div class='ss-copilot-answer'>"
+                f"<div class='ss-mini-label'>Copilot · {html.escape('LLM' if source == 'llm' else '规则解释')}</div>"
+                f"<div class='ss-card-title'>{html.escape(str(turn.get('question', '')))}</div>"
+                f"<p>{html.escape(str(turn.get('content', '')))}</p>"
+                f"<p><strong>Evidence IDs used:</strong> {html.escape(evidence)}</p>"
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+        for observation in turn.get("observations", [])[:3]:
+            st.caption(f"Observation: {observation}")
+        for caveat in turn.get("caveats", [])[:2]:
+            st.caption(f"Caveat: {caveat}")
+        action_cols = st.columns(min(2, max(1, len(turn.get("ui_actions", []) or []))))
+        for index, action in enumerate(turn.get("ui_actions", []) or []):
+            col = action_cols[index % len(action_cols)]
+            if col.button(str(action.get("label") or action.get("type")), key=f"action_{turn.get('turn_id')}_{index}", width="stretch"):
+                try:
+                    message = apply_ui_action(action)
+                    st.toast(message)
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    st.error(str(exc))
 
 
 def render_linked_explore(state: dict[str, Any]) -> None:
@@ -971,7 +910,6 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             _render_pack_summary(gene_pack)
 
     with copilot_col:
-        st.markdown("<div class='ss-copilot-rail'>", unsafe_allow_html=True)
         status = llm_config_status()
         source_label = (
             "LLM full mode · schema-validated"
@@ -986,8 +924,10 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             source_label = "LLM full mode · 当前回答已安全回退"
         st.markdown(
             (
+                "<div class='ss-copilot-header'>"
                 "<div class='ss-mini-label'>Research Copilot</div>"
                 f"<div class='ss-copilot-source'>{html.escape(source_label)}</div>"
+                "</div>"
             ),
             unsafe_allow_html=True,
         )
@@ -998,6 +938,7 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             ("Layer", expression_source),
         ]
         st.markdown(_metric_strip_html(context_rows), unsafe_allow_html=True)
+        _render_copilot_history()
         prompt_options = [
             "哪个 cluster 的 Sox17 平均表达最高？",
             "我当前选择的空间区域和全局相比有什么差异？",
@@ -1060,36 +1001,7 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             }
             st.session_state.copilot_conversation = [*history, turn]
             st.session_state.run_state = state
-        history = list(st.session_state.get("copilot_conversation", []))[-4:]
-        for turn in reversed(history):
-            evidence = ", ".join(map(str, turn.get("evidence_ids", []))) or "none"
-            source = str(turn.get("source") or "fallback")
-            st.markdown(
-                (
-                    "<div class='ss-copilot-answer'>"
-                    f"<div class='ss-mini-label'>Copilot · {html.escape('LLM' if source == 'llm' else '规则解释')}</div>"
-                    f"<div class='ss-card-title'>{html.escape(str(turn.get('question', '')))}</div>"
-                    f"<p>{html.escape(str(turn.get('content', '')))}</p>"
-                    f"<p><strong>Evidence IDs used:</strong> {html.escape(evidence)}</p>"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
-            )
-            for observation in turn.get("observations", [])[:3]:
-                st.caption(f"Observation: {observation}")
-            for caveat in turn.get("caveats", [])[:2]:
-                st.caption(f"Caveat: {caveat}")
-            action_cols = st.columns(min(2, max(1, len(turn.get("ui_actions", []) or []))))
-            for index, action in enumerate(turn.get("ui_actions", []) or []):
-                col = action_cols[index % len(action_cols)]
-                if col.button(str(action.get("label") or action.get("type")), key=f"action_{turn.get('turn_id')}_{index}", width="stretch"):
-                    try:
-                        message = apply_ui_action(action)
-                        st.toast(message)
-                        st.rerun()
-                    except Exception as exc:  # noqa: BLE001
-                        st.error(str(exc))
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.rerun()
 
 
 def render_tables(state: dict[str, Any]) -> None:

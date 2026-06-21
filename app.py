@@ -3,8 +3,8 @@ from __future__ import annotations
 import streamlit as st
 from dotenv import load_dotenv
 
+from spatialscope.ui.app_shell import render_app
 from spatialscope.ui.helpers import load_theme
-from spatialscope.ui.pages import render_app
 from spatialscope.ui.state import init_session_state
 
 

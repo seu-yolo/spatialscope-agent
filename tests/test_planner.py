@@ -44,6 +44,14 @@ def test_fallback_parser_ignores_dataset_card_terms():
     assert parsed["genes"] == ["GeneA", "GeneB"]
 
 
+def test_fallback_parser_ignores_report_and_evidence_terms():
+    parsed = fallback_parse_query(
+        "检查空间数据质量，查看 Sox17、T 和 Mesp1 空间表达，并生成 evidence-linked report。",
+        "quick",
+    )
+    assert parsed["genes"] == ["Sox17", "T", "Mesp1"]
+
+
 def test_make_advanced_plan_contains_showcase_tools():
     parsed = {"genes": ["Sox17"]}
     tools = [step["tool"] for step in make_plan(parsed, "advanced")]

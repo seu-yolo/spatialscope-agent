@@ -16,6 +16,15 @@ def init_session_state() -> None:
         "last_plan_error": "",
         "loaded_run_notice": "",
         "main_nav": "项目 Project",
+        "dataset_choice": "",
+        "selected_data_path": "",
+        "uploaded_dataset_name": "",
+        "show_upload_panel": False,
+        "research_question": "",
+        "pending_research_question": "",
+        "pending_run_approval": False,
+        "pending_run_plan_source": "",
+        "report_finding_review": {},
     }
     for key, value in defaults.items():
         if key not in st.session_state:

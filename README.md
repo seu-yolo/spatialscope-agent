@@ -1,12 +1,27 @@
-# SpatialScope Agent
+# SpatialScope
 
 [![CI](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml)
 
-SpatialScope Agent is an OpenAI-compatible LLM-powered, LangGraph-orchestrated workspace for spatial transcriptomics exploration. It turns a natural-language request into a traceable Scanpy/Squidpy workflow with figures, tables, interpretation, and a reproducibility bundle.
+SpatialScope is a conversational, evidence-grounded workspace for spatial transcriptomics.
+
+![SpatialScope v6 landing](docs/assets/v6-landing-empty-1440.png)
+
+Natural-language question -> reviewable plan -> deterministic analysis -> linked spatial evidence -> reproducible report.
+
+The v6 product surface rebuilds the app around a Chinese-first research journey: Project, Run, Explore, Report, with Advanced kept separate for provenance. The scientific core remains LangGraph-orchestrated and OpenAI-compatible LLM-ready; deterministic fallback mode still supports safe demos and tests without exposing secrets.
 
 Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 
-## Features
+## Quick Launch
+
+```bash
+conda activate spatialscope-agent
+scripts/run_app.sh
+```
+
+Open `http://localhost:8501`, choose the embryo demo, write or select a research question, review the dataset-aware plan, run it, then explore linked Spatial + UMAP evidence and the final Research Brief.
+
+## Capabilities
 
 - OpenAI-compatible LLM interface, configurable for GLM 5.1 or compatible providers
 - Safe LLM Control Center with masked key display, provider/model status, fallback explanation, and optional smoke test
