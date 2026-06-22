@@ -34,13 +34,13 @@ class LLMClient:
                 api_key=generic_api_key,
                 base_url=os.getenv("SPATIALSCOPE_LLM_BASE_URL", ""),
                 model=os.getenv("SPATIALSCOPE_LLM_MODEL", "glm-5.1"),
-                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
+                timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "10")),
             )
         return cls(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             model=os.getenv("SPATIALSCOPE_LLM_MODEL", "deepseek-v4-flash"),
-            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")),
+            timeout_seconds=float(os.getenv("SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "10")),
         )
 
     @property
@@ -123,11 +123,11 @@ def llm_config_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         api_key = ""
         base_url = _env_value(env, "SPATIALSCOPE_LLM_BASE_URL") or _env_value(env, "DEEPSEEK_BASE_URL", "")
         model = _env_value(env, "SPATIALSCOPE_LLM_MODEL", "glm-5.1")
-    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "45")
+    timeout_raw = _env_value(env, "SPATIALSCOPE_LLM_TIMEOUT_SECONDS", "10")
     try:
         timeout_seconds = float(timeout_raw)
     except ValueError:
-        timeout_seconds = 45.0
+        timeout_seconds = 10.0
     enabled = bool(api_key and base_url and model)
     requested_mode = _env_value(env, "SPATIALSCOPE_LLM_MODE", "auto")
     mode = resolve_llm_mode(

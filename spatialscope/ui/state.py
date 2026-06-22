@@ -24,6 +24,8 @@ def init_session_state() -> None:
         "pending_research_question": "",
         "pending_run_approval": False,
         "pending_run_plan_source": "",
+        "project_stage": "landing",
+        "approval_flash": False,
         "report_finding_review": {},
     }
     for key, value in defaults.items():

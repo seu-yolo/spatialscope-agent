@@ -170,11 +170,34 @@ def render_current_step(state: dict[str, Any] | None, *, live_node: str | None =
     record = (state.get("execution_trace") or [{}])[-1] if state.get("execution_trace") else {}
     title = NODE_LABELS.get(live_node or "", "") or str(record.get("tool") or state.get("current_step") or "准备运行")
     params = record.get("params") or {}
+    plan = plan_from_state(state)
+    trace = state.get("execution_trace", []) or []
+    completed = min(len(trace), len(plan)) if plan else len(trace)
+    progress = f"{completed} / {len(plan) or max(completed, 1)} steps"
+    tool_name = str(record.get("tool") or "")
+    method = "Dataset inspection → plan review → deterministic tools"
+    if "cluster" in tool_name:
+        method = "PCA → neighbors → Leiden"
+    elif "preprocess" in tool_name:
+        method = "normalize total → log1p → HVG → scale"
+    elif "gene" in tool_name:
+        method = "safe expression source → spatial panel"
+    elif "report" in tool_name:
+        method = "EvidencePack → findings → HTML report"
     outputs = []
     if state.get("generated_figures"):
         outputs.append(f"{len(state.get('generated_figures', []))} figures")
     if state.get("generated_tables"):
         outputs.append(f"{len(state.get('generated_tables', []))} tables")
+    if state.get("report_path"):
+        outputs.append("report.html")
+    done_tools = {str(item.get("tool") or item.get("node") or "") for item in trace}
+    next_step = "Explore linked evidence"
+    for step in plan:
+        candidate = str(step.get("tool") or "")
+        if candidate and candidate not in done_tools:
+            next_step = candidate.replace("_", " ")
+            break
     detail = str(record.get("summary") or "等待下一个 LangGraph 节点。")
     param_rows = "".join(
         f"<li><code>{html.escape(str(key))}</code> = {html.escape(str(value))}</li>"
@@ -186,10 +209,18 @@ def render_current_step(state: dict[str, Any] | None, *, live_node: str | None =
           <div class="v6-overline">当前步骤</div>
           <h3>{html.escape(str(title))}</h3>
           <p>{html.escape(str(detail))}</p>
+          <div class="v6-current-subtitle">进度</div>
+          <p>{html.escape(progress)}</p>
+          <div class="v6-current-subtitle">方法</div>
+          <p>{html.escape(method)}</p>
           <div class="v6-current-subtitle">参数</div>
           <ul>{param_rows or "<li>暂无公开参数</li>"}</ul>
+          <div class="v6-current-subtitle">最新结果</div>
+          <p>{html.escape(str(detail)[:180])}</p>
           <div class="v6-current-subtitle">输出</div>
           <p>{html.escape(' · '.join(outputs) if outputs else '等待工具产物')}</p>
+          <div class="v6-current-subtitle">下一步</div>
+          <p>{html.escape(next_step)}</p>
         </aside>
         """,
         unsafe_allow_html=True,

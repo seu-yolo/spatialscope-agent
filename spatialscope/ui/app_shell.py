@@ -8,7 +8,8 @@ from spatialscope.ui.page_project import project_page
 from spatialscope.ui.page_report import report_page
 from spatialscope.ui.page_run import run_page
 from spatialscope.ui.state import active_state
-from spatialscope.ui.v6_helpers import dataset_identity, dataset_identity_text, h, llm_surface_label
+from spatialscope.ui.v6_helpers import dataset_identity, h, llm_surface_label
+from spatialscope.ui.v7_helpers import stage_dot
 
 
 def _render_brand_header() -> None:
@@ -17,15 +18,16 @@ def _render_brand_header() -> None:
     if state:
         ident = dataset_identity(state)
         title = f"SpatialScope / {ident.get('name', 'project')}"
-        facts = dataset_identity_text(state)
+        facts = f"{ident.get('n_obs')} spots · {ident.get('n_vars')} genes · {ident.get('mode', '')}"
         st.markdown(
             f"""
             <header class="v6-brand-header active">
               <div>
                 <div class="v6-brand-title">{h(title)}</div>
-                <div class="v6-brand-subtitle">{h(facts)} · {h(ident.get("mode", ""))} · {h(llm)}</div>
+                <div class="v6-brand-subtitle">{h(facts)}</div>
               </div>
               <nav>
+                <span>{stage_dot(h(llm), active=llm.startswith("LLM"))}</span>
                 <a href="https://github.com/seu-yolo/spatialscope-agent" target="_blank">GitHub</a>
                 <a href="https://github.com/seu-yolo/spatialscope-agent/blob/main/README.md" target="_blank">Documentation</a>
               </nav>

@@ -60,5 +60,5 @@ def test_v6_preview_asset_exists_and_replaces_abstract_svg():
     paths = ensure_landing_preview()
     assert paths["png"].exists()
     assert paths["png"].stat().st_size > 10_000
-    components = Path("spatialscope/ui/components.py").read_text(encoding="utf-8")
+    components = Path("spatialscope/ui/components/__init__.py").read_text(encoding="utf-8")
     assert "def atlas_svg" not in components

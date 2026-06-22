@@ -5,6 +5,7 @@ from typing import Any
 
 import streamlit as st
 
+from spatialscope.ui.components.scene_frame import render_scene_action_hint, scene_frame
 from spatialscope.ui.helpers import MODE_VALUES, apply_ui_overrides, plan_from_state, plan_to_text, save_upload
 from spatialscope.ui.landing_preview import ensure_landing_preview
 from spatialscope.ui.state import active_state, set_draft
@@ -15,10 +16,10 @@ from spatialscope.ui.v6_helpers import (
     dataset_identity,
     dataset_identity_text,
     h,
-    render_dataset_identity_strip,
     resolved_genes_for_state,
 )
 from spatialscope.ui.v6_runner import prepare_state
+from spatialscope.ui.v7_helpers import project_stage_for_state, set_project_stage, signature_meta
 from spatialscope.utils.demo import ensure_demo_data, get_demo_preset
 
 
@@ -28,8 +29,11 @@ TOOL_LABELS = {
     "preprocess": "预处理",
     "run_clustering": "PCA / UMAP / Leiden 聚类",
     "plot_spatial_clusters": "空间聚类图",
+    "plot_umap": "UMAP 图",
+    "plot_spatial": "空间图",
     "plot_gene_panel": "基因空间表达",
     "find_marker_genes": "Marker genes",
+    "rank_markers": "Marker 排名",
     "run_svg": "空间可变基因",
     "run_neighborhood_enrichment": "邻域富集",
     "suggest_cluster_annotations": "Cluster annotation",
@@ -66,106 +70,149 @@ def _choose_demo() -> None:
     st.session_state.selected_data_path = str(demo["path"])
     st.session_state.uploaded_dataset_name = ""
     st.session_state.research_question = str(get_demo_preset()["query"])
+    set_project_stage("landing")
 
 
-def _render_landing() -> None:
+def _clear_project() -> None:
+    st.session_state.draft_state = None
+    st.session_state.run_state = None
+    set_project_stage("landing")
+
+
+def _render_signature_rail() -> None:
+    meta = signature_meta()
+    parts: list[str] = []
+    if meta["author"]:
+        parts.append(f"Built by {h(meta['author'])}")
+    if meta["affiliation"]:
+        parts.append(h(meta["affiliation"]))
+    if meta["email"]:
+        parts.append(f"<a href='mailto:{h(meta['email'])}'>{h(meta['email'])}</a>")
+    line = " <span>·</span> ".join(parts) or h(meta["affiliation"])
+    left, right = st.columns([0.72, 0.28], gap="small")
+    left.markdown(f"<div class='v7-signature-rail'><span>{line}</span></div>", unsafe_allow_html=True)
+    with right.popover("Acknowledgements", width="stretch"):
+        st.write("With thanks to Professor Peng Xie")
+        st.write("and Teaching Assistant Binyu Gao")
+        st.write("for guidance and support.")
+
+
+def _render_identity_tags() -> None:
+    tags = ["LangGraph", "Scanpy / Squidpy", "Evidence-linked", "Reproducible"]
+    st.markdown(
+        "<div class='v7-identity-tags'>" + "".join(f"<span>{h(tag)}</span>" for tag in tags) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_preview_card() -> None:
     paths = ensure_landing_preview()
-    pending_prompt = st.session_state.pop("pending_research_question", "")
-    if pending_prompt:
-        st.session_state.research_question = pending_prompt
-    left, right = st.columns([0.59, 0.41], gap="large")
-    with left:
+    with st.container(key="landing_preview_card"):
         st.markdown(
             """
-            <section class="v6-landing-copy">
-              <div class="v6-product-name">SpatialScope</div>
-              <div class="v6-overline">Spatial transcriptomics research copilot</div>
-              <h1>从空间数据，到可追踪的科研证据</h1>
-              <p>用自然语言提出研究问题。SpatialScope 会先检查数据，再生成可审阅的分析方案，并把解释绑定到真实图表与统计结果。</p>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        with st.container(border=True, key="landing_composer"):
-            st.markdown("<div class='v6-field-label'>Dataset</div>", unsafe_allow_html=True)
-            choice_cols = st.columns([0.48, 0.52], gap="small")
-            if choice_cols[0].button("上传 .h5ad", width="stretch", key="show_upload_dataset"):
-                st.session_state.show_upload_panel = not bool(st.session_state.get("show_upload_panel"))
-            if choice_cols[1].button("使用早期胚胎 Demo", width="stretch", key="use_demo_dataset"):
-                _choose_demo()
-                st.rerun()
-
-            if st.session_state.get("show_upload_panel"):
-                uploaded = st.file_uploader("选择 AnnData 文件", type=["h5ad"], label_visibility="collapsed")
-                if uploaded is not None:
-                    saved = save_upload(uploaded)
-                    st.session_state.dataset_choice = "upload"
-                    st.session_state.selected_data_path = saved
-                    st.session_state.uploaded_dataset_name = uploaded.name
-
-            selected_path = _selected_data_path()
-            if selected_path:
-                name = st.session_state.get("uploaded_dataset_name") or Path(selected_path).name
-                st.markdown(f"<div class='v6-selected-data'>已选择：{h(name)}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='v6-selected-data muted'>请选择 demo 或上传 .h5ad</div>", unsafe_allow_html=True)
-
-            question = st.text_area(
-                "你希望研究什么？",
-                value=str(st.session_state.get("research_question") or ""),
-                height=112,
-                placeholder="例如：检查数据质量，比较空间结构与 UMAP 聚类，并查看 Sox17、T 和 Mesp1 的空间表达。",
-                key="research_question",
-            )
-            chip_cols = st.columns(4, gap="small")
-            for col, label in zip(chip_cols, PROMPT_SUGGESTIONS):
-                if col.button(label, key=f"suggestion_{label}", width="stretch"):
-                    st.session_state.pending_research_question = PROMPT_SUGGESTIONS[label]
-                    st.rerun()
-
-            if st.button("检查数据并生成方案 →", type="primary", width="stretch", key="inspect_and_plan"):
-                if not selected_path:
-                    st.warning("请先选择早期胚胎 Demo 或上传 .h5ad。")
-                elif not question.strip():
-                    st.warning("请先写下研究问题。")
-                else:
-                    defaults = _defaults()
-                    with st.status("正在检查数据并生成可审阅方案...", expanded=False):
-                        state = prepare_state(
-                            data_path=selected_path,
-                            query=question.strip(),
-                            mode=defaults["mode"],
-                            outdir=defaults["outdir"],
-                            min_genes=defaults["min_genes"],
-                            min_cells=defaults["min_cells"],
-                            max_mt_pct=defaults["max_mt_pct"],
-                            resolution=defaults["resolution"],
-                            gene_text=defaults["gene_text"],
-                            annotation_top_n=defaults["annotation_top_n"],
-                        )
-                    set_draft(state)
-                    st.session_state.plan_text = plan_to_text(plan_from_state(state))
-                    st.rerun()
-
-        st.markdown(
-            "<div class='v6-trust-line'>确定性工具负责计算 · LLM 负责理解与解释 · 每条结论绑定证据</div>",
-            unsafe_allow_html=True,
-        )
-
-    with right:
-        st.markdown("<section class='v6-preview-panel'>", unsafe_allow_html=True)
-        st.image(str(paths["webp"] if paths["webp"].exists() else paths["png"]), width="stretch")
-        st.markdown(
-            """
-            <div class="v6-preview-caption">
-              <strong>Early mouse embryo demo</strong>
-              <span>240 spots · Mus musculus · spatial coordinates available</span>
+            <div class="v7-preview-top">
+              <span>EARLY EMBRYO DEMO</span>
+              <span>240 SPOTS</span>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.markdown("</section>", unsafe_allow_html=True)
+        st.image(str(paths["webp"] if paths["webp"].exists() else paths["png"]), width="stretch")
+        st.markdown(
+            """
+            <div class="v7-preview-caption">
+              <div><span class="v7-live-dot"></span>Live evidence preview</div>
+              <strong>Spatial regions + Sox17 signal</strong>
+              <p>Mus musculus · spatial coordinates · count-like input</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_landing() -> None:
+    pending_prompt = st.session_state.pop("pending_research_question", "")
+    if pending_prompt:
+        st.session_state.research_question = pending_prompt
+    with scene_frame(
+        key="landing_scene",
+        index="00 / 05",
+        eyebrow="ASK",
+        title="从空间数据，到可追踪的科研证据",
+        subtitle="用自然语言提出研究问题。SpatialScope 先检查数据，再生成可审阅方案，并把解释绑定到真实图表与统计结果。",
+    ):
+        left, right = st.columns([0.585, 0.415], gap="large")
+        with left:
+            with st.container(key="landing_composer"):
+                st.markdown("<div class='v6-field-label'>Dataset</div>", unsafe_allow_html=True)
+                choice_cols = st.columns([0.48, 0.52], gap="small")
+                if choice_cols[0].button("上传 .h5ad", width="stretch", key="show_upload_dataset"):
+                    st.session_state.show_upload_panel = not bool(st.session_state.get("show_upload_panel"))
+                if choice_cols[1].button("使用早期胚胎 Demo", width="stretch", key="use_demo_dataset"):
+                    _choose_demo()
+                    st.rerun()
+
+                if st.session_state.get("show_upload_panel"):
+                    uploaded = st.file_uploader("选择 AnnData 文件", type=["h5ad"], label_visibility="collapsed")
+                    if uploaded is not None:
+                        saved = save_upload(uploaded)
+                        st.session_state.dataset_choice = "upload"
+                        st.session_state.selected_data_path = saved
+                        st.session_state.uploaded_dataset_name = uploaded.name
+
+                selected_path = _selected_data_path()
+                if selected_path:
+                    name = st.session_state.get("uploaded_dataset_name") or Path(selected_path).name
+                    st.markdown(f"<div class='v6-selected-data'>已选择：{h(name)}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='v6-selected-data muted'>请选择 demo 或上传 .h5ad</div>", unsafe_allow_html=True)
+
+                question = st.text_area(
+                    "你希望研究什么？",
+                    value=str(st.session_state.get("research_question") or ""),
+                    height=104,
+                    placeholder="例如：检查数据质量，比较空间结构与 UMAP 聚类，并查看 Sox17、T 和 Mesp1 的空间表达。",
+                    key="research_question",
+                )
+                chip_cols = st.columns(4, gap="small")
+                for col, label in zip(chip_cols, PROMPT_SUGGESTIONS):
+                    if col.button(label, key=f"suggestion_{label}", width="stretch"):
+                        st.session_state.pending_research_question = PROMPT_SUGGESTIONS[label]
+                        st.rerun()
+
+                if st.button("检查数据并生成方案 →", type="primary", width="stretch", key="inspect_and_plan"):
+                    if not selected_path:
+                        st.warning("请先选择早期胚胎 Demo 或上传 .h5ad。")
+                    elif not question.strip():
+                        st.warning("请先写下研究问题。")
+                    else:
+                        defaults = _defaults()
+                        with st.status("正在检查数据...", expanded=False):
+                            state = prepare_state(
+                                data_path=selected_path,
+                                query=question.strip(),
+                                mode=defaults["mode"],
+                                outdir=defaults["outdir"],
+                                min_genes=defaults["min_genes"],
+                                min_cells=defaults["min_cells"],
+                                max_mt_pct=defaults["max_mt_pct"],
+                                resolution=defaults["resolution"],
+                                gene_text=defaults["gene_text"],
+                                annotation_top_n=defaults["annotation_top_n"],
+                            )
+                        set_draft(state)
+                        st.session_state.plan_text = plan_to_text(plan_from_state(state))
+                        set_project_stage("dataset_inspected")
+                        st.rerun()
+
+            _render_identity_tags()
+            st.markdown(
+                "<div class='v6-trust-line'>确定性工具负责计算 · LLM 负责理解与解释 · 每条结论绑定证据</div>",
+                unsafe_allow_html=True,
+            )
+            _render_signature_rail()
+        with right:
+            _render_preview_card()
 
 
 def _render_conversation(state: dict[str, Any]) -> None:
@@ -176,7 +223,7 @@ def _render_conversation(state: dict[str, Any]) -> None:
     caveats = warnings or ["当前 demo 数据为 synthetic embryo demo，解释应以流程展示和方法边界为主。"]
     st.markdown(
         f"""
-        <div class="v6-thread">
+        <div class="v6-thread v7-balanced-panel">
           <div class="v6-message user">
             <div class="v6-speaker">YOU</div>
             <p>{h(state.get("user_query", ""))}</p>
@@ -190,6 +237,37 @@ def _render_conversation(state: dict[str, Any]) -> None:
               <div><span>注意事项</span><strong>{h(compact_list(caveats, limit=2))}</strong></div>
             </div>
           </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_dataset_evidence_panel(state: dict[str, Any]) -> None:
+    ident = dataset_identity(state)
+    paths = ensure_landing_preview()
+    facts = [
+        ("Spots", ident.get("n_obs")),
+        ("Genes", ident.get("n_vars")),
+        ("Spatial", "available" if ident.get("has_spatial") else "missing"),
+        ("Expression", ident.get("matrix_state")),
+    ]
+    st.markdown(
+        "<div class='v7-evidence-panel'>"
+        "<div class='v7-panel-title'>Dataset evidence</div>"
+        "<div class='v7-fact-grid'>"
+        + "".join(f"<div><span>{h(label)}</span><strong>{h(value)}</strong></div>" for label, value in facts)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+    st.image(str(paths["webp"] if paths["webp"].exists() else paths["png"]), width="stretch")
+    st.markdown(
+        f"""
+        <div class="v7-capability-summary">
+          <strong>{h(ident.get("name", "dataset.h5ad"))}</strong>
+          <p>{h(dataset_identity_text(state))}</p>
+          <p>可进入 QC、预处理、聚类、基因空间表达、marker evidence 与报告生成。</p>
+        </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -210,6 +288,33 @@ def _render_clarifications_inline(state: dict[str, Any]) -> None:
                 if isinstance(value, list):
                     options.extend([str(candidate.get("gene") or candidate.get("match") or candidate) for candidate in value[:4]])
             st.radio("选择修复方式", list(dict.fromkeys(options)), key=f"clarification_choice_{i}")
+
+
+def _render_dataset_scene(state: dict[str, Any]) -> None:
+    with scene_frame(
+        key="dataset_understood_scene",
+        index="01 / 05",
+        eyebrow="DATA UNDERSTOOD",
+        title="Agent 已检查数据",
+        subtitle="先确认数据边界和可用证据，再决定是否进入分析方案。",
+    ):
+        left, right = st.columns([0.5, 0.5], gap="large")
+        with left:
+            _render_conversation(state)
+            _render_clarifications_inline(state)
+        with right:
+            _render_dataset_evidence_panel(state)
+        st.markdown("<div class='v7-action-row'>", unsafe_allow_html=True)
+        action_cols = st.columns([0.55, 0.25, 0.2], gap="medium")
+        if action_cols[0].button("继续查看方案", type="primary", width="stretch", key="continue_to_plan"):
+            set_project_stage("plan_review")
+            st.rerun()
+        if action_cols[1].button("修改问题", width="stretch", key="dataset_edit_question"):
+            st.session_state.research_question = str(state.get("user_query") or "")
+            _clear_project()
+            st.rerun()
+        render_scene_action_hint("Ask → Inspect → Review → Approve")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_plan_stepper(state: dict[str, Any]) -> None:
@@ -237,78 +342,102 @@ def _render_plan_stepper(state: dict[str, Any]) -> None:
             </div>
             """
         )
-    st.html(f"<div class='v6-plan-stepper'>{''.join(rows)}</div>")
+    st.html(f"<div class='v6-plan-stepper v7-plan-stepper'>{''.join(rows)}</div>")
 
 
-def _render_settings_and_approve(state: dict[str, Any]) -> None:
+def _render_plan_side_panel(state: dict[str, Any]) -> dict[str, Any]:
     defaults = _defaults()
     params = state.get("parameters") or {}
     qc = params.get("qc") or {}
     clustering = params.get("clustering") or {}
-    with st.expander("分析设置", expanded=False):
-        c0, c1, c2 = st.columns(3)
-        mode_label = c0.selectbox("运行深度", ["快速", "标准", "高阶"], index=1, key="v6_mode_label")
-        min_genes = c1.number_input("Spot 最少基因", min_value=0, max_value=5000, value=int(qc.get("min_genes", defaults["min_genes"])), step=5)
-        min_cells = c2.number_input("基因最少 spots", min_value=0, max_value=200, value=int(qc.get("min_cells", defaults["min_cells"])), step=1)
-        c3, c4, c5 = st.columns([0.75, 1.45, 0.8])
-        max_mt_pct = c3.number_input("MT% 上限", min_value=0.0, max_value=100.0, value=float(qc.get("max_mt_pct", defaults["max_mt_pct"])), step=1.0)
-        gene_text = c4.text_input("Gene panel", value=str(defaults["gene_text"]))
-        resolution = c5.slider("Leiden resolution", min_value=0.1, max_value=2.0, value=float(clustering.get("resolution", defaults["resolution"])), step=0.1)
-        annotation_top_n = st.number_input("Annotation top N", min_value=3, max_value=30, value=int(defaults["annotation_top_n"]), step=1)
-
-    cols = st.columns([0.72, 0.28], gap="medium")
-    if cols[0].button("批准并运行", type="primary", width="stretch", key="approve_and_run"):
-        updated = apply_ui_overrides(
-            dict(state),
-            min_genes=int(min_genes),
-            min_cells=int(min_cells),
-            max_mt_pct=float(max_mt_pct),
-            resolution=float(resolution),
-            gene_text=gene_text,
-            annotation_top_n=int(annotation_top_n),
-        )
-        updated["mode"] = MODE_VALUES.get(str(mode_label), "standard")
-        set_draft(updated)
-        st.session_state.pending_run_approval = True
-        st.session_state.pending_run_plan_source = "project_approved"
-        run_page = st.session_state.get("_v6_run_page")
-        if run_page is not None:
-            st.switch_page(run_page)
-        st.rerun()
-    if cols[1].button("修改研究问题", width="stretch", key="edit_question"):
-        st.session_state.research_question = str(state.get("user_query") or "")
-        st.session_state.draft_state = None
-        st.rerun()
-
-
-def _render_dataset_ready(state: dict[str, Any]) -> None:
-    render_dataset_identity_strip(state)
-    st.markdown("<div class='v6-flow-label'>Research conversation</div>", unsafe_allow_html=True)
-    _render_conversation(state)
-    _render_clarifications_inline(state)
-    st.markdown("<div class='v6-flow-label'>Reviewable plan</div>", unsafe_allow_html=True)
-    _render_plan_stepper(state)
-    _render_settings_and_approve(state)
+    plan = plan_from_state(state)
+    st.markdown(
+        f"""
+        <div class="v7-plan-rationale">
+          <div class="v7-panel-title">Agent rationale</div>
+          <p>该方案先建立表达来源和 QC 边界，再把空间图、UMAP、gene panel 与 marker evidence 串成可审阅报告。</p>
+          <div class="v7-approval-summary">
+            <div><span>Steps</span><strong>{len(plan)}</strong></div>
+            <div><span>Outputs</span><strong>figures · tables · report</strong></div>
+            <div><span>Boundary</span><strong>exploratory evidence only</strong></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div class='v7-panel-title'>Compact settings</div>", unsafe_allow_html=True)
+    mode_label = st.selectbox("运行深度", ["快速", "标准", "高阶"], index=1, key="v7_mode_label")
+    c1, c2 = st.columns(2)
+    min_genes = c1.number_input("Spot 最少基因", min_value=0, max_value=5000, value=int(qc.get("min_genes", defaults["min_genes"])), step=5)
+    min_cells = c2.number_input("基因最少 spots", min_value=0, max_value=200, value=int(qc.get("min_cells", defaults["min_cells"])), step=1)
+    c3, c4 = st.columns(2)
+    max_mt_pct = c3.number_input("MT% 上限", min_value=0.0, max_value=100.0, value=float(qc.get("max_mt_pct", defaults["max_mt_pct"])), step=1.0)
+    resolution = c4.slider("Leiden resolution", min_value=0.1, max_value=2.0, value=float(clustering.get("resolution", defaults["resolution"])), step=0.1)
+    gene_text = st.text_input("Gene panel", value=str(defaults["gene_text"]))
+    annotation_top_n = st.number_input("Annotation top N", min_value=3, max_value=30, value=int(defaults["annotation_top_n"]), step=1)
+    return {
+        "mode_label": mode_label,
+        "min_genes": min_genes,
+        "min_cells": min_cells,
+        "max_mt_pct": max_mt_pct,
+        "resolution": resolution,
+        "gene_text": gene_text,
+        "annotation_top_n": annotation_top_n,
+    }
 
 
-def project_page() -> None:
-    state = active_state()
-    if not state:
-        _render_landing()
-        return
-    if state.get("report_path"):
-        render_dataset_identity_strip(state)
-        st.markdown(
-            f"""
-            <div class="v6-complete-callout">
-              <div class="v6-overline">Analysis complete</div>
-              <h2>报告和探索工作区已经准备好</h2>
-              <p>{h(dataset_identity_text(state))}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        cols = st.columns(2)
+def _approve_and_run(state: dict[str, Any], settings: dict[str, Any]) -> None:
+    updated = apply_ui_overrides(
+        dict(state),
+        min_genes=int(settings["min_genes"]),
+        min_cells=int(settings["min_cells"]),
+        max_mt_pct=float(settings["max_mt_pct"]),
+        resolution=float(settings["resolution"]),
+        gene_text=str(settings["gene_text"]),
+        annotation_top_n=int(settings["annotation_top_n"]),
+    )
+    updated["mode"] = MODE_VALUES.get(str(settings["mode_label"]), "standard")
+    set_draft(updated)
+    st.session_state.pending_run_approval = True
+    st.session_state.pending_run_plan_source = "project_approved"
+    st.session_state.approval_flash = True
+    run_page = st.session_state.get("_v6_run_page")
+    if run_page is not None:
+        st.switch_page(run_page)
+    st.rerun()
+
+
+def _render_plan_scene(state: dict[str, Any]) -> None:
+    with scene_frame(
+        key="plan_approval_scene",
+        index="02 / 05",
+        eyebrow="PLAN REVIEW",
+        title="请审阅分析契约",
+        subtitle="方案只在你批准后执行。右侧记录参数来源、预期产物和方法边界。",
+    ):
+        left, right = st.columns([0.6, 0.4], gap="large")
+        with left:
+            _render_plan_stepper(state)
+        with right:
+            settings = _render_plan_side_panel(state)
+            st.markdown("<div class='v7-action-row plan'>", unsafe_allow_html=True)
+            if st.button("批准并运行", type="primary", width="stretch", key="approve_and_run"):
+                _approve_and_run(state, settings)
+            if st.button("返回数据理解", width="stretch", key="back_to_dataset_scene"):
+                set_project_stage("dataset_inspected")
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_completion_scene(state: dict[str, Any]) -> None:
+    with scene_frame(
+        key="project_complete_scene",
+        index="05 / 05",
+        eyebrow="COMPLETE",
+        title="报告和探索工作区已经准备好",
+        subtitle=dataset_identity_text(state),
+    ):
+        cols = st.columns([0.5, 0.5], gap="medium")
         if cols[0].button("打开探索工作区", type="primary", width="stretch"):
             page = st.session_state.get("_v6_explore_page")
             if page is not None:
@@ -317,5 +446,21 @@ def project_page() -> None:
             page = st.session_state.get("_v6_report_page")
             if page is not None:
                 st.switch_page(page)
+
+
+def project_page() -> None:
+    state = active_state()
+    stage = project_stage_for_state(state)
+    if stage == "landing":
+        _render_landing()
         return
-    _render_dataset_ready(state)
+    if state is None:
+        _render_landing()
+        return
+    if stage == "report":
+        _render_completion_scene(state)
+        return
+    if stage == "plan_review":
+        _render_plan_scene(state)
+        return
+    _render_dataset_scene(state)

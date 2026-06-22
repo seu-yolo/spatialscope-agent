@@ -7,8 +7,9 @@ import pandas as pd
 import streamlit as st
 
 from spatialscope.ui.components import render_report_assets
+from spatialscope.ui.components.scene_frame import scene_frame
 from spatialscope.ui.helpers import read_table_preview
-from spatialscope.ui.v6_helpers import h, render_dataset_identity_strip
+from spatialscope.ui.v6_helpers import h
 
 
 def _static_table(frame: pd.DataFrame) -> None:
@@ -44,14 +45,15 @@ def _render_finding(finding: dict[str, Any], index: int) -> None:
         """,
         unsafe_allow_html=True,
     )
-    cols = st.columns([0.18, 0.18, 0.18, 0.46])
-    if cols[0].button("Accept", key=f"accept_{key}"):
+    cols = st.columns([0.58, 0.14, 0.14, 0.14], gap="small")
+    cols[0].markdown("<div class='v7-review-label'>Review decision</div>", unsafe_allow_html=True)
+    if cols[1].button("Accept", key=f"accept_{key}", width="stretch"):
         review_state[key] = "Accepted"
         st.rerun()
-    if cols[1].button("Edit", key=f"edit_{key}"):
+    if cols[2].button("Edit", key=f"edit_{key}", width="stretch"):
         review_state[key] = "Needs edit"
         st.rerun()
-    if cols[2].button("Reject", key=f"reject_{key}"):
+    if cols[3].button("Reject", key=f"reject_{key}", width="stretch"):
         review_state[key] = "Rejected"
         st.rerun()
 
@@ -68,9 +70,11 @@ def _render_main_evidence(state: dict[str, Any]) -> None:
         for col, fig in zip(cols, figures[:2]):
             path = Path(str(fig.get("path") or ""))
             with col:
+                st.markdown("<div class='v7-evidence-panel report'>", unsafe_allow_html=True)
                 if path.exists():
                     st.image(str(path), width="stretch")
                 st.caption(str(fig.get("title") or path.name))
+                st.markdown("</div>", unsafe_allow_html=True)
     if tables:
         st.markdown("<h2 class='v6-report-section'>Supporting evidence</h2>", unsafe_allow_html=True)
         for table in tables[:2]:
@@ -81,25 +85,28 @@ def _render_main_evidence(state: dict[str, Any]) -> None:
 
 
 def _render_methods_and_limits(state: dict[str, Any]) -> None:
-    st.markdown("<h2 class='v6-report-section'>Methods</h2>", unsafe_allow_html=True)
-    trace = state.get("execution_trace", []) or []
-    if trace:
-        rows = [
-            {
-                "step": item.get("tool") or item.get("node"),
-                "status": item.get("status"),
-                "summary": item.get("summary"),
-            }
-            for item in trace[:12]
-        ]
-        _static_table(pd.DataFrame(rows))
-    else:
-        st.write("No execution trace recorded.")
-    st.markdown("<h2 class='v6-report-section'>Limitations</h2>", unsafe_allow_html=True)
-    limitations = list(map(str, state.get("warnings", []) or []))
-    limitations.extend(["LLM 只基于工具摘要和 evidence packs 解释，不读取完整表达矩阵。"])
-    for item in list(dict.fromkeys(limitations))[:5]:
-        st.markdown(f"<p class='v6-limit'>· {h(item)}</p>", unsafe_allow_html=True)
+    left, right = st.columns(2, gap="large")
+    with left:
+        st.markdown("<h2 class='v6-report-section'>Methods</h2>", unsafe_allow_html=True)
+        trace = state.get("execution_trace", []) or []
+        if trace:
+            rows = [
+                {
+                    "step": item.get("tool") or item.get("node"),
+                    "status": item.get("status"),
+                    "summary": item.get("summary"),
+                }
+                for item in trace[:10]
+            ]
+            _static_table(pd.DataFrame(rows))
+        else:
+            st.write("No execution trace recorded.")
+    with right:
+        st.markdown("<h2 class='v6-report-section'>Limitations</h2>", unsafe_allow_html=True)
+        limitations = list(map(str, state.get("warnings", []) or []))
+        limitations.extend(["LLM 只基于工具摘要和 evidence packs 解释，不读取完整表达矩阵。"])
+        for item in list(dict.fromkeys(limitations))[:5]:
+            st.markdown(f"<p class='v6-limit'>· {h(item)}</p>", unsafe_allow_html=True)
 
 
 def report_page() -> None:
@@ -115,45 +122,41 @@ def report_page() -> None:
             unsafe_allow_html=True,
         )
         return
-    render_dataset_identity_strip(state)
     brief = state.get("research_brief") if isinstance(state.get("research_brief"), dict) else {}
     question = brief.get("normalized_question") or state.get("user_query") or ""
-    st.markdown(
-        f"""
-        <main class="v6-report">
-          <div class="v6-overline">Human-reviewed output</div>
-          <h1>Research Brief</h1>
-          <p class="v6-report-question">{h(question)}</p>
-        </main>
-        """,
-        unsafe_allow_html=True,
-    )
-    findings = list(state.get("scientific_findings", []) or [])[:5]
-    st.markdown("<h2 class='v6-report-section'>Key findings</h2>", unsafe_allow_html=True)
-    if findings:
-        for index, finding in enumerate(findings, start=1):
-            _render_finding(finding, index)
-    else:
-        st.info("还没有 evidence-linked findings。")
-    draft_ids = set(map(str, st.session_state.get("report_draft_finding_ids", [])))
-    draft_turns = [turn for turn in st.session_state.get("copilot_conversation", []) if str(turn.get("turn_id")) in draft_ids]
-    if draft_turns:
-        st.markdown("<h2 class='v6-report-section'>Copilot additions</h2>", unsafe_allow_html=True)
-        for turn in draft_turns:
-            st.markdown(
-                f"""
-                <article class="v6-finding copilot">
-                  <div class="v6-finding-index">C</div>
-                  <div>
-                    <h2>{h(turn.get("question", ""))}</h2>
-                    <p class="v6-finding-statement">{h(turn.get("content", ""))}</p>
-                    <dl><dt>Evidence IDs</dt><dd><code>{h(", ".join(map(str, turn.get("evidence_ids", []))) or "none")}</code></dd></dl>
-                  </div>
-                </article>
-                """,
-                unsafe_allow_html=True,
-            )
-    _render_main_evidence(state)
-    _render_methods_and_limits(state)
-    st.markdown("<h2 class='v6-report-section'>Downloads</h2>", unsafe_allow_html=True)
-    render_report_assets(state, primary=True)
+    with scene_frame(
+        key="report_scene",
+        index="05 / 05",
+        eyebrow="HUMAN-REVIEWED OUTPUT",
+        title="Research Brief",
+        subtitle=str(question),
+    ):
+        findings = list(state.get("scientific_findings", []) or [])[:5]
+        st.markdown("<h2 class='v6-report-section'>Key findings</h2>", unsafe_allow_html=True)
+        if findings:
+            for index, finding in enumerate(findings, start=1):
+                _render_finding(finding, index)
+        else:
+            st.info("还没有 evidence-linked findings。")
+        draft_ids = set(map(str, st.session_state.get("report_draft_finding_ids", [])))
+        draft_turns = [turn for turn in st.session_state.get("copilot_conversation", []) if str(turn.get("turn_id")) in draft_ids]
+        if draft_turns:
+            st.markdown("<h2 class='v6-report-section'>Copilot additions</h2>", unsafe_allow_html=True)
+            for turn in draft_turns:
+                st.markdown(
+                    f"""
+                    <article class="v6-finding copilot">
+                      <div class="v6-finding-index">C</div>
+                      <div>
+                        <h2>{h(turn.get("question", ""))}</h2>
+                        <p class="v6-finding-statement">{h(turn.get("content", ""))}</p>
+                        <dl><dt>Evidence IDs</dt><dd><code>{h(", ".join(map(str, turn.get("evidence_ids", []))) or "none")}</code></dd></dl>
+                      </div>
+                    </article>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        _render_main_evidence(state)
+        _render_methods_and_limits(state)
+        st.markdown("<h2 class='v6-report-section'>Downloads</h2>", unsafe_allow_html=True)
+        render_report_assets(state, primary=True)

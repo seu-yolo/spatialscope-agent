@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from spatialscope.agent.llm import llm_config_status, smoke_test_llm
+from spatialscope.agent.llm import LLMClient, llm_config_status, smoke_test_llm
 from spatialscope.domain.dataset_store import DEFAULT_DATASET_STORE
 from spatialscope.domain.expression_lineage import infer_matrix_state
 from spatialscope.domain.exploration_evidence import (
@@ -35,7 +36,7 @@ from spatialscope.utils.run_index import discover_runs
 from spatialscope.visualization.theme import CLUSTER_PALETTE, numeric_sort_key
 from spatialscope.ui.actions import apply_ui_action, ensure_explore_state
 
-from .helpers import read_table_preview, safe_json_download_payload
+from spatialscope.ui.helpers import read_table_preview, safe_json_download_payload
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -548,6 +549,21 @@ def _runtime_gateway() -> LLMGateway:
     return gateway
 
 
+def _copilot_gateway() -> LLMGateway:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except Exception:
+        pass
+    client = LLMClient.from_env()
+    try:
+        client.timeout_seconds = float(os.getenv("SPATIALSCOPE_COPILOT_TIMEOUT_SECONDS", "45"))
+    except ValueError:
+        client.timeout_seconds = 45.0
+    return LLMGateway(client=client)
+
+
 def _metric_strip_html(items: list[tuple[str, Any]]) -> str:
     cards = "".join(
         "<div class='ss-strip-item'>"
@@ -584,7 +600,8 @@ def _gene_metric_items(gene_pack: Any, selection_pack: Any | None) -> list[tuple
 
 def _cluster_metric_items(cluster_pack: Any | None, selection_pack: Any | None) -> list[tuple[str, Any]]:
     if cluster_pack is None:
-        return [("Cluster", "all"), ("Selected spots", len(st.session_state.get("selected_obs_ids", [])))]
+        selected = len(st.session_state.get("selected_obs_ids", []))
+        return [("Cluster", "all"), ("Selected", selected or "all observations")]
     metrics = getattr(cluster_pack, "summary_metrics", {}) or {}
     items: list[tuple[str, Any]] = [
         ("Cluster", metrics.get("cluster")),
@@ -889,8 +906,10 @@ def render_linked_explore(state: dict[str, Any]) -> None:
         st.markdown("<div class='ss-canvas-heading'>科研证据画布</div>", unsafe_allow_html=True)
         c_spatial, c_umap = st.columns(2, gap="medium")
         with c_spatial:
+            st.markdown("<div class='v7-plot-label'>SPATIAL</div>", unsafe_allow_html=True)
             spatial_event = _plotly_selection_event(spatial_fig, key="linked_spatial_plot")
         with c_umap:
+            st.markdown("<div class='v7-plot-label'>UMAP</div>", unsafe_allow_html=True)
             umap_event = _plotly_selection_event(umap_fig, key="linked_umap_plot")
         selected_from_plot = _selected_obs_from_event(spatial_event) or _selected_obs_from_event(umap_event)
         if selected_from_plot and selected_from_plot != selected_obs_ids:
@@ -900,7 +919,8 @@ def render_linked_explore(state: dict[str, Any]) -> None:
         st.markdown(_metric_strip_html(metric_items), unsafe_allow_html=True)
         st.caption(
             f"Evidence IDs: {', '.join(active_evidence_ids) if active_evidence_ids else '暂无'} · "
-            f"Layer: {expression_source} · Clip: {clip_low:g}-{clip_high:g}% · Selected: {len(selected_obs_ids)}"
+            f"Layer: {expression_source} · Clip: {clip_low:g}-{clip_high:g}% · "
+            f"Selected: {len(selected_obs_ids) if selected_obs_ids else 'all observations'} · Cluster palette shared"
         )
         marker_rows = _marker_excerpt(state, selected_cluster)
         if marker_rows:
@@ -934,7 +954,7 @@ def render_linked_explore(state: dict[str, Any]) -> None:
         context_rows = [
             ("Gene", resolved_gene or selected_gene or "NA"),
             ("Cluster", selected_cluster or "全部"),
-            ("Selection", f"{len(selected_obs_ids)} spots"),
+            ("Selection", f"{len(selected_obs_ids)} spots" if selected_obs_ids else "all observations"),
             ("Layer", expression_source),
         ]
         st.markdown(_metric_strip_html(context_rows), unsafe_allow_html=True)
@@ -951,7 +971,7 @@ def render_linked_explore(state: dict[str, Any]) -> None:
             st.session_state._copilot_prompt_choice_seen = selected_prompt
         question = st.text_area("向当前证据提问", value=selected_prompt, height=86, key="copilot_question")
         if st.button("询问 Copilot", type="primary", width="stretch"):
-            gateway = _runtime_gateway()
+            gateway = _copilot_gateway()
             history = list(st.session_state.get("copilot_conversation", []))[-6:]
             copilot_packs = list(active_packs)
             question_gene = _gene_mentioned_in_question(question, adata)

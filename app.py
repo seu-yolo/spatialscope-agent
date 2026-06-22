@@ -10,7 +10,7 @@ from spatialscope.ui.state import init_session_state
 
 def main() -> None:
     load_dotenv()
-    st.set_page_config(page_title="SpatialScope Agent", page_icon="S", layout="wide")
+    st.set_page_config(page_title="SpatialScope Agent", page_icon="S", layout="wide", initial_sidebar_state="collapsed")
     init_session_state()
     load_theme()
     render_app()
