@@ -12,6 +12,8 @@ The v6 product surface rebuilds the app around a Chinese-first research journey:
 
 Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 
+Interactive deployment guide: [`DEPLOYMENT.md`](DEPLOYMENT.md)
+
 ## Quick Launch
 
 ```bash
@@ -230,6 +232,9 @@ can use to install the Python dependencies. The deployed app will get a public
 For grading, use the Streamlit URL as the interactive app link and the GitHub
 Pages URL as the static project overview. After deployment, add the Streamlit URL
 near the top of this README so reviewers can enter the app without cloning.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the exact Cloud settings, secrets
+template, and post-deploy smoke checks.
 
 GitHub Pages is different: it can host the static project site in `docs/`, but it
 cannot run the interactive Streamlit/LangGraph/Scanpy backend by itself.
