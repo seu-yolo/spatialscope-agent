@@ -27,6 +27,14 @@ STOPWORDS = {
     "show",
     "inspect",
     "assess",
+    "compare",
+    "summarize",
+    "summarise",
+    "summary",
+    "structure",
+    "structures",
+    "caveat",
+    "caveats",
     "quick",
     "standard",
     "advanced",
@@ -62,6 +70,17 @@ STOPWORDS = {
     "data",
     "dataset",
     "datasets",
+    "transcriptomics",
+    "stereo-seq",
+    "stereo",
+    "seq",
+    "mouse",
+    "embryo",
+    "embryonic",
+    "real",
+    "this",
+    "sample",
+    "samples",
     "card",
     "cards",
     "qc",
@@ -82,14 +101,40 @@ STOPWORDS = {
 }
 
 
+GENE_CONTEXT_PATTERN = re.compile(
+    r"(?:for|genes?|gene panel|panel|markers?|查看|比较|表达)\s+(.+?)(?:\bthen\b|[。；;]|$)",
+    flags=re.IGNORECASE,
+)
+
+
+def _looks_like_gene_token(token: str) -> bool:
+    cleaned = token.strip(" ,.;:()[]{}，、。；：")
+    if not cleaned:
+        return False
+    lowered = cleaned.lower()
+    if len(cleaned) == 1:
+        return cleaned == "T"
+    if lowered in STOPWORDS:
+        return False
+    if re.fullmatch(r"e\d+(?:\.\d+)?", cleaned, flags=re.IGNORECASE):
+        return False
+    if cleaned[0].islower():
+        return False
+    if "-" in cleaned and lowered == cleaned:
+        return False
+    return True
+
+
+def _candidate_gene_tokens(text: str) -> list[str]:
+    return [token for token in GENE_PATTERN.findall(text) if _looks_like_gene_token(token)]
+
+
 def fallback_parse_query(query: str, mode: RunMode) -> dict[str, Any]:
     lowered = query.lower()
     genes = []
-    for token in GENE_PATTERN.findall(query):
-        if len(token) == 1 and token != "T":
-            continue
-        if token.lower() not in STOPWORDS:
-            genes.append(token)
+    for match in GENE_CONTEXT_PATTERN.finditer(query):
+        genes.extend(_candidate_gene_tokens(match.group(1)))
+    genes.extend(_candidate_gene_tokens(query))
     seen: set[str] = set()
     genes = [gene for gene in genes if not (gene in seen or seen.add(gene))]
     requested_steps: list[str] = []

@@ -4,6 +4,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from spatialscope.domain.dataset_profile import ensure_spatial_obsm
+
 
 class DatasetStore:
     """Runtime boundary for AnnData objects.
@@ -31,6 +33,7 @@ class DatasetStore:
         import anndata as ad
 
         adata = ad.read_h5ad(path)
+        ensure_spatial_obsm(adata)
         self._cache[path] = adata
         return adata
 

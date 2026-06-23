@@ -5,12 +5,13 @@ from typing import Any
 
 import numpy as np
 
-from spatialscope.domain.dataset_profile import profile_adata
+from spatialscope.domain.dataset_profile import ensure_spatial_obsm, profile_adata
 from spatialscope.tools.base import ToolResult, missing_dependency
 from spatialscope.utils.paths import file_sha256
 
 
 def _summary_from_adata(adata: Any, *, path: str, dataset_hash: str) -> dict[str, Any]:
+    spatial_source = ensure_spatial_obsm(adata)
     has_spatial = "spatial" in getattr(adata, "obsm", {})
     profile = profile_adata(adata, data_path=path, dataset_hash=dataset_hash)
     summary: dict[str, Any] = {
@@ -27,6 +28,7 @@ def _summary_from_adata(adata: Any, *, path: str, dataset_hash: str) -> dict[str
         "cell_type_columns": profile.cell_type_fields,
         "scientific_warnings": profile.scientific_warnings,
         "dataset_profile": profile.model_dump(),
+        "spatial_source": spatial_source,
         "expression_lineage": profile.expression_lineage,
         "var_names_preview": list(map(str, adata.var_names[:10])),
         "obs_names_preview": list(map(str, adata.obs_names[:10])),

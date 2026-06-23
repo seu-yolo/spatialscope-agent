@@ -52,6 +52,15 @@ def test_fallback_parser_ignores_report_and_evidence_terms():
     assert parsed["genes"] == ["Sox17", "T", "Mesp1"]
 
 
+def test_fallback_parser_prioritizes_real_data_gene_context():
+    parsed = fallback_parse_query(
+        "Inspect this real E7.5 mouse embryo Stereo-seq spatial transcriptomics dataset. "
+        "Run quick spatial analysis for Sox17, T, Mesp1 and Pou5f1, then summarize spatial structure and caveats.",
+        "quick",
+    )
+    assert parsed["genes"] == ["Sox17", "T", "Mesp1", "Pou5f1"]
+
+
 def test_make_advanced_plan_contains_showcase_tools():
     parsed = {"genes": ["Sox17"]}
     tools = [step["tool"] for step in make_plan(parsed, "advanced")]

@@ -9,6 +9,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from spatialscope.domain.expression_lineage import build_expression_lineage, infer_matrix_state
 from spatialscope.utils.paths import file_sha256
 
+SPATIAL_OBS_PAIRS = (
+    ("x", "y"),
+    ("image_x", "image_y"),
+    ("spatial_x", "spatial_y"),
+    ("x_flatten", "y_flatten"),
+    ("array_col", "array_row"),
+    ("pxl_col_in_fullres", "pxl_row_in_fullres"),
+)
+
 
 class DatasetProfile(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -76,6 +85,75 @@ def _metadata_value(adata: Any, keys: list[str]) -> str:
         if key in uns and uns[key]:
             return str(uns[key])
     return "unknown"
+
+
+def _is_valid_spatial_coords(coords: Any, *, n_obs: int) -> bool:
+    try:
+        arr = np.asarray(coords)
+        return bool(arr.ndim == 2 and arr.shape[0] == n_obs and arr.shape[1] >= 2 and np.isfinite(arr[:, :2]).any())
+    except Exception:
+        return False
+
+
+def _spatial_priority(key: str) -> tuple[int, str]:
+    lowered = key.lower()
+    if lowered == "spatial":
+        return (0, lowered)
+    if lowered == "x_spatial":
+        return (1, lowered)
+    if lowered.endswith("spatial"):
+        return (2, lowered)
+    if "spatial" in lowered:
+        return (3, lowered)
+    return (9, lowered)
+
+
+def find_spatial_obsm_key(adata: Any) -> str | None:
+    """Return the best valid obsm key that can act as spatial coordinates."""
+
+    obsm = getattr(adata, "obsm", {})
+    keys = [str(key) for key in obsm.keys() if str(key).lower() == "spatial" or "spatial" in str(key).lower()]
+    for key in sorted(keys, key=_spatial_priority):
+        if _is_valid_spatial_coords(obsm[key], n_obs=int(adata.n_obs)):
+            return key
+    return None
+
+
+def ensure_spatial_obsm(adata: Any) -> str | None:
+    """Normalize common spatial-coordinate conventions to `adata.obsm['spatial']`.
+
+    Public AnnData files often use names such as `X_spatial` or store coordinates
+    as observation columns. The analysis tools use one canonical key, so this
+    helper creates a lightweight alias without changing expression values.
+    """
+
+    key = find_spatial_obsm_key(adata)
+    if key:
+        if key != "spatial":
+            adata.obsm["spatial"] = np.asarray(adata.obsm[key])[:, :2].copy()
+        adata.uns["spatialscope_spatial_source_key"] = key
+        return key
+
+    obs = getattr(adata, "obs", None)
+    if obs is None:
+        return None
+    obs_columns = {str(col): col for col in obs.columns}
+    lower_lookup = {str(col).lower(): col for col in obs.columns}
+    for x_name, y_name in SPATIAL_OBS_PAIRS:
+        x_col = obs_columns.get(x_name) or lower_lookup.get(x_name.lower())
+        y_col = obs_columns.get(y_name) or lower_lookup.get(y_name.lower())
+        if x_col is None or y_col is None:
+            continue
+        try:
+            coords = obs[[x_col, y_col]].to_numpy(dtype=float)
+        except Exception:
+            continue
+        if _is_valid_spatial_coords(coords, n_obs=int(adata.n_obs)):
+            adata.obsm["spatial"] = coords[:, :2].copy()
+            source = f"obs[{x_col},{y_col}]"
+            adata.uns["spatialscope_spatial_source_key"] = source
+            return source
+    return None
 
 
 def profile_adata(adata: Any, *, data_path: str = "", dataset_hash: str = "") -> DatasetProfile:

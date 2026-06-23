@@ -138,6 +138,31 @@ Generate a tiny synthetic spatial AnnData file:
 python scripts/create_demo_data.py --output data/demo_tiny.h5ad
 ```
 
+Download one real, classroom-sized GEO sample:
+
+```bash
+scripts/download_real_demo.sh
+```
+
+This fetches the official [GSE278603](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE278603)
+supplementary archive from NCBI GEO, then extracts only
+`GSM9046244_Embryo_E7.5_stereo_rep2.h5ad` into `data/`. The extracted sample is
+about 31 MB and contains 8190 spots, 16364 genes, E7.5 mouse embryo metadata,
+and spatial coordinates stored by the source file as `obsm["X_spatial"]`.
+SpatialScope normalizes that convention to `obsm["spatial"]` during loading.
+
+Real-data smoke test:
+
+```bash
+python cli.py run \
+  --data data/GSM9046244_Embryo_E7.5_stereo_rep2.h5ad \
+  --query "Inspect this real E7.5 mouse embryo Stereo-seq spatial transcriptomics dataset. Run quick spatial analysis for Sox17, T, Mesp1 and Pou5f1, then summarize spatial structure and caveats." \
+  --mode quick
+```
+
+Large data files remain ignored by Git. Keep them local or download them during
+deployment/runtime as needed.
+
 ## CLI
 
 ```bash
@@ -202,6 +227,10 @@ The repository already includes `environment.yml`, which Streamlit Community Clo
 can use to install the Python dependencies. The deployed app will get a public
 `*.streamlit.app` URL.
 
+For grading, use the Streamlit URL as the interactive app link and the GitHub
+Pages URL as the static project overview. After deployment, add the Streamlit URL
+near the top of this README so reviewers can enter the app without cloning.
+
 GitHub Pages is different: it can host the static project site in `docs/`, but it
 cannot run the interactive Streamlit/LangGraph/Scanpy backend by itself.
 
@@ -218,14 +247,3 @@ scripts/check_project.sh
 ```
 
 The lightweight tests avoid requiring Scanpy/Squidpy so they can validate project logic before the full scientific environment is installed.
-
-## GitHub Project Management
-
-- `main` is the stable, presentation-ready branch.
-- GitHub Actions runs tests and a CLI smoke demo on push and pull request.
-- GitHub Pages can serve the static project site from the `docs/` directory.
-- Product quality notes are in [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md).
-- Repository workflow notes are in [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md).
-- Contribution notes are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-GitHub Pages must be enabled once in repository settings: Pages -> Deploy from a branch -> `main` -> `/docs`.

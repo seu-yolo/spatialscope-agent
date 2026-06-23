@@ -14,7 +14,9 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#workflow">Workflow</a>
+        <a href="#data">Real data</a>
         <a href="#run">Run locally</a>
+        <a href="#deploy">Deploy</a>
         <a href="https://github.com/seu-yolo/spatialscope-agent">GitHub</a>
       </div>
     </nav>
@@ -30,6 +32,7 @@
         <div class="actions">
           <a class="button" href="https://github.com/seu-yolo/spatialscope-agent">View source</a>
           <a class="button secondary" href="#run">Run the demo</a>
+          <a class="button secondary" href="#deploy">Public app path</a>
           <a class="button secondary" href="PRODUCT_BRIEF.md">Product brief</a>
         </div>
         <div class="tag-wall" aria-label="Project tags">
@@ -112,6 +115,34 @@
       </div>
     </section>
 
+    <section class="section" id="data">
+      <div class="section-title">Real Dataset</div>
+      <div class="split">
+        <article class="card accent-card">
+          <div class="kicker">NCBI GEO · GSE278603</div>
+          <h3>E7.5 mouse embryo Stereo-seq</h3>
+          <p>
+            The recommended real-data smoke test uses
+            <code>GSM9046244_Embryo_E7.5_stereo_rep2.h5ad</code>, a lightweight
+            replicate from a public early mouse organogenesis spatial atlas.
+          </p>
+          <div class="mini-metrics">
+            <span><strong>8190</strong> spots</span>
+            <span><strong>16364</strong> genes</span>
+            <span><strong>31 MB</strong> extracted sample</span>
+          </div>
+        </article>
+        <pre class="commands compact"><span># download official archive and extract one sample</span>
+scripts/download_real_demo.sh
+
+<span># run the real-data smoke test</span>
+python cli.py run \
+  --data data/GSM9046244_Embryo_E7.5_stereo_rep2.h5ad \
+  --query "Inspect E7.5 embryo structure for Sox17, T, Mesp1 and Pou5f1." \
+  --mode quick</pre>
+      </div>
+    </section>
+
     <section class="section" id="workflow">
       <div class="section-title">Agent Workflow</div>
       <div class="workflow">
@@ -164,30 +195,29 @@ scripts/run_app.sh</pre>
       </p>
     </section>
 
-    <section class="section">
-      <div class="section-title">GitHub Management</div>
+    <section class="section" id="deploy">
+      <div class="section-title">Public Deployment</div>
       <div class="grid">
         <article class="card">
-          <h3>main branch</h3>
-          <p>保持可运行、可测试、可展示。重大实验建议用 feature branch 或 Pull Request。</p>
+          <h3>Interactive app</h3>
+          <p>Deploy <code>app.py</code> to Streamlit Community Cloud from the GitHub repository and expose a public <code>*.streamlit.app</code> URL.</p>
         </article>
         <article class="card">
-          <h3>CI</h3>
-          <p>每次 push 自动运行 unit tests 和 CLI smoke demo，避免展示前才发现坏掉。</p>
+          <h3>Static project site</h3>
+          <p>GitHub Pages serves this <code>docs/</code> site as a lightweight overview for reviewers before they enter the app.</p>
         </article>
         <article class="card">
-          <h3>Pages</h3>
-          <p>docs/ 目录自动发布为项目主页，适合作为 GitHub README 之外的展示入口。</p>
+          <h3>Secret-safe LLM</h3>
+          <p>Provider keys belong in Streamlit secrets or local <code>.env</code>, never in committed files or public state bundles.</p>
         </article>
         <article class="card">
-          <h3>Contribution flow</h3>
-          <p>Issue 模板、PR checklist 和贡献规范帮助后续功能扩展保持可审阅、可复现。</p>
+          <h3>Review path</h3>
+          <p>Use the Streamlit URL for the live agent experience and this Pages URL for source, workflow, and reproducibility context.</p>
         </article>
       </div>
       <p class="note">
         More project notes:
         <a href="PRODUCT_BRIEF.md">Product brief</a>,
-        <a href="GIT_WORKFLOW.md">Git workflow</a>,
         <a href="AGENT_DESIGN_REFERENCES.md">Agent design references</a>.
       </p>
     </section>
