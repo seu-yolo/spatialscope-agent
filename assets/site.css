@@ -194,6 +194,44 @@ h1 {
   margin: 0;
 }
 
+.split {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+}
+
+.accent-card {
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(183, 121, 31, 0.08)),
+    rgba(255, 255, 255, 0.96);
+}
+
+.accent-card h3 {
+  font-size: 1.42rem;
+  line-height: 1.15;
+}
+
+.mini-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.mini-metrics span {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #47545f;
+  font-size: 0.82rem;
+  padding: 5px 10px;
+}
+
+.mini-metrics strong {
+  color: var(--ink);
+}
+
 .workflow {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--line);
@@ -254,6 +292,11 @@ h1 {
   padding: 16px;
 }
 
+.commands.compact {
+  margin: 0;
+  min-height: 100%;
+}
+
 .commands span {
   color: #8fd3cb;
 }
@@ -283,6 +326,10 @@ h1 {
   .hero {
     grid-template-columns: 1fr;
     padding: 22px;
+  }
+
+  .split {
+    grid-template-columns: 1fr;
   }
 
   .nav {
