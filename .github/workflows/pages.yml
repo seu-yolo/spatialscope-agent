@@ -1,4 +1,4 @@
-name: Deploy GitHub Pages
+name: Publish Static Pages Branch
 
 on:
   push:
@@ -9,32 +9,35 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  publish:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          fetch-depth: 0
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish docs to gh-pages branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf /tmp/spatialscope-pages
+          mkdir -p /tmp/spatialscope-pages
+          cp -R docs/. /tmp/spatialscope-pages/
+          cd /tmp/spatialscope-pages
+          git init
+          git checkout -b gh-pages
+          git add -A
+          git commit -m "Deploy static project site"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin gh-pages
