@@ -21,6 +21,7 @@ The v6 product surface rebuilds the app around a Chinese-first research journey:
 - Interactive app: https://spatialscope-seu.streamlit.app/
 - Static project site: https://seu-yolo.github.io/spatialscope-agent/
 - Deployment guide: [`DEPLOYMENT.md`](DEPLOYMENT.md)
+- Submission checklist: [`docs/SUBMISSION_CHECKLIST.md`](docs/SUBMISSION_CHECKLIST.md)
 - Course demo script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
 - Grading guide: [`docs/GRADING_GUIDE.md`](docs/GRADING_GUIDE.md)
 - Report draft: [`reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md`](reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md)
