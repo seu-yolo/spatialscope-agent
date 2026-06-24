@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import base64
+import html
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +15,35 @@ from spatialscope.agent.planner import validate_plan_steps
 
 MODE_LABELS = {"quick": "快速", "standard": "标准", "advanced": "高阶"}
 MODE_VALUES = {"快速": "quick", "标准": "standard", "高阶": "advanced"}
+
+
+@lru_cache(maxsize=16)
+def asset_data_uri(filename: str) -> str:
+    asset_path = Path(__file__).parent / "assets" / filename
+    suffix = asset_path.suffix.lower()
+    mime = "image/svg+xml" if suffix == ".svg" else "image/png"
+    payload = base64.b64encode(asset_path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{payload}"
+
+
+def spatialscope_logo_uri() -> str:
+    return asset_data_uri("spatialscope-logo.svg")
+
+
+def agent_companion_html(label: str, detail: str = "", *, active: bool = False) -> str:
+    state = " active" if active else ""
+    escaped_label = html.escape(label)
+    escaped_detail = html.escape(detail)
+    detail_html = f"<span class='ss-agent-detail'>{escaped_detail}</span>" if escaped_detail else ""
+    return (
+        f"<span class='ss-agent-companion{state}'>"
+        f"<img class='ss-agent-avatar' src='{spatialscope_logo_uri()}' alt='SpatialScope agent'>"
+        "<span class='ss-agent-bubble'>"
+        f"<span class='ss-agent-name'>{escaped_label}</span>"
+        f"{detail_html}"
+        "</span>"
+        "</span>"
+    )
 
 
 def load_theme() -> None:

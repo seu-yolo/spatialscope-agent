@@ -36,7 +36,7 @@ from spatialscope.utils.run_index import discover_runs
 from spatialscope.visualization.theme import CLUSTER_PALETTE, numeric_sort_key
 from spatialscope.ui.actions import apply_ui_action, ensure_explore_state
 
-from spatialscope.ui.helpers import read_table_preview, safe_json_download_payload
+from spatialscope.ui.helpers import agent_companion_html, read_table_preview, safe_json_download_payload
 
 
 PROJECT_SIGNATURE = "seu-yolo / 东南大学计算生物学"
@@ -688,7 +688,7 @@ def _render_copilot_history() -> None:
         st.markdown(
             (
                 "<div class='ss-copilot-answer'>"
-                f"<div class='ss-mini-label'>Copilot · {html.escape('LLM' if source == 'llm' else '规则解释')}</div>"
+                f"<div class='ss-copilot-turn-top'>{agent_companion_html('Scopelet', 'LLM answer' if source == 'llm' else 'safe fallback', active=source == 'llm')}</div>"
                 f"<div class='ss-card-title'>{html.escape(str(turn.get('question', '')))}</div>"
                 f"<p>{html.escape(str(turn.get('content', '')))}</p>"
                 f"<p><strong>Evidence IDs used:</strong> {html.escape(evidence)}</p>"
@@ -945,7 +945,7 @@ def render_linked_explore(state: dict[str, Any]) -> None:
         st.markdown(
             (
                 "<div class='ss-copilot-header'>"
-                "<div class='ss-mini-label'>Research Copilot</div>"
+                f"{agent_companion_html('Scopelet', 'Research Copilot', active=source_label.startswith('LLM'))}"
                 f"<div class='ss-copilot-source'>{html.escape(source_label)}</div>"
                 "</div>"
             ),
@@ -1118,7 +1118,7 @@ def render_llm_status(*, key_prefix: str = "llm") -> None:
     st.markdown(
         f"""
         <div class="ss-panel">
-          <div class="ss-mini-label">LLM Control Center</div>
+          <div class="ss-panel-companion">{agent_companion_html("Scopelet", "LLM Control Center", active=bool(status.get("enabled")))}</div>
           <div class="ss-card-title">{html.escape(str(status.get("provider")))} · {html.escape(str(status.get("model")))}</div>
           <div>{chip("enabled" if status.get("enabled") else "fallback", tone)}{chip(str(status.get("fallback")), "neutral")}</div>
           <div class="ss-run-path">base_url={html.escape(str(status.get("base_url") or ""))}</div>

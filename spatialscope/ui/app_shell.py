@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import base64
-from functools import lru_cache
-from pathlib import Path
-
 import streamlit as st
 
 from spatialscope.ui.page_advanced import advanced_page
@@ -13,20 +9,14 @@ from spatialscope.ui.page_report import report_page
 from spatialscope.ui.page_run import run_page
 from spatialscope.ui.state import active_state
 from spatialscope.ui.v6_helpers import dataset_identity, h, llm_surface_label
-from spatialscope.ui.v7_helpers import stage_dot
-
-
-@lru_cache(maxsize=1)
-def _logo_data_uri() -> str:
-    logo_path = Path(__file__).resolve().parent / "assets" / "spatialscope-logo.svg"
-    payload = base64.b64encode(logo_path.read_bytes()).decode("ascii")
-    return f"data:image/svg+xml;base64,{payload}"
+from spatialscope.ui.helpers import agent_companion_html, spatialscope_logo_uri
 
 
 def _render_brand_header() -> None:
     state = active_state()
     llm = llm_surface_label()
-    logo = _logo_data_uri()
+    logo = spatialscope_logo_uri()
+    companion = agent_companion_html("LLM", llm, active=llm.startswith("LLM"))
     if state:
         ident = dataset_identity(state)
         title = f"SpatialScope / {ident.get('name', 'project')}"
@@ -42,7 +32,7 @@ def _render_brand_header() -> None:
                 </div>
               </div>
               <nav>
-                <span>{stage_dot(h(llm), active=llm.startswith("LLM"))}</span>
+                {companion}
                 <a href="https://github.com/seu-yolo/spatialscope-agent" target="_blank">GitHub</a>
                 <a href="https://github.com/seu-yolo/spatialscope-agent/blob/main/README.md" target="_blank">Documentation</a>
               </nav>
@@ -61,7 +51,7 @@ def _render_brand_header() -> None:
           <nav>
             <a href="https://github.com/seu-yolo/spatialscope-agent/blob/main/README.md" target="_blank">Documentation</a>
             <a href="https://github.com/seu-yolo/spatialscope-agent" target="_blank">GitHub</a>
-            <span>{h(llm)}</span>
+            {companion}
           </nav>
         </header>
         """,
