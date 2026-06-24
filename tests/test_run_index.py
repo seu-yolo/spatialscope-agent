@@ -1,5 +1,7 @@
 import json
+import os
 
+from spatialscope.ui.run_restore import latest_run_state
 from spatialscope.utils.run_index import compare_run_summaries, load_run_state
 
 
@@ -146,3 +148,29 @@ def test_load_run_state_supports_legacy_metadata_manifest(tmp_path):
     assert restored["generated_tables"][0]["path"] == str(table)
     assert restored["execution_trace"] == trace
     assert restored["quality"]["overall_status"] in {"pass", "warn", "fail"}
+
+
+def test_latest_run_state_restores_most_recent_report_run(tmp_path):
+    outdir = tmp_path / "runs"
+    older = outdir / "older"
+    newer = outdir / "newer"
+    for run_dir, run_id in [(older, "older"), (newer, "newer")]:
+        run_dir.mkdir(parents=True)
+        (run_dir / "report.html").write_text("<h1>report</h1>", encoding="utf-8")
+        (run_dir / "state_public.json").write_text(
+            json.dumps({"run_id": run_id, "user_query": run_id, "parameters": {"mode": "quick"}}),
+            encoding="utf-8",
+        )
+        (run_dir / "agent_trace.json").write_text(json.dumps([{"node": "report", "status": "success"}]), encoding="utf-8")
+
+    for path in older.rglob("*"):
+        if path.is_file():
+            os.utime(path, (1000, 1000))
+    for path in newer.rglob("*"):
+        if path.is_file():
+            os.utime(path, (2000, 2000))
+
+    restored = latest_run_state(str(outdir))
+
+    assert restored is not None
+    assert restored["run_id"] == "newer"

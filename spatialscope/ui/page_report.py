@@ -9,6 +9,7 @@ import streamlit as st
 from spatialscope.ui.components import render_report_assets
 from spatialscope.ui.components.scene_frame import scene_frame
 from spatialscope.ui.helpers import read_table_preview
+from spatialscope.ui.run_restore import restore_latest_run_if_needed
 from spatialscope.ui.v6_helpers import h
 
 
@@ -110,7 +111,7 @@ def _render_methods_and_limits(state: dict[str, Any]) -> None:
 
 
 def report_page() -> None:
-    state = st.session_state.get("run_state")
+    state = restore_latest_run_if_needed()
     if not state:
         st.markdown(
             """
@@ -122,6 +123,8 @@ def report_page() -> None:
             unsafe_allow_html=True,
         )
         return
+    if st.session_state.get("loaded_run_notice"):
+        st.caption(str(st.session_state.get("loaded_run_notice")))
     brief = state.get("research_brief") if isinstance(state.get("research_brief"), dict) else {}
     question = brief.get("normalized_question") or state.get("user_query") or ""
     with scene_frame(

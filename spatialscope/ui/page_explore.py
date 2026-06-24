@@ -4,10 +4,11 @@ import streamlit as st
 
 from spatialscope.ui.components import render_linked_explore
 from spatialscope.ui.components.scene_frame import scene_frame
+from spatialscope.ui.run_restore import restore_latest_run_if_needed
 
 
 def explore_page() -> None:
-    state = st.session_state.get("run_state")
+    state = restore_latest_run_if_needed()
     if not state:
         st.markdown(
             """
