@@ -3,6 +3,10 @@
 <img src="docs/assets/spatialscope-logo.svg" alt="SpatialScope logo" width="84" align="right">
 
 [![CI](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)](environment.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0f766e)](LICENSE)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-live-ff4b4b)](https://spatialscope-seu.streamlit.app/)
+[![GitHub Pages](https://img.shields.io/badge/Pages-project_site-6f4e8f)](https://seu-yolo.github.io/spatialscope-agent/)
 
 SpatialScope is a conversational, evidence-grounded workspace for spatial transcriptomics.
 
@@ -12,11 +16,14 @@ Natural-language question -> reviewable plan -> deterministic analysis -> linked
 
 The v6 product surface rebuilds the app around a Chinese-first research journey: Project, Run, Explore, Report, with Advanced kept separate for provenance. The scientific core remains LangGraph-orchestrated and OpenAI-compatible LLM-ready; deterministic fallback mode still supports safe demos and tests without exposing secrets.
 
-Project site: `https://seu-yolo.github.io/spatialscope-agent/`
+## Project Links
 
-Interactive app: `https://spatialscope-seu.streamlit.app/`
-
-Interactive deployment guide: [`DEPLOYMENT.md`](DEPLOYMENT.md)
+- Interactive app: https://spatialscope-seu.streamlit.app/
+- Static project site: https://seu-yolo.github.io/spatialscope-agent/
+- Deployment guide: [`DEPLOYMENT.md`](DEPLOYMENT.md)
+- Course demo script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+- Grading guide: [`docs/GRADING_GUIDE.md`](docs/GRADING_GUIDE.md)
+- Report draft: [`reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md`](reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md)
 
 ## Quick Launch
 
@@ -234,8 +241,7 @@ can use to install the Python dependencies. The deployed app will get a public
 `*.streamlit.app` URL.
 
 For grading, use the Streamlit URL as the interactive app link and the GitHub
-Pages URL as the static project overview. After deployment, add the Streamlit URL
-near the top of this README so reviewers can enter the app without cloning.
+Pages URL as the static project overview.
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the exact Cloud settings, secrets
 template, and post-deploy smoke checks.

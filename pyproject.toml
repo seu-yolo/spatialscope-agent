@@ -8,6 +8,13 @@ version = "0.1.0"
 description = "An OpenAI-compatible LangGraph agent for reproducible spatial transcriptomics exploration."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
+license = "MIT"
+authors = [{ name = "seu-yolo" }]
+keywords = ["spatial-transcriptomics", "agent", "langgraph", "streamlit", "scanpy"]
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
 dependencies = [
   "streamlit",
   "langgraph",
@@ -31,6 +38,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 spatial = ["squidpy"]
+
+[project.urls]
+Homepage = "https://seu-yolo.github.io/spatialscope-agent/"
+Repository = "https://github.com/seu-yolo/spatialscope-agent"
+Application = "https://spatialscope-seu.streamlit.app/"
+Documentation = "https://github.com/seu-yolo/spatialscope-agent/blob/main/README.md"
 
 [tool.setuptools.packages.find]
 include = ["spatialscope*"]

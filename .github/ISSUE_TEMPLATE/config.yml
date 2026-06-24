@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Live Streamlit app
+    url: https://spatialscope-seu.streamlit.app/
+    about: Try the deployed SpatialScope Agent workspace.
+  - name: Static project site
+    url: https://seu-yolo.github.io/spatialscope-agent/
+    about: Read the project overview, workflow, and deployment notes.

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: "SpatialScope Agent"
+message: "If you use this project, please cite the GitHub repository."
+type: software
+authors:
+  - name: "seu-yolo"
+repository-code: "https://github.com/seu-yolo/spatialscope-agent"
+url: "https://spatialscope-seu.streamlit.app/"
+abstract: "A LangGraph-orchestrated, evidence-linked spatial transcriptomics analysis agent with a Streamlit research workspace."
+keywords:
+  - spatial transcriptomics
+  - LangGraph
+  - Streamlit
+  - Scanpy
+  - agent
+license: MIT
+version: "0.1.0"
+date-released: "2026-06-24"
