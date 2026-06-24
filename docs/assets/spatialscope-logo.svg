@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">SpatialScope mark</title>
+  <desc id="desc">A circular spatial transcriptomics scope with clustered spots and a gold navigation path.</desc>
+  <rect width="128" height="128" rx="30" fill="#F4F5F2"/>
+  <circle cx="64" cy="64" r="45" fill="#FFFFFF" stroke="#18201C" stroke-width="7"/>
+  <circle cx="64" cy="64" r="35" fill="#E6F0ED"/>
+  <path d="M35 81c12-30 31-45 58-46" fill="none" stroke="#176B5E" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M84 30c-25 0-39 13-24 27 13 12 33 14 28 33-4 15-23 22-48 13" fill="none" stroke="#B7791F" stroke-width="6" stroke-linecap="round"/>
+  <g fill="#176B5E">
+    <circle cx="40" cy="61" r="5.2"/>
+    <circle cx="50" cy="43" r="4.6"/>
+    <circle cx="58" cy="79" r="5"/>
+    <circle cx="78" cy="53" r="4.8"/>
+    <circle cx="92" cy="73" r="5.4"/>
+  </g>
+  <g fill="#66547D">
+    <circle cx="47" cy="88" r="3.7"/>
+    <circle cx="63" cy="37" r="3.5"/>
+    <circle cx="76" cy="87" r="3.9"/>
+    <circle cx="91" cy="47" r="3.5"/>
+  </g>
+  <g fill="#FFFFFF" stroke="#18201C" stroke-width="2.4">
+    <circle cx="85" cy="30" r="5.6"/>
+    <circle cx="39" cy="103" r="4.8"/>
+  </g>
+  <circle cx="85" cy="30" r="2.2" fill="#B7791F"/>
+  <circle cx="39" cy="103" r="1.9" fill="#176B5E"/>
+</svg>

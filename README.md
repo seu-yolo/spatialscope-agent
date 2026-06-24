@@ -1,5 +1,7 @@
 # SpatialScope
 
+<img src="docs/assets/spatialscope-logo.svg" alt="SpatialScope logo" width="84" align="right">
+
 [![CI](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/seu-yolo/spatialscope-agent/actions/workflows/ci.yml)
 
 SpatialScope is a conversational, evidence-grounded workspace for spatial transcriptomics.

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import base64
+from functools import lru_cache
+from pathlib import Path
+
 import streamlit as st
 
 from spatialscope.ui.page_advanced import advanced_page
@@ -12,9 +16,17 @@ from spatialscope.ui.v6_helpers import dataset_identity, h, llm_surface_label
 from spatialscope.ui.v7_helpers import stage_dot
 
 
+@lru_cache(maxsize=1)
+def _logo_data_uri() -> str:
+    logo_path = Path(__file__).resolve().parent / "assets" / "spatialscope-logo.svg"
+    payload = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    return f"data:image/svg+xml;base64,{payload}"
+
+
 def _render_brand_header() -> None:
     state = active_state()
     llm = llm_surface_label()
+    logo = _logo_data_uri()
     if state:
         ident = dataset_identity(state)
         title = f"SpatialScope / {ident.get('name', 'project')}"
@@ -22,9 +34,12 @@ def _render_brand_header() -> None:
         st.markdown(
             f"""
             <header class="v6-brand-header active">
-              <div>
-                <div class="v6-brand-title">{h(title)}</div>
-                <div class="v6-brand-subtitle">{h(facts)}</div>
+              <div class="v6-brand-lockup">
+                <img class="v6-brand-logo" src="{logo}" alt="SpatialScope logo">
+                <div>
+                  <div class="v6-brand-title">{h(title)}</div>
+                  <div class="v6-brand-subtitle">{h(facts)}</div>
+                </div>
               </div>
               <nav>
                 <span>{stage_dot(h(llm), active=llm.startswith("LLM"))}</span>
@@ -39,7 +54,10 @@ def _render_brand_header() -> None:
     st.markdown(
         f"""
         <header class="v6-brand-header">
-          <div class="v6-brand-title">SpatialScope</div>
+          <div class="v6-brand-lockup">
+            <img class="v6-brand-logo" src="{logo}" alt="SpatialScope logo">
+            <div class="v6-brand-title">SpatialScope</div>
+          </div>
           <nav>
             <a href="https://github.com/seu-yolo/spatialscope-agent/blob/main/README.md" target="_blank">Documentation</a>
             <a href="https://github.com/seu-yolo/spatialscope-agent" target="_blank">GitHub</a>

@@ -99,6 +99,19 @@ div[data-testid="stMetric"] {
   padding-top: 18px;
 }
 
+.v6-brand-lockup {
+  align-items: center;
+  display: flex;
+  gap: 11px;
+  min-width: 0;
+}
+
+.v6-brand-logo {
+  flex: 0 0 38px;
+  height: 38px;
+  width: 38px;
+}
+
 .v6-brand-title {
   color: var(--ink);
   font-size: 20px;
