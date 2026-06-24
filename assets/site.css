@@ -50,11 +50,19 @@ a {
 }
 
 .brand {
+  align-items: center;
   color: var(--teal);
+  display: flex;
   font-size: 0.78rem;
   font-weight: 800;
+  gap: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.brand img {
+  height: 34px;
+  width: 34px;
 }
 
 .nav-links {
@@ -91,6 +99,23 @@ a {
   letter-spacing: 0.08em;
   margin-bottom: 8px;
   text-transform: uppercase;
+}
+
+.hero-mark {
+  align-items: center;
+  color: var(--teal);
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 800;
+  gap: 10px;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.hero-mark img {
+  height: 46px;
+  width: 46px;
 }
 
 h1 {
