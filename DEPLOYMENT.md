@@ -7,7 +7,7 @@ project overview; Streamlit Community Cloud serves the live Agent UI.
 
 - Static site: https://seu-yolo.github.io/spatialscope-agent/
 - GitHub repo: https://github.com/seu-yolo/spatialscope-agent
-- Interactive app: add the Streamlit URL here after deployment
+- Interactive app: https://spatialscope-seu.streamlit.app/
 
 ## Streamlit Community Cloud
 

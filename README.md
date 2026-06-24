@@ -14,6 +14,8 @@ The v6 product surface rebuilds the app around a Chinese-first research journey:
 
 Project site: `https://seu-yolo.github.io/spatialscope-agent/`
 
+Interactive app: `https://spatialscope-seu.streamlit.app/`
+
 Interactive deployment guide: [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
 ## Quick Launch

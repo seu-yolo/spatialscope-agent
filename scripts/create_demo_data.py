@@ -37,16 +37,25 @@ def create_demo_data(output: str, *, n_obs: int = 240, n_genes: int = 80, seed: 
     base[:, 8] += (coords[:, 0] < np.quantile(coords[:, 0], 0.20)) * rng.poisson(3, size=n_obs)  # Foxa2
     base[:, 9] += (coords[:, 1] < np.quantile(coords[:, 1], 0.30)) * rng.poisson(3, size=n_obs)  # Lefty2
 
+    obs_index = pd.Index(np.asarray([f"cell_{i:03d}" for i in range(n_obs)], dtype=object), dtype=object)
+    embryo_zone = np.where(
+        cluster_int <= 1,
+        "epiblast_like",
+        np.where(cluster_int >= 3, "mesoderm_like", "transition"),
+    )
+    obs = pd.DataFrame(
+        {
+            "demo_region": np.asarray(clusters, dtype=object),
+            "embryo_zone": np.asarray(embryo_zone, dtype=object),
+        },
+        index=obs_index,
+    )
+    var = pd.DataFrame(index=pd.Index(np.asarray(genes, dtype=object), dtype=object))
+
     adata = ad.AnnData(
         X=sparse.csr_matrix(base),
-        obs=pd.DataFrame(
-            {
-                "demo_region": clusters,
-                "embryo_zone": np.where(cluster_int <= 1, "epiblast_like", np.where(cluster_int >= 3, "mesoderm_like", "transition")),
-            },
-            index=[f"cell_{i:03d}" for i in range(n_obs)],
-        ),
-        var=pd.DataFrame(index=genes),
+        obs=obs,
+        var=var,
     )
     adata.obsm["spatial"] = coords
     adata.uns["organism"] = "Mus musculus"

@@ -22,10 +22,26 @@ def get_demo_preset() -> dict[str, Any]:
     return dict(DEMO_PRESET)
 
 
+def _is_valid_demo(path: Path) -> bool:
+    try:
+        import anndata as ad
+
+        adata = ad.read_h5ad(path, backed="r")
+        try:
+            has_spatial = "spatial" in adata.obsm
+            return bool(adata.n_obs > 0 and adata.n_vars > 0 and has_spatial)
+        finally:
+            adata.file.close()
+    except Exception:
+        return False
+
+
 def ensure_demo_data(path: str | Path | None = None) -> dict[str, Any]:
     target = Path(path or str(DEMO_PRESET["data_path"]))
     if target.exists():
-        return {"path": str(target), "created": False}
+        if _is_valid_demo(target):
+            return {"path": str(target), "created": False}
+        target.unlink(missing_ok=True)
 
     try:
         from scripts.create_demo_data import create_demo_data
