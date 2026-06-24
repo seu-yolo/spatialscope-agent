@@ -43,6 +43,8 @@
     .metric strong { display: block; font-size: 16px; margin-top: 4px; }
     .brief { background: var(--surface); border-left: 4px solid var(--teal); border-radius: 6px; padding: 14px 16px; }
     .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(285px, 1fr)); }
+    .visual-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .visual-grid .figure:first-child { border-color: rgba(15, 118, 110, 0.38); box-shadow: 0 12px 30px rgba(23, 32, 38, 0.08); }
     .evidence { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
     .signature { color: var(--teal); font-size: 12px; font-weight: 800; letter-spacing: 0.05em; margin-top: 10px; text-transform: uppercase; }
     .badge { border-radius: 999px; color: #fff; display: inline-block; font-size: 12px; padding: 2px 8px; }
@@ -71,6 +73,22 @@
       <div class="metric"><span>Evidence packs</span><strong>{{ evidence_packs|length }}</strong></div>
     </div>
   </header>
+
+  {% if primary_figures %}
+  <h2>Visual Evidence</h2>
+  <p class="muted">Primary spatial evidence is shown first: tissue coordinates, UMAP structure, and requested gene expression panels.</p>
+  <div class="visual-grid">
+  {% for fig in primary_figures %}
+    <section class="figure">
+      <h3>{{ fig.title }}</h3>
+      <img src="{{ fig.relpath }}" alt="{{ fig.title }}">
+      <p>{{ fig.caption }}</p>
+      {% if fig.evidence_id %}<p class="evidence">{{ fig.evidence_id }}</p>{% endif %}
+      {% if fig.svg_relpath %}<p class="muted"><a href="{{ fig.svg_relpath }}">Editable SVG</a></p>{% endif %}
+    </section>
+  {% endfor %}
+  </div>
+  {% endif %}
 
   <h2>Key Findings</h2>
   {% if findings %}
@@ -121,9 +139,10 @@
     </tbody>
   </table>
 
-  <h2>Figures</h2>
+  <h2>Supporting Figures</h2>
+  {% if supporting_figures %}
   <div class="grid">
-  {% for fig in figures %}
+  {% for fig in supporting_figures %}
     <section class="figure">
       <h3>{{ fig.title }}</h3>
       <img src="{{ fig.relpath }}" alt="{{ fig.title }}">
@@ -133,6 +152,9 @@
     </section>
   {% endfor %}
   </div>
+  {% else %}
+    <p class="muted">No additional supporting figures.</p>
+  {% endif %}
 
   <h2>Tables</h2>
   <ul>

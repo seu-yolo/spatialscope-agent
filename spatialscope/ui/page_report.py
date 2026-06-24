@@ -11,6 +11,7 @@ from spatialscope.ui.components.scene_frame import scene_frame
 from spatialscope.ui.helpers import read_table_preview
 from spatialscope.ui.run_restore import restore_latest_run_if_needed
 from spatialscope.ui.v6_helpers import h
+from spatialscope.utils.visual_priority import prioritize_visual_records
 
 
 def _static_table(frame: pd.DataFrame) -> None:
@@ -59,25 +60,46 @@ def _render_finding(finding: dict[str, Any], index: int) -> None:
         st.rerun()
 
 
+def _render_figure_panel(fig: dict[str, Any]) -> None:
+    path = Path(str(fig.get("path") or ""))
+    st.markdown("<div class='v7-evidence-panel report'>", unsafe_allow_html=True)
+    if path.exists():
+        st.image(str(path), width="stretch")
+    st.caption(str(fig.get("title") or path.name))
+    caption = str(fig.get("caption") or "").strip()
+    if caption:
+        st.markdown(f"<p class='v6-limit'>{h(caption)}</p>", unsafe_allow_html=True)
+    evidence_id = str(fig.get("evidence_id") or "").strip()
+    if evidence_id:
+        st.markdown(f"<p class='v6-limit'><code>{h(evidence_id)}</code></p>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def _render_main_evidence(state: dict[str, Any]) -> None:
-    figures = list(state.get("generated_figures", []) or [])
+    figures = prioritize_visual_records(list(state.get("generated_figures", []) or []))
     tables = list(state.get("generated_tables", []) or [])
     if not figures and not tables:
         st.info("还没有可展示的主证据。")
         return
-    if figures:
-        st.markdown("<h2 class='v6-report-section'>Main evidence</h2>", unsafe_allow_html=True)
+    primary_figures = figures[:3]
+    supporting_figures = figures[3:]
+    if primary_figures:
+        st.markdown("<h2 class='v6-report-section'>Primary visual evidence</h2>", unsafe_allow_html=True)
+        st.caption("优先展示空间结构、UMAP 拓扑和请求基因表达；QC/HVG 等方法证据放在后面。")
         cols = st.columns(2, gap="medium")
-        for col, fig in zip(cols, figures[:2]):
-            path = Path(str(fig.get("path") or ""))
+        for col, fig in zip(cols, primary_figures[:2]):
             with col:
-                st.markdown("<div class='v7-evidence-panel report'>", unsafe_allow_html=True)
-                if path.exists():
-                    st.image(str(path), width="stretch")
-                st.caption(str(fig.get("title") or path.name))
-                st.markdown("</div>", unsafe_allow_html=True)
-    if tables:
+                _render_figure_panel(fig)
+        if len(primary_figures) > 2:
+            _render_figure_panel(primary_figures[2])
+    if supporting_figures or tables:
         st.markdown("<h2 class='v6-report-section'>Supporting evidence</h2>", unsafe_allow_html=True)
+    if supporting_figures:
+        cols = st.columns(2, gap="medium")
+        for index, fig in enumerate(supporting_figures[:4]):
+            with cols[index % 2]:
+                _render_figure_panel(fig)
+    if tables:
         for table in tables[:2]:
             preview = read_table_preview(str(table.get("path") or ""), n=8)
             if preview is not None:

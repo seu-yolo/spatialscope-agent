@@ -209,3 +209,51 @@ def test_discover_runs_reads_manifest(tmp_path):
     assert runs[0]["readme_path"].endswith("README.md")
     assert runs[0]["bundle_path"].endswith("run_bundle.zip")
     assert runs[0]["complete"] is True
+
+
+def test_report_html_prioritizes_primary_visual_evidence(tmp_path):
+    run_dir = tmp_path / "visual_run"
+    figures_dir = run_dir / "figures"
+    figures_dir.mkdir(parents=True)
+    for name in [
+        "qc_metrics.png",
+        "highly_variable_genes.png",
+        "gene_panel_spatial.png",
+        "umap_leiden.png",
+        "spatial_leiden.png",
+    ]:
+        (figures_dir / name).write_bytes(b"png")
+    state = {
+        "run_id": "visual_run",
+        "run_dir": str(run_dir),
+        "data_path": "data/demo_tiny.h5ad",
+        "mode": "standard",
+        "user_query": "demo",
+        "dataset_summary": {"n_obs": 10, "n_vars": 20, "has_spatial": True},
+        "approved_plan": [],
+        "tool_contracts": list_tool_contracts(),
+        "generated_figures": [
+            {"title": "QC metric distributions", "path": str(figures_dir / "qc_metrics.png")},
+            {"title": "Highly variable genes", "path": str(figures_dir / "highly_variable_genes.png")},
+            {"title": "Gene Panel Spatial View", "path": str(figures_dir / "gene_panel_spatial.png")},
+            {"title": "UMAP by leiden", "path": str(figures_dir / "umap_leiden.png")},
+            {"title": "Spatial view: leiden", "path": str(figures_dir / "spatial_leiden.png")},
+        ],
+        "generated_tables": [],
+        "execution_trace": [],
+        "parameters": {"mode": "standard"},
+        "environment": {},
+        "final_answer": "done",
+        "repair_log": [],
+    }
+
+    result = generate_report(state)
+
+    assert result.status == "success"
+    html = (run_dir / "report.html").read_text(encoding="utf-8")
+    visual_index = html.index("Visual Evidence")
+    spatial_index = html.index("Spatial view: leiden")
+    umap_index = html.index("UMAP by leiden")
+    gene_index = html.index("Gene Panel Spatial View")
+    qc_index = html.index("QC metric distributions")
+    assert visual_index < spatial_index < umap_index < gene_index < qc_index

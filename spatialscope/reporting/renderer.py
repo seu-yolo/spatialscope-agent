@@ -5,6 +5,8 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from spatialscope.utils.visual_priority import prioritize_visual_records
+
 
 def _with_relpaths(items: list[dict[str, Any]], run_dir: Path) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
@@ -40,6 +42,7 @@ def render_report_html(
         lstrip_blocks=True,
     )
     template = env.get_template("report.html.j2")
+    figures = prioritize_visual_records(_with_relpaths(state.get("generated_figures", []), run_dir))
     return template.render(
         run_id=state.get("run_id"),
         mode=state.get("mode"),
@@ -53,7 +56,9 @@ def render_report_html(
         findings=state.get("scientific_findings", []),
         evidence_packs=state.get("evidence_packs", []),
         plan=state.get("approved_plan", []),
-        figures=_with_relpaths(state.get("generated_figures", []), run_dir),
+        figures=figures,
+        primary_figures=figures[:3],
+        supporting_figures=figures[3:],
         tables=_with_relpaths(state.get("generated_tables", []), run_dir),
         trace=state.get("execution_trace", []),
         repairs=state.get("repair_log", []),
