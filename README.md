@@ -24,7 +24,8 @@ The v6 product surface rebuilds the app around a Chinese-first research journey:
 - Submission checklist: [`docs/SUBMISSION_CHECKLIST.md`](docs/SUBMISSION_CHECKLIST.md)
 - Course demo script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
 - Grading guide: [`docs/GRADING_GUIDE.md`](docs/GRADING_GUIDE.md)
-- Report draft: [`reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md`](reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md)
+- Final report PDF: [`reports/SpatialScope_Agent_Final_Report.pdf`](reports/SpatialScope_Agent_Final_Report.pdf)
+- LaTeX report source: [`reports/final_latex/spatialscope_final_report.tex`](reports/final_latex/spatialscope_final_report.tex)
 
 ## Quick Launch
 

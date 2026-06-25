@@ -9,7 +9,7 @@ This checklist is aligned with the course assignment document
 | --- | --- | --- | --- |
 | 2026-06-25 20:00 | GitHub repository link | Ready: `https://github.com/seu-yolo/spatialscope-agent` | Submit the repository link by email before the deadline. |
 | 2026-06-26 12:00 | Deployment link, optional but recommended | Ready: `https://spatialscope-seu.streamlit.app/`; GitHub Pages also ready | Re-test Streamlit app before submitting the deployment link. |
-| 2026-06-26 24:00 | Final report in Word or PDF | Draft exists in `reports/SPATIALSCOPE_FINAL_REPORT_DRAFT.md` | Convert the draft into a polished Word/PDF report with figures and screenshots. |
+| 2026-06-26 24:00 | Final report in Word or PDF | Ready: `reports/SpatialScope_Agent_Final_Report.pdf`; LaTeX source in `reports/final_latex/` | Fill in name/student ID on the cover before final submission. |
 | 2026-06-27 afternoon | Classroom presentation with live demo | Demo script exists in `docs/DEMO_SCRIPT.md` | Build a PPT and rehearse a 5-7 minute demo. |
 
 ## Assignment Requirements Mapping
@@ -37,7 +37,7 @@ This checklist is aligned with the course assignment document
 | Spatial neighborhood analysis | Optional Squidpy-backed tool with graceful fallback | Partial / extension |
 | SVG identification | Optional Squidpy-backed tool with graceful fallback | Partial / extension |
 | Cell communication | Roadmap only | Not in v1 |
-| Automatic report generation | HTML report and report draft | Done |
+| Automatic report generation | HTML report, final PDF report, and LaTeX source | Done |
 | Frontend interaction | Streamlit app with Project, Run, Explore, Report, Advanced | Done |
 | Different spatial technologies | AnnData-compatible loader; Stereo-seq demo; broader format support described | Partial |
 | GitHub repo with code, README, environment, commands, data instructions | README, env files, scripts, data docs, CI | Done |
@@ -45,9 +45,7 @@ This checklist is aligned with the course assignment document
 
 ## Highest-Priority Remaining Work
 
-1. Prepare final report as Word/PDF.
-2. Run and save one real-data demo result using `GSM9046244_Embryo_E7.5_stereo_rep2.h5ad`.
-3. Create a PPT for the 2026-06-27 classroom presentation.
-4. Re-test the public Streamlit app after every push.
-5. Submit repository and deployment links by email with subject `姓名+学号`.
-
+1. Fill in the final report cover name/student ID.
+2. Create a PPT for the 2026-06-27 classroom presentation.
+3. Re-test the public Streamlit app after every push.
+4. Submit repository, deployment link, and final report by email with subject `姓名+学号`.
