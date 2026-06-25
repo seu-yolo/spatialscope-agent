@@ -78,8 +78,8 @@
 \setlength{\emergencystretch}{2em}
 \renewcommand{\arraystretch}{1.22}
 
-\newcommand{\studentName}{请填写姓名}
-\newcommand{\studentId}{请填写学号}
+\newcommand{\studentName}{顾兴均}
+\newcommand{\studentId}{11323112}
 \newcommand{\repoUrl}{\href{https://github.com/seu-yolo/spatialscope-agent}{github.com/seu-yolo/spatialscope-agent}}
 \newcommand{\appUrl}{\href{https://spatialscope-seu.streamlit.app/}{spatialscope-seu.streamlit.app}}
 \newcommand{\pagesUrl}{\href{https://seu-yolo.github.io/spatialscope-agent/}{seu-yolo.github.io/spatialscope-agent}}
@@ -137,12 +137,12 @@
   \vspace*{1.1cm}
   {\color{white}\Large 计算生物学期末大作业}\\[0.45cm]
   {\color{white}\fontsize{31}{38}\selectfont\bfseries SpatialScope Agent}\\[0.25cm]
-  {\color{white}\Large 面向空间转录组的证据驱动分析智能体}\\[1.3cm]
+  {\color{white}\Large 基于 LangGraph 的空间转录组分析 Agent}\\[1.3cm]
 
-  \begin{summarybox}{项目一句话}
-    SpatialScope Agent 将自然语言研究问题转化为可审阅的 LangGraph 分析流程，
-    以 Scanpy/Squidpy 风格的确定性工具完成空间转录组分析，并把图表、统计摘要、
-    LLM 解释、证据编号和可复现文件组织成一个可交互的科研工作台。
+  \begin{summarybox}{研究目标与系统概述}
+    SpatialScope Agent 面向空间转录组数据分析任务，将自然语言问题转化为可审阅的
+    LangGraph 工作流；系统以 Scanpy/AnnData 为主要分析底座，生成质量控制、降维聚类、
+    空间可视化、marker gene 分析和证据约束解释，并保留参数、图表、证据编号与可复现文件。
   \end{summarybox}
 
   \vspace{0.8cm}
@@ -160,7 +160,7 @@
   \vfill
   \begin{center}
     \includegraphics[width=0.92\textwidth]{assets/app_landing.png}\\[-0.2cm]
-    {\small\color{scopeSlate}SpatialScope 主界面：中文友好、LLM 状态、Demo 入口与证据预览。}
+    {\small\color{scopeSlate}SpatialScope 主界面：中文界面、LLM 状态、Demo 入口与证据预览。}
   \end{center}
 \end{titlepage}
 
@@ -177,12 +177,12 @@
 PCA/UMAP/Leiden 聚类、空间可视化、基因空间表达和 marker gene 分析；以 OpenAI-compatible
 LLM 接口接入 GLM 5.1，用于任务理解、研究简报、Copilot 问答和证据约束的解释生成。
 
-我对该项目的设计目标不是写一个固定脚本，而是构建一个“证据工作台”：Agent 必须先检查
-数据再规划，先生成工具证据再解释，并在最终报告中保留 evidence IDs、参数、图表、trace、
-caveats 与可复现元数据。项目已经上传 GitHub，并完成 Streamlit Cloud 在线部署。在线
-demo 经浏览器端测试可以完成从选择数据、生成方案、批准运行、查看 Explore 到打开 Report
-的完整流程；本地测试通过 99 项单元测试，并在真实 GSE278603 E7.5 mouse embryo Stereo-seq
-样本上完成 quick analysis smoke run。
+系统设计避免将 Agent 简化为固定脚本或开放式聊天界面，而是采用“数据检查、计划生成、
+工具执行、证据汇总、谨慎解释”的流程。最终报告与在线界面保留 evidence IDs、参数、图表、
+trace、caveats 与可复现元数据。项目已上传 GitHub，并完成 Streamlit Cloud 在线部署。在线
+demo 经浏览器端测试可完成选择数据、生成方案、批准运行、查看 Explore 和打开 Report 的完整流程；
+本地测试通过 99 项单元测试，并在真实 GSE278603 E7.5 mouse embryo Stereo-seq 样本上完成
+quick analysis smoke run。
 
 \begin{summarybox}{交付状态}
   \begin{itemize}
@@ -202,7 +202,7 @@ demo 经浏览器端测试可以完成从选择数据、生成方案、批准运
 课程任务明确要求使用 LangGraph 构建 Agent 核心流程，并实现空间转录组基础分析功能。
 表 \ref{tab:requirement-map} 将作业要求与项目实现逐项对齐。整体判断是：基础要求已经完整
 覆盖，扩展项中已完成在线部署、自动报告、交互式前端、空间可变基因/邻域分析接口与真实
-数据示例；细胞通讯和高级模型作为后续路线图保留，没有在 v1 中强行堆叠。
+数据示例；细胞通讯和高级模型作为后续路线图保留，暂不纳入 v1 主流程。
 
 \begin{longtable}{L{0.27\textwidth}L{0.48\textwidth}L{0.17\textwidth}}
 \caption{作业要求与 SpatialScope 实现映射。}\label{tab:requirement-map}\\
@@ -232,12 +232,11 @@ SVG / 邻域分析 & Squidpy 可选工具，未安装时 graceful fallback & 扩
 \bottomrule
 \end{longtable}
 
-\section{设计原则：把 Agent 做成证据工作台}
+\section{设计原则：证据约束的 Agent 流程}
 
-空间转录组分析的难点不只是“会不会调用 Scanpy”。真正容易出问题的是：用户以自然语言提出
-问题，而数据对象、表达层、坐标字段、聚类结果和图表解释之间存在复杂依赖。如果 Agent 没有
-状态、计划、工具契约和证据边界，它很容易退化为一个固定 notebook 或者一个会写漂亮话的聊天框。
-因此本项目采用以下设计原则。
+空间转录组分析不仅涉及 Scanpy 等工具的调用，还涉及数据对象、表达层、空间坐标字段、
+聚类结果和图表解释之间的依赖关系。若缺少明确的状态管理、计划审阅、工具契约和证据边界，
+Agent 容易退化为固定 notebook 或缺乏可复核性的对话界面。因此，本项目采用以下设计原则。
 
 \begin{decisionbox}{原则一：先检查数据，再生成计划}
   Agent 在规划前读取 AnnData 的规模、obs/var 字段、obsm 空间坐标、raw/layer 状态和表达矩阵
@@ -252,8 +251,8 @@ SVG / 邻域分析 & Squidpy 可选工具，未安装时 graceful fallback & 扩
 
 \begin{decisionbox}{原则三：每条结论必须能回到证据}
   Report 与 Copilot 输出均绑定 evidence IDs。例如 \breakcode{execute_tool:plot_spatial:figure:0}
-  和 \breakcode{gene:Pou5f1:summary}。这使用户可以从解释回到图表、表格和工具输出，而不是相信一段
-  不可追踪的文字。
+  和 \breakcode{gene:Pou5f1:summary}。该设计使解释能够回溯到图表、表格和工具输出，避免仅依赖
+  不可追踪的自然语言结论。
 \end{decisionbox}
 
 \begin{decisionbox}{原则四：主界面服务研究流程，底层审计进入 Advanced}
@@ -265,8 +264,8 @@ SVG / 邻域分析 & Squidpy 可选工具，未安装时 graceful fallback & 扩
 
 \subsection{LangGraph 工作流}
 
-图 \ref{fig:architecture} 展示了 SpatialScope 的核心 Agent 流程。它不是单次函数调用，而是一个
-可中断、可恢复、可校验、可修复的状态机。用户问题进入系统后，Agent 先检查数据，再将自然语言
+图 \ref{fig:architecture} 展示了 SpatialScope 的核心 Agent 流程。该流程并非单次函数调用，
+而是可中断、可恢复、可校验、可修复的状态机。用户问题进入系统后，Agent 先检查数据，再将自然语言
 转成 ResearchBrief 和分析计划。计划展示给用户审阅，批准后才执行工具。每个工具执行后进入
 validate 节点；如果失败或参数不安全，repair 节点会尝试修正或要求 clarification。最终，系统
 基于工具产物生成报告和 Copilot 可用的 evidence pack。
@@ -346,7 +345,7 @@ AnnData 对象不进入公共状态，而是以工作副本和摘要形式管理
 
 \section{LLM 设计与安全边界}
 
-项目使用 OpenAI-compatible 接口接入 GLM 5.1。LLM 不是“万能分析器”，而是被放在清晰边界内：
+项目使用 OpenAI-compatible 接口接入 GLM 5.1。LLM 不承担数值分析角色，而是在以下边界内参与任务理解和解释：
 
 \begin{table}[H]
 \centering
@@ -364,7 +363,7 @@ AnnData 对象不进入公共状态，而是以工作副本和摘要形式管理
 \end{table}
 
 这条边界尤其重要。空间组学数据常常维度高、样本大、解释敏感。如果把原始矩阵直接交给 LLM，
-不仅成本高，也会让结果不可复现。SpatialScope 的做法是：工具先产生可追踪证据，LLM 只能围绕
+不仅成本高，也会削弱结果的可复现性。SpatialScope 的做法是：工具先产生可追踪证据，LLM 只能围绕
 证据组织语言。
 
 \section{产品界面与交互流程}
@@ -393,8 +392,8 @@ Project 页面是用户进入系统的第一步。用户可以上传 \code{.h5ad
 \subsection{Plan Review 与 Run：Human-in-the-loop}
 
 用户批准前，Agent 会把分析方案展示为“分析契约”：每一步的目的、参数和预期产物都可见。批准后，
-Run 页面以 live events 展示 LangGraph 节点进度。这个设计是为了让用户知道 Agent 正在做什么，
-而不是面对一个不可解释的长时间 spinner。
+Run 页面以 live events 展示 LangGraph 节点进度。该设计用于呈现 Agent 的执行状态、工具参数和产物数量，
+减少对单一阻塞状态提示的依赖。
 
 \begin{figure}[H]
 \centering
@@ -453,7 +452,7 @@ Advanced & Standard + SVG 和空间邻域分析扩展；依赖 Squidpy 时启用
 \end{tabularx}
 \end{table}
 
-实现时我特别处理了表达来源安全问题。对于 count-like \code{X}，系统会生成归一化和 log1p 的
+实现中重点处理了表达来源安全问题。对于 count-like \code{X}，系统会生成归一化和 log1p 的
 \code{spatialscope_interpretation} 作为解释层；对于未知或 scaled \code{X}，如果没有安全 raw/layer，
 marker 和 gene interpretation 会被阻断或要求 clarification。这一点是为了避免在错误表达层上生成
 看似合理但科学上不可靠的解释。
@@ -522,7 +521,7 @@ Warnings / Errors & 0 / 0 \\
 
 \subsection{线上部署验收}
 
-在提交前，我对公开 Streamlit app 做了浏览器端完整验收：
+提交前已对公开 Streamlit app 做浏览器端完整验收：
 
 \begin{itemize}
   \item 线上 URL 正常打开，页面显示 \code{LLM active}。
@@ -582,10 +581,10 @@ QC 后规模 & 8190 spots，13844 genes \\
 \label{fig:real-gene-panel}
 \end{figure}
 
-真实数据验证给项目带来两个加分点。第一，它证明系统不只是为 synthetic demo 写死流程，能够识别
-真实数据中的 \code{X_spatial} 坐标并标准化为 \code{spatial}。第二，它暴露了真实数据更复杂的表达
-来源问题：矩阵被判断为 log-normalized，系统需要优先选择 raw 或安全 interpretation layer，而不是
-盲目把当前 \code{X} 当作 counts 解释。
+真实数据验证具有两方面意义。第一，系统并未依赖 synthetic demo 的固定字段，能够识别真实数据中的
+\code{X_spatial} 坐标并标准化为 \code{spatial}。第二，真实数据暴露了更复杂的表达来源问题：矩阵
+被判断为 log-normalized，系统需要优先选择 raw 或安全 interpretation layer，而不能直接将当前
+\code{X} 视为 counts 进行解释。
 
 \section{可复现性、测试与 GitHub 管理}
 
@@ -626,7 +625,7 @@ PR template、Dependabot、GitHub Actions CI 和 GitHub Pages。大型 \breakcod
 
 \section{创新性与扩展性}
 
-相对于一个固定 Scanpy notebook，本项目的创新点主要体现在以下几个方面：
+与固定 Scanpy notebook 相比，本项目的扩展设计主要体现在以下几个方面：
 
 \begin{enumerate}
   \item \textbf{Agent 化的空间组学流程。} 使用 LangGraph 显式建模节点、状态、条件边和 repair loop，
@@ -635,9 +634,9 @@ PR template、Dependabot、GitHub Actions CI 和 GitHub Pages。大型 \breakcod
   \item \textbf{Human-in-the-loop。} 分析方案需要用户审阅批准，Report finding 也提供人工 review 入口。
   \item \textbf{表达层安全机制。} 在 marker/gene interpretation 前检查 count-like、log-normalized、scaled
   或 unknown matrix state，避免错误表达来源带来的伪结论。
-  \item \textbf{中文友好的科研产品体验。} 主界面围绕 Project、Run、Explore、Report 组织，保留必要英文术语，
-  同时加入 logo、signature tags、Acknowledgements 和 Scopelet Copilot 角色感。
-  \item \textbf{真实数据可验证。} 提供 GSE278603 下载脚本和真实 E7.5 样本 quick run，而不是只依赖 toy data。
+  \item \textbf{面向研究流程的交互界面。} 主界面围绕 Project、Run、Explore、Report 组织，保留必要英文术语，
+  并通过 logo、Acknowledgements 和 Copilot 入口形成一致的视觉识别。
+  \item \textbf{真实数据可验证。} 提供 GSE278603 下载脚本和真实 E7.5 样本 quick run，降低对 toy data 的依赖。
 \end{enumerate}
 
 \section{不足与展望}
@@ -653,19 +652,18 @@ PR template、Dependabot、GitHub Actions CI 和 GitHub Pages。大型 \breakcod
   \item LLM 解释质量依赖 evidence pack 的组织方式，仍需要人工生物学审阅。
 \end{itemize}
 
-未来可以继续扩展：引入更强的空间可变基因统计、多 run 对比、marker ontology 映射、细胞类型注释建议、
+未来可以继续扩展：引入更系统的空间可变基因统计、多 run 对比、marker ontology 映射、细胞类型注释建议、
 PDF/Word 自动报告导出，以及面向真实大型数据的远程计算后端。
 
 \section{总结}
 
-SpatialScope Agent 完成了从作业要求到高质量项目形态的转化。它不仅能完成空间转录组基础分析，
-还把 Agent 的核心思想 - 状态、工具、计划、循环、修复、记忆和解释 - 变成了用户可以在浏览器中
-实际体验的流程。项目的核心价值不在于某一个单独算法，而在于把自然语言、空间组学工具、LLM 解释、
-可视化和可复现性组织成一个整体。
+SpatialScope Agent 根据课程任务完成了一个可运行、可部署、可复核的空间转录组分析系统。系统不仅覆盖
+\code{.h5ad} 读取、质量控制、预处理、降维聚类、空间可视化和 marker gene 分析等基础功能，还将
+Agent 的状态、工具、计划、循环、修复和解释机制整合到浏览器端流程中。
 
-从评分角度看，系统完整性、空间转录组分析功能、创新性、报告和展示都已有明确支撑：GitHub 可运行，
-在线部署可访问，测试和真实数据 run 已通过，报告和 demo script 已准备。后续课堂展示中，最应该强调的
-不是“我调用了哪些包”，而是“我如何让 Agent 先理解数据、再制定计划、再生成证据、最后谨慎解释”。
+从系统完整性看，项目已包含 GitHub 仓库、环境配置、测试、在线部署、真实数据 smoke run、最终报告和
+课堂 demo script。从科学可靠性看，系统对表达层安全、证据编号、局限性说明和 LLM 边界进行了显式约束。
+后续课堂展示可重点说明 Agent 如何先理解数据、再制定计划、再生成证据，并在证据边界内进行解释。
 
 \section*{Acknowledgements}
 \addcontentsline{toc}{section}{Acknowledgements}
