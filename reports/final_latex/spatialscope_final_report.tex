@@ -102,6 +102,7 @@
 \newtcolorbox{summarybox}[1]{
   colback=scopeMist,
   colframe=scopeTeal,
+  colbacktitle=scopeTeal,
   title=#1,
   fonttitle=\bfseries,
   coltitle=white
@@ -110,17 +111,19 @@
 \newtcolorbox{riskbox}[1]{
   colback=white,
   colframe=scopeGold,
+  colbacktitle=scopeGold!85!black,
   title=#1,
   fonttitle=\bfseries,
-  coltitle=scopeInk
+  coltitle=white
 }
 
 \newtcolorbox{decisionbox}[1]{
   colback=white,
-  colframe=scopePlum,
+  colframe=scopeTeal,
+  colbacktitle=scopeTeal,
   title=#1,
   fonttitle=\bfseries,
-  coltitle=scopeInk
+  coltitle=white
 }
 
 \begin{document}
@@ -274,46 +277,47 @@ validate 节点；如果失败或参数不安全，repair 节点会尝试修正�
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  node distance=1.35cm and 1.25cm,
-  box/.style={rounded corners=2mm, draw=scopeTeal, fill=scopeMist, thick, align=center, minimum width=2.55cm, minimum height=0.95cm, font=\small},
-  side/.style={rounded corners=2mm, draw=scopePlum, fill=scopePlum!8, thick, align=center, minimum width=2.75cm, minimum height=0.95cm, font=\small},
-  warn/.style={rounded corners=2mm, draw=scopeGold, fill=scopeGold!12, thick, align=center, minimum width=2.75cm, minimum height=0.95cm, font=\small},
-  arr/.style={->, thick, color=scopeTeal},
-  loop/.style={->, thick, color=scopeGold}
+  x=1cm,
+  y=1cm,
+  main/.style={rounded corners=2mm, draw=scopeTeal!92!black, fill=scopeMist, line width=0.75pt,
+    align=center, minimum width=2.35cm, minimum height=1.00cm, font=\small},
+  review/.style={rounded corners=2mm, draw=scopeGold!85!black, fill=scopeGold!13, line width=0.75pt,
+    align=center, minimum width=2.35cm, minimum height=1.00cm, font=\small},
+  support/.style={rounded corners=2mm, draw=scopeBlue!80!black, fill=scopeBlue!6, line width=0.7pt,
+    align=center, minimum height=0.82cm, font=\small},
+  statebox/.style={rounded corners=2mm, draw=scopeSlate!80!black, fill=scopeSlate!7, line width=0.7pt,
+    align=center, minimum height=0.82cm, font=\small},
+  arrow/.style={-{Stealth[length=2.3mm,width=1.8mm]}, line width=0.8pt, draw=scopeTeal!90!black},
+  looparrow/.style={-{Stealth[length=2.3mm,width=1.8mm]}, line width=0.8pt, draw=scopeGold!85!black},
+  softarrow/.style={-{Stealth[length=2.0mm,width=1.5mm]}, dashed, line width=0.65pt, draw=scopeBlue!80!black}
 ]
-\node[box] (user) {自然语言\\研究问题};
-\node[box, right=of user] (inspect) {inspect\\dataset};
-\node[box, right=of inspect] (parse) {parse\\request};
-\node[box, right=of parse] (plan) {plan\\analysis};
-\node[warn, below=of plan] (review) {human\\plan review};
-\node[box, left=of review] (exec) {execute\\tool};
-\node[box, left=of exec] (validate) {validate\\result};
-\node[warn, below=of validate] (repair) {repair /\\clarify};
-\node[box, left=of validate] (interpret) {interpret\\evidence};
-\node[box, left=of interpret] (report) {report /\\Explore};
-\node[side, above=of parse] (llm) {GLM 5.1 /\\LLM sidecar};
-\node[side, above=of exec] (tools) {Scanpy-style\\tool registry};
-\node[side, below=of exec] (state) {LangGraph state\\trace + metadata};
+\node[main] (inspect) at (0,0) {输入与检查\\问题 + AnnData};
+\node[main] (parse) at (2.50,0) {任务解析\\ResearchBrief};
+\node[review] (plan) at (5.00,0) {方案审阅\\人工批准};
+\node[main] (execute) at (7.50,0) {工具执行\\QC / UMAP};
+\node[review] (validate) at (10.00,0) {校验修复\\安全检查};
+\node[main] (report) at (12.50,0) {证据报告\\Explore / Report};
 
-\draw[arr] (user) -- (inspect);
-\draw[arr] (inspect) -- (parse);
-\draw[arr] (parse) -- (plan);
-\draw[arr] (plan) -- (review);
-\draw[arr] (review) -- (exec);
-\draw[arr] (exec) -- (validate);
-\draw[arr] (validate) -- (interpret);
-\draw[arr] (interpret) -- (report);
-\draw[loop] (validate) -- (repair);
-\draw[loop] (repair) -- (exec);
-\draw[arr] (llm) -- (parse);
-\draw[arr] (llm) -- (plan);
-\draw[arr] (llm) to[bend left=10] (interpret);
-\draw[arr] (tools) -- (exec);
-\draw[arr] (state) -- (exec);
-\draw[arr] (state) -- (validate);
+\node[support, minimum width=6.20cm] (llm) at (3.75,1.55) {LLM 支持模块（GLM 5.1）\\理解问题、补全计划、生成证据约束解释};
+\node[support, minimum width=4.70cm] (tools) at (7.50,-1.75) {确定性工具层\\Scanpy / AnnData / 图表生成};
+\node[statebox, minimum width=4.95cm] (state) at (11.25,1.55) {状态与证据层\\trace、metadata、parameters、evidence IDs};
+
+\draw[arrow] (inspect) -- (parse);
+\draw[arrow] (parse) -- (plan);
+\draw[arrow] (plan) -- (execute);
+\draw[arrow] (execute) -- (validate);
+\draw[arrow] (validate) -- (report);
+
+\draw[looparrow] (validate.south) |- node[pos=0.22,right,font=\scriptsize,color=scopeGold!85!black]{失败或不安全} ([yshift=-0.95cm]validate.south) -| (execute.south);
+
+\draw[softarrow] (llm.south west) -- (parse.north);
+\draw[softarrow] (llm.south) -- (plan.north);
+\draw[softarrow] (tools.north) -- (execute.south);
+\draw[softarrow] (state.south west) -- (validate.north);
+\draw[softarrow] (state.south east) -- (report.north);
 \end{tikzpicture}
 }
-\caption{SpatialScope Agent 的 LangGraph 架构。LLM 是理解和解释侧车，确定性分析由工具层完成；状态、trace、metadata 和 repair 贯穿全流程。}
+\caption{SpatialScope Agent 的 LangGraph 架构。主流程从输入与数据检查开始，经过任务解析、方案生成与人工审阅后进入确定性工具执行；校验失败或表达层不安全时回到工具执行前进行修复；LLM、工具层和状态证据层分别承担理解、计算和可复核记录。}
 \label{fig:architecture}
 \end{figure}
 
