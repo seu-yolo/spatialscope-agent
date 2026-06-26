@@ -25,7 +25,6 @@ The v6 product surface rebuilds the app around a Chinese-first research journey:
 - Course demo script: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
 - PPT + website walkthrough: [`docs/PRESENTATION_WALKTHROUGH.md`](docs/PRESENTATION_WALKTHROUGH.md)
 - Grading guide: [`docs/GRADING_GUIDE.md`](docs/GRADING_GUIDE.md)
-- Final presentation deck: [`reports/SpatialScope_Agent_Presentation.pptx`](reports/SpatialScope_Agent_Presentation.pptx)
 - Final report PDF: [`reports/SpatialScope_Agent_Final_Report.pdf`](reports/SpatialScope_Agent_Final_Report.pdf)
 - LaTeX report source: [`reports/final_latex/spatialscope_final_report.tex`](reports/final_latex/spatialscope_final_report.tex)
 

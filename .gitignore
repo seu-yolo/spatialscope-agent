@@ -17,6 +17,7 @@ env/
 outputs/runs/
 outputs/checkpoints/
 outputs/tmp/
+tmp/
 *.log
 
 data/*.h5ad
@@ -27,4 +28,7 @@ data/*.tar.gz
 !data/README.md
 
 ~$*.docx
+~$*.pptx
 *.tmp
+
+reports/SpatialScope_Agent_Presentation.pptx

@@ -1,6 +1,6 @@
 # SpatialScope Agent 答辩讲解流程
 
-这份流程用于配合 `reports/SpatialScope_Agent_Presentation.pptx` 和在线网站：
+这份流程用于配合本地 PPT 和在线网站；PPT 文件不纳入 GitHub 仓库版本：
 
 https://spatialscope-seu.streamlit.app/
 
