@@ -4,6 +4,8 @@
 
 https://spatialscope-seu.streamlit.app/
 
+PPT 的 speaker notes 已经内置逐页讲稿和操作提示。正式演示时建议使用 PowerPoint/Keynote 的演讲者视图。
+
 建议时间：12-15 分钟。
 
 ## 总体节奏
