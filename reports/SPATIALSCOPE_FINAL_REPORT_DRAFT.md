@@ -226,15 +226,15 @@ Assistant Binyu Gao for guidance and support throughout the course project.
 
 ## 参考资料
 
-- Wolf, F. A., Angerer, P., and Theis, F. J. Scanpy: large-scale single-cell gene expression data analysis. Genome Biology 19, 15 (2018). https://doi.org/10.1186/s13059-017-1382-0
-- Palla, G. et al. Squidpy: a scalable framework for spatial omics analysis. Nature Methods 19, 171-178 (2022). https://doi.org/10.1038/s41592-021-01358-2
+- Wolf, F. A., Angerer, P., and Theis, F. J. Scanpy: large-scale single-cell gene expression data analysis. Genome Biology 19(1), 15 (2018). https://doi.org/10.1186/s13059-017-1382-0
+- Palla, G. et al. Squidpy: a scalable framework for spatial omics analysis. Nature Methods 19(2), 171-178 (2022). https://doi.org/10.1038/s41592-021-01358-2
 - Virshup, I. et al. anndata: Access and store annotated data matrices. Journal of Open Source Software 9(101), 4371 (2024). https://doi.org/10.21105/joss.04371
 - Righelli, D. et al. SpatialExperiment: infrastructure for spatially-resolved transcriptomics data in R using Bioconductor. Bioinformatics 38(11), 3128-3131 (2022). https://doi.org/10.1093/bioinformatics/btac299
-- OSTA: https://www.bioconductor.org/books/OSTA/
+- Crowell, H. L. et al. Orchestrating spatial transcriptomics analysis with Bioconductor. bioRxiv (2025). https://doi.org/10.1101/2025.11.20.688607; online book: https://www.bioconductor.org/books/OSTA/
 - Scanpy documentation: https://scanpy.readthedocs.io/
 - AnnData documentation: https://anndata.readthedocs.io/
 - Squidpy documentation: https://squidpy.readthedocs.io/
 - LangGraph documentation: https://docs.langchain.com/oss/python/langgraph/overview
 - Streamlit documentation: https://docs.streamlit.io/
-- NCBI GEO GSE278603: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE278603
-- Xie, P., Shen, J., Yang, Y., et al. Digital reconstruction of full embryos during early mouse organogenesis. Cell (2025). https://doi.org/10.1016/j.cell.2025.05.035
+- NCBI GEO Series GSE278603: Digital reconstruction of spatiotemporal atlas unveils the cellular origins and signaling networks underlying early mouse organogenesis. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE278603
+- Xie, P., Shen, J., Yang, Y., et al. Digital reconstruction of full embryos during early mouse organogenesis. Cell 188(17), 4754-4772.e18 (2025). https://doi.org/10.1016/j.cell.2025.05.035
