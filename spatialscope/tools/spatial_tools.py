@@ -35,6 +35,17 @@ def _gene_vector(adata: Any, gene: str, *, expression_layer: str | None = None) 
     return _dense_vector(adata.X[:, idx])
 
 
+def _small_multiple_grid(n_panels: int) -> tuple[int, int]:
+    if n_panels <= 1:
+        return 1, 1
+    if n_panels == 2:
+        return 1, 2
+    if n_panels == 4:
+        return 2, 2
+    ncols = min(3, n_panels)
+    return int(np.ceil(n_panels / ncols)), ncols
+
+
 def _safe_expression_layer(adata: Any, requested: str) -> tuple[str | None, str | None]:
     layers = getattr(adata, "layers", {})
     if requested in layers:
@@ -238,9 +249,8 @@ def plot_gene_panel(
             observations={"requested_genes": genes, "resolved_genes": resolved, "expression_layer": expression_layer},
         )
     n = len(resolved)
-    ncols = min(3, n)
-    nrows = int(np.ceil(n / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.35 * nrows), squeeze=False, constrained_layout=True)
+    nrows, ncols = _small_multiple_grid(n)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.7 * ncols, 3.25 * nrows), squeeze=False, constrained_layout=True)
     point_size = max(3, min(22, 12000 / max(adata.n_obs, 1)))
     labels = adata.obs["leiden"].astype(str) if "leiden" in adata.obs else None
     gene_summaries: list[dict[str, Any]] = []

@@ -70,6 +70,11 @@
   labelfont={bf,color=scopeTeal},
   textfont={small,color=scopeSlate}
 }
+\captionsetup[subfigure]{
+  justification=raggedright,
+  singlelinecheck=false,
+  skip=0.25em
+}
 
 \setlist[itemize]{leftmargin=1.4em,itemsep=0.25em,topsep=0.25em}
 \setlist[enumerate]{leftmargin=1.6em,itemsep=0.25em,topsep=0.25em}
@@ -85,6 +90,12 @@
 \newcommand{\pagesUrl}{\href{https://seu-yolo.github.io/spatialscope-agent/}{seu-yolo.github.io/spatialscope-agent}}
 \newcommand{\code}[1]{\texttt{\detokenize{#1}}}
 \newcommand{\breakcode}[1]{\begingroup\ttfamily\small\nolinkurl{#1}\endgroup}
+\newcommand{\screenshot}[1]{%
+  \begingroup
+  \setlength{\fboxsep}{0pt}%
+  \fcolorbox{scopeLine}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxrule\relax]{#1}}%
+  \endgroup
+}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
@@ -448,12 +459,12 @@ Project 页面是用户进入系统的第一步。用户可以上传 \code{.h5ad
 \begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_landing.png}
+  \screenshot{assets/app_landing.png}
   \caption{项目入口：自然语言问题、demo 数据、LLM 状态和视觉签名。}
 \end{subfigure}
 \hfill
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_dataset_understood.png}
+  \screenshot{assets/app_dataset_understood.png}
   \caption{数据理解：spots、genes、空间坐标和表达矩阵状态。}
 \end{subfigure}
 \caption{Project 页面体现“先理解数据，再制定计划”的交互原则。}
@@ -469,12 +480,12 @@ Run 页面以 live events 展示 LangGraph 节点进度。该设计用于呈现 
 \begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_plan_review.png}
+  \screenshot{assets/app_plan_review.png}
   \caption{Plan Review：7 步标准分析方案和可调参数。}
 \end{subfigure}
 \hfill
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_run_live.png}
+  \screenshot{assets/app_run_live.png}
   \caption{Run：LangGraph 事件流、当前工具、参数和产物数量。}
 \end{subfigure}
 \caption{从计划批准到实时执行的 human-in-the-loop 流程。}
@@ -490,12 +501,12 @@ finding、quantitative support、evidence IDs 与 caveats 组织成可审阅的 
 \begin{figure}[H]
 \centering
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_explore.png}
+  \screenshot{assets/app_explore.png}
   \caption{Explore：Spatial + UMAP 联动，Copilot 绑定当前 evidence。}
 \end{subfigure}
 \hfill
 \begin{subfigure}{0.49\textwidth}
-  \includegraphics[width=\linewidth]{assets/app_report.png}
+  \screenshot{assets/app_report.png}
   \caption{Report：finding、证据、局限和 primary visual evidence。}
 \end{subfigure}
 \caption{主展示页面强调证据、可视化和谨慎解释。}
@@ -570,7 +581,7 @@ Warnings / Errors & 0 / 0 \\
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.96\textwidth]{assets/demo_gene_panel.png}
+\includegraphics[width=0.9\textwidth]{assets/demo_gene_panel.png}
 \caption{请求基因 Pou5f1、Sox17、T、Mesp1 的空间表达 panel。图表只作为 demo 数据上的流程展示，不被解释为真实生物学发现。}
 \label{fig:demo-gene-panel}
 \end{figure}
@@ -610,8 +621,8 @@ Warnings / Errors & 0 / 0 \\
 本项目使用 NCBI GEO 公开数据集 GSE278603 作为真实数据 smoke test。该 series 的研究背景与
 2025 年 \textit{Cell} 论文 ``Digital reconstruction of full embryos during early mouse organogenesis''
 一致，均围绕早期小鼠胚胎的 Stereo-seq 空间转录组图谱。本项目提供
-\code{scripts/download_real_demo.sh} 下载脚本，从 GEO 官方补充文件中提取
-\code{GSM9046244_Embryo_E7.5_stereo_rep2.h5ad}。该文件约 31 MB，适合课程项目 smoke test。
+\breakcode{scripts/download_real_demo.sh} 下载脚本，从 GEO 官方补充文件中提取
+\breakcode{GSM9046244_Embryo_E7.5_stereo_rep2.h5ad}。该文件约 31 MB，适合课程项目 smoke test。
 
 \begin{table}[H]
 \centering
@@ -649,7 +660,7 @@ QC 后规模 & 8190 spots，13844 genes \\
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.96\textwidth]{assets/real_gene_panel.png}
+\includegraphics[width=0.9\textwidth]{assets/real_gene_panel.png}
 \caption{真实样本中 Sox17、T、Mesp1、Pou5f1 的空间表达 quick panel。该结果用于验证工具链可处理真实 Stereo-seq AnnData，不作为完整生物学结论。}
 \label{fig:real-gene-panel}
 \end{figure}

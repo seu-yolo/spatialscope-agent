@@ -6,7 +6,7 @@ import anndata as ad
 import numpy as np
 
 from spatialscope.agent.runtime import AgentRuntime
-from spatialscope.tools.spatial_tools import plot_gene_panel
+from spatialscope.tools.spatial_tools import _small_multiple_grid, plot_gene_panel
 
 
 def _write_tiny_h5ad(path: Path, *, with_leiden: bool = False) -> Path:
@@ -31,6 +31,13 @@ def _write_tiny_h5ad(path: Path, *, with_leiden: bool = False) -> Path:
         adata.obs["leiden"] = ["0", "0", "1", "1", "2", "2", "3", "3"]
     adata.write_h5ad(path)
     return path
+
+
+def test_gene_panel_prefers_balanced_four_panel_grid():
+    assert _small_multiple_grid(1) == (1, 1)
+    assert _small_multiple_grid(2) == (1, 2)
+    assert _small_multiple_grid(4) == (2, 2)
+    assert _small_multiple_grid(5) == (2, 3)
 
 
 def test_runtime_interrupt_resume_keeps_state_serializable(tmp_path, monkeypatch):
