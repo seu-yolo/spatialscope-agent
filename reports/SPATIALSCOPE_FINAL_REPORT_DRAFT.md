@@ -183,7 +183,21 @@ pack。
 - GitHub Pages：静态项目首页。
 - Streamlit Cloud：公开交互式 Agent。
 
-## 10. 局限性
+## 10. 创新性
+
+本项目的创新性不在于提出新的聚类算法，而在于把成熟的空间转录组分析流程重构成
+一个可审阅、可修复、证据约束、可部署的科研 Agent。与固定 Scanpy notebook 相比，
+SpatialScope 把一次性脚本执行变成了围绕数据、计划、工具、证据和解释持续流动的研究工作台。
+
+可以概括为：
+
+- 标准空间转录组流程被显式 Agent 化：数据检查、计划审阅、执行、校验、修复、解释和报告都有状态记录。
+- LLM 被限制在 evidence pack 与 schema validation 内，不接触完整矩阵，不生成无证据结论。
+- Copilot 和 Report 必须显示 exact evidence IDs，使解释能反查到具体图、表或统计摘要。
+- 表达层安全检查阻止把 scaled 或 unknown matrix state 当作可靠表达来源解释。
+- 浏览器端 Project、Run、Explore、Report 让用户能真正体验 Agent 行为，而不是只看到代码或 JSON。
+
+## 11. 局限性
 
 当前版本仍有以下限制：
 
@@ -193,7 +207,7 @@ pack。
 - Streamlit Community Cloud 对大型空间组学数据的内存和启动时间有限。
 - LLM 解释依赖 evidence pack 质量，不能替代人工生物学审阅。
 
-## 11. 未来工作
+## 12. 未来工作
 
 后续可以扩展：
 
@@ -203,7 +217,7 @@ pack。
 - 支持多 run 对比和参数敏感性分析。
 - 将报告导出为 PDF / Word 版本，便于课程提交。
 
-## 12. 致谢
+## 13. 致谢
 
 We gratefully acknowledge Professor Peng Xie from the School of Biological
 Science and Medical Engineering, Southeast University. We also thank Teaching
@@ -211,9 +225,15 @@ Assistant Binyu Gao for guidance and support throughout the course project.
 
 ## 参考资料
 
+- Wolf, F. A., Angerer, P., and Theis, F. J. Scanpy: large-scale single-cell gene expression data analysis. Genome Biology 19, 15 (2018). https://doi.org/10.1186/s13059-017-1382-0
+- Palla, G. et al. Squidpy: a scalable framework for spatial omics analysis. Nature Methods 19, 171-178 (2022). https://doi.org/10.1038/s41592-021-01358-2
+- Virshup, I. et al. anndata: Access and store annotated data matrices. Journal of Open Source Software 9(101), 4371 (2024). https://doi.org/10.21105/joss.04371
+- Righelli, D. et al. SpatialExperiment: infrastructure for spatially-resolved transcriptomics data in R using Bioconductor. Bioinformatics 38(11), 3128-3131 (2022). https://doi.org/10.1093/bioinformatics/btac299
+- OSTA: https://www.bioconductor.org/books/OSTA/
 - Scanpy documentation: https://scanpy.readthedocs.io/
 - AnnData documentation: https://anndata.readthedocs.io/
 - Squidpy documentation: https://squidpy.readthedocs.io/
-- LangGraph documentation: https://langchain-ai.github.io/langgraph/
+- LangGraph documentation: https://docs.langchain.com/oss/python/langgraph/overview
 - Streamlit documentation: https://docs.streamlit.io/
 - NCBI GEO GSE278603: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE278603
+- Xie, P., Shen, J., Yang, Y., et al. Digital reconstruction of full embryos during early mouse organogenesis. Cell (2025). https://doi.org/10.1016/j.cell.2025.05.035
